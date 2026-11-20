@@ -1,0 +1,212 @@
+# Copy to company.toml and fill in your own names. company.toml is not committed.
+
+private = false
+
+[books]
+bg = "Bakery A"
+md = "Bakery B"
+admin = "Office"
+
+[part_time]
+bg = "Bakery A part-time"
+md = "Bakery B part-time"
+
+[match]
+second_company = ["Pastry", "Bakery B"]
+
+[documents]
+allowance_title = "Bakery A Allowance Summary"
+
+[[groups]]
+key = "admin"
+label = "Office"
+prefix = "A"
+
+[[groups]]
+key = "bg_prod"
+label = "Bakery A production"
+prefix = "B"
+
+[[groups]]
+key = "bg_retail"
+label = "Bakery A retail"
+prefix = "R"
+
+[[groups]]
+key = "bg_pt"
+label = "Bakery A part-time"
+prefix = "RPT"
+
+[[groups]]
+key = "bg_esl"
+label = "Bakery A contract"
+prefix = "ESL"
+
+[[groups]]
+key = "md_ft"
+label = "Bakery B full-time"
+prefix = "P"
+
+[[groups]]
+key = "md_pt"
+label = "Bakery B part-time"
+prefix = "SPKPT"
+
+[[groups]]
+key = "md_esl"
+label = "Bakery B contract"
+prefix = "ESL"
+
+[[locations]]
+label = "Shop 1 production"
+code = "JD_Bread"
+file_token = "JD_Bread"
+
+[[locations]]
+label = "Shop 1 retail"
+code = "JD_Retail"
+file_token = "JD_Retail"
+
+[[locations]]
+label = "Shop 2 production"
+code = "WC_Bread"
+file_token = "WC_Bread"
+
+[[locations]]
+label = "Shop 2 retail"
+code = "WC_Retail"
+file_token = "WC_Retail"
+
+[[locations]]
+label = "Shop 3 production"
+code = "TW_Bread"
+file_token = "TW_Bread"
+
+[[locations]]
+label = "Shop 3 retail"
+code = "TW_Retail"
+file_token = "TW_Retail"
+
+[[locations]]
+label = "Shop 4 production"
+code = "TKS_Bread"
+file_token = "TKS_Bread"
+
+[[locations]]
+label = "Shop 4 retail"
+code = "TKS_Retail"
+file_token = "TKS_Retail"
+
+[[locations]]
+label = "Shop 5 retail"
+code = "HKU_Retail"
+file_token = "HKU_Retail"
+
+[[locations]]
+label = "Central production"
+code = "3F_Bread"
+file_token = "3F_BG"
+
+[[locations]]
+label = "Bakery B"
+code = "3F_Pastry"
+file_token = "MD_"
+
+[[locations]]
+label = "Office"
+code = "11F"
+file_token = "Office"
+
+[[shops]]
+label = "All"
+code = ""
+
+[[shops]]
+label = "Shop 1"
+code = "JD"
+
+[[shops]]
+label = "Shop 2"
+code = "WC"
+
+[[shops]]
+label = "Shop 3"
+code = "TW"
+
+[[shops]]
+label = "Shop 4"
+code = "TKS"
+
+[[shops]]
+label = "Shop 5"
+code = "HKU"
+
+[[shops]]
+label = "Central kitchen"
+code = "SPK"
+
+[[shops]]
+label = "Bakery B pastry"
+code = "Pastry"
+
+[[shops]]
+label = "Office"
+code = "11F"
+
+[punch_places]
+JD = "Shop 1"
+WC = "Shop 2"
+TW = "Shop 3"
+TKS = "Shop 4"
+HKU = "Shop 5"
+SPK = "Central"
+"3F" = "Central"
+Pastry = "Bakery B"
+"11/F Office" = "Office"
+"11F" = "Office"
+Office = "Office"
+
+[[roster_sources]]
+folder = "Central kitchen"
+pattern = "3F_BG_roaster_{year}_{mon}"
+code = "3F_Bread"
+
+[[roster_sources]]
+folder = "Bakery B pastry"
+pattern = "MD_roaster_{year}_{mon}"
+code = "3F_Pastry"
+
+[[roster_sources]]
+folder = "Office"
+pattern = "Office roaster_{year}_{mon}"
+code = "11F"
+
+[rosters]
+bread = ["JD", "TKS", "TW", "WC"]
+retail = ["HKU", "JD", "TKS", "TW", "WC"]
+
+[paths]
+staff_record = ""
+roster_sheets = ""
+roster_copies = ""
+accounting = ""
+
+[daka]
+server = ""
+remote = ""
+company = "Example company"
+save_package = "hk.example.dakasave"
+logo = "app/assets/logo.jpg"
+
+[people]
+varying_pay = ["Person G", "Person H", "Person I"]
+
+[people.manual_pay]
+X001 = "Enter this month's amount by hand."
+
+[users.user]
+name = "there"
+role = "admin"
+
+[privacy]
+words = ["Bakery A", "Bakery B", "Example company"]

@@ -1,0 +1,15 @@
+{
+  "package": "com.dakaclock.dakaclock",
+  "logged_out": ["登入", "登錄", "Login", "密碼"],
+  "dialog": ["Export Documents", "匯出文件", "导出文件"],
+  "company": "[company name]",
+  "back": ["编辑公司资料", "編輯公司資料"],
+  "tab": "Office",
+  "open": "Export button",
+  "open_text": ["匯出", "导出", "Export"],
+  "export": "Export",
+  "start": ["Start Date", "開始日期", "开始日期"],
+  "end": ["End Date", "結束日期", "结束日期"],
+  "save_label": "DAKA Save",
+  "save_package": "hk.example.dakasave"
+}
