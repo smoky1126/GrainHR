@@ -268,6 +268,14 @@ def page_attendance():
         (f"缺勤 {absent}", "block" if absent else "muted"),
     ])
     legend()
+    if "Late" in shown.columns and "Date" in shown.columns and len(shown):
+        from app.components.charts import bars
+        late_rows = shown.copy()
+        late_rows["遲到分鐘"] = pd.to_numeric(late_rows["Late"], errors="coerce").fillna(0)
+        by_day = late_rows.groupby(late_rows["Date"].astype(str), as_index=False)["遲到分鐘"].sum()
+        if len(by_day):
+            st.altair_chart(bars(by_day, "Date", "遲到分鐘", title="每日遲到分鐘"), use_container_width=True)
+            st.caption("這段日期的遲到分鐘合計。")
     narrow = (not whole) or bool(shop_code) or chosen != "全部"
     frame = shown if narrow else shown.head(400)
     st.dataframe(
