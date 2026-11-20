@@ -107,5 +107,5 @@ def page_overview():
     if cost_rows:
         import pandas as pd
         from app.components.charts import bars
-        st.altair_chart(bars(pd.DataFrame(cost_rows), "糧單", "淨薪金", title="各糧單淨薪金"), use_container_width=True)
+        st.altair_chart(bars(pd.DataFrame(cost_rows), "糧單", "淨薪金", title="各糧單淨薪金"), width="stretch")
         st.caption("各糧單淨薪金合計，未計未批准的改動。")

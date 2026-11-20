@@ -185,11 +185,15 @@ code = "11F"
 bread = ["JD", "TKS", "TW", "WC"]
 retail = ["HKU", "JD", "TKS", "TW", "WC"]
 
+[history]
+issued_through = ""
+
 [paths]
 staff_record = ""
 roster_sheets = ""
 roster_copies = ""
 accounting = ""
+attendance_archive = ""
 
 [daka]
 server = ""

@@ -15,6 +15,7 @@ from payroll.staff.staff_write import (
 )
 from payroll.staff.staff_write import _log_path
 
+from payroll.core.history import is_issued
 from payroll.core.settings import prefixes
 
 _PREFIX = prefixes()
@@ -57,7 +58,8 @@ def _locked_note(readonly, demo):
 def _save(action):
     with st.spinner("正在寫入員工檔…"):
         action()
-    st.toast("已寫入員工檔。")
+    stamp = date.today().strftime("%Y%m%d")
+    st.toast(f"已寫入員工檔，版本是 Staff_info_{stamp}。")
     st.rerun()
 
 
@@ -81,9 +83,11 @@ def _history(employee_no):
     st.dataframe(pd.concat(frames, ignore_index=True), hide_index=True, width="stretch")
 
 
-def _profile(row, info, locked, staff):
+def _profile(row, info, locked):
+    """Show one person. Returns which dialog button was pressed on this run."""
     st.subheader(f"{row['employee_no']} {row['name_zh'] or row['name_en']}")
     work, pay, personal, history = st.tabs(["工作", "薪金及假期", "個人資料", "修改記錄"])
+    action = None
     with work:
         left, right = st.columns(2)
         left.write(f"職位：{row['position'] or '—'}")
@@ -95,9 +99,9 @@ def _profile(row, info, locked, staff):
         right.write(f"合約完結：{_iso(row['contract_end']) or '—'}")
         right.write(f"狀況：{row['status']}")
         if st.button("修改資料", key="staff-edit", disabled=locked):
-            st.session_state["staff_edit"] = row["employee_no"]
+            action = "edit"
         if row["status"] == "在職" and st.button("離職", key="staff-resign", disabled=locked):
-            st.session_state["staff_resign"] = row["employee_no"]
+            action = "resign"
     with pay:
         left, right = st.columns(2)
         if row["pay_basis"] == "時薪":
@@ -108,8 +112,10 @@ def _profile(row, info, locked, staff):
         left.metric("本年已用年假", "—" if row["annual_taken"] is None else f"{row['annual_taken']:g} 日")
         right.metric("剩餘年假", "—" if row["annual"] is None else f"{row['annual']:g} 日")
         right.metric("剩餘休假", "—" if row["rest"] is None else f"{row['rest']:g} 日")
-        if st.button("調整薪金", key="staff-salary", disabled=locked):
-            st.session_state["staff_salary"] = row["employee_no"]
+        if st.button("調整薪金", key="staff-salary", disabled=locked or is_issued(info["key"])):
+            action = "salary"
+        if is_issued(info["key"]):
+            st.caption("這個月已經出糧，不能改這個月的薪金。員工資料和離職仍可修改。")
     with personal:
         for key, label in _PERSONAL:
             value = row.get(key)
@@ -118,12 +124,7 @@ def _profile(row, info, locked, staff):
                 st.write(f"{label}：{shown}")
     with history:
         _history(row["employee_no"])
-    if st.session_state.get("staff_edit") == row["employee_no"]:
-        _edit_dialog(row, staff)
-    if st.session_state.get("staff_resign") == row["employee_no"]:
-        _resign_dialog(row)
-    if st.session_state.get("staff_salary") == row["employee_no"]:
-        _salary_dialog(row, info)
+    return action
 
 
 def _field_map(group):
@@ -178,7 +179,6 @@ def _edit_dialog(row, staff):
     if st.button("確定修改", type="primary"):
         changed = {key: value for key, value in fields.items() if value != original.get(key, "")}
         if not changed:
-            st.session_state.pop("staff_edit", None)
             st.rerun()
         try:
             _save(lambda: edit_staff(row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"], changed))
@@ -292,8 +292,7 @@ def render(info, readonly, staff, demo, month_label):
     with filters[1]:
         query = st.text_input("搜尋姓名或員工編號", key="staff-query")
     with filters[2]:
-        if st.button("新增員工", type="primary", disabled=locked, key="staff-add"):
-            st.session_state["staff_add"] = group_key
+        add_clicked = st.button("新增員工", type="primary", disabled=locked, key="staff-add")
     needle = _text(query).lower()
     shown = [
         row for row in rows
@@ -316,14 +315,25 @@ def render(info, readonly, staff, demo, month_label):
         )
     if shown:
         _export(shown)
-    if st.session_state.get("staff_add") == group_key:
+    # A dialog stays open on its own after this run. Calling it again from a
+    # saved flag opens a second dialog and Streamlit rejects the page.
+    for stale in ("staff_add", "staff_edit", "staff_resign", "staff_salary"):
+        st.session_state.pop(stale, None)
+    person = None
+    action = None
+    if shown:
+        labels_people = [f"{row['employee_no']} {row['name_zh'] or row['name_en']}" for row in shown]
+        choice = st.selectbox("員工", labels_people, key="staff-person")
+        person = shown[labels_people.index(choice)] if choice in labels_people else shown[0]
+        action = _profile(person, info, locked)
+    if add_clicked:
         _add_dialog(group_key, staff)
-    if not shown:
-        return
-    labels_people = [f"{row['employee_no']} {row['name_zh'] or row['name_en']}" for row in shown]
-    choice = st.selectbox("員工", labels_people, key="staff-person")
-    person = shown[labels_people.index(choice)] if choice in labels_people else shown[0]
-    _profile(person, info, locked, staff)
+    elif person is not None and action == "edit":
+        _edit_dialog(person, staff)
+    elif person is not None and action == "resign":
+        _resign_dialog(person)
+    elif person is not None and action == "salary":
+        _salary_dialog(person, info)
 
 
 def page_staff():

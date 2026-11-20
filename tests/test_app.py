@@ -146,7 +146,7 @@ def _page(info, problem_ids, md_id, pending_ids):
     if staff_file.stat().st_mtime != staff_stamp:
         raise SystemExit("員工頁寫入了真正的員工檔。")
     attendance = _open(app, "pages/attendance.py")
-    if "出勤" not in attendance and "放入 DAKA" not in attendance:
+    if "出勤" not in attendance and "DAKA 同步" not in attendance:
         raise SystemExit(f"沒有打開出勤：{attendance}")
     salary = _open(app, "pages/salary.py")
     if "新同事" not in salary and "薪金表" not in salary:

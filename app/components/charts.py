@@ -18,14 +18,18 @@ def chart(spec):
     ).configure_legend(labelColor="#3A3A3A", title=None).configure_view(strokeWidth=0)
 
 
-def doughnut(frame, name, value, title):
+def doughnut(frame, name, value, title, colors=None):
     import altair as alt
 
-    spec = alt.Chart(frame).mark_arc(innerRadius=40).encode(
+    spec = alt.Chart(frame).mark_arc(innerRadius=48).encode(
         theta=alt.Theta(value, type="quantitative"),
-        color=alt.Color(name, type="nominal", scale=alt.Scale(range=SERIES), legend=alt.Legend(orient="right")),
+        color=alt.Color(
+            name, type="nominal",
+            scale=alt.Scale(range=colors or SERIES),
+            legend=alt.Legend(orient="bottom"),
+        ),
         tooltip=[name, value],
-    ).properties(height=180, title=title)
+    ).properties(height=210, title=title)
     return chart(spec)
 
 

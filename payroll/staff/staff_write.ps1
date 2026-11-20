@@ -1,8 +1,10 @@
-﻿# Edit Staff_info through Excel so the Sheet2 dropdowns stay in the file.
+# Edit Staff_info through Excel so the Sheet2 dropdowns stay in the file.
 param(
     [Parameter(Mandatory = $true)][string]$JsonPath
 )
 $ErrorActionPreference = "Stop"
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = $OutputEncoding
 $payload = Get-Content -Raw -Encoding UTF8 $JsonPath | ConvertFrom-Json
 $excel = New-Object -ComObject Excel.Application
 $excel.Visible = $false
@@ -30,14 +32,14 @@ function Find-HeaderRow($sheet) {
 }
 
 function Map-Columns($sheet, $headerRow) {
+    # The staff number is not in column A, and a blank cell sits before it.
     $map = @{}
-    $col = 1
-    while ($true) {
+    $last = $sheet.UsedRange.Columns.Count + $sheet.UsedRange.Column - 1
+    if ($last -gt 80) { $last = 80 }
+    for ($col = 1; $col -le $last; $col++) {
         $text = ([string]$sheet.Cells.Item($headerRow, $col).Text).Trim().TrimEnd("*")
-        if ($text -eq "") { break }
+        if ($text -eq "") { continue }
         if (-not $map.ContainsKey($text)) { $map[$text] = $col }
-        $col++
-        if ($col -gt 80) { break }
     }
     return $map
 }

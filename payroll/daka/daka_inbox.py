@@ -188,7 +188,11 @@ def file_inbox(folder=None):
     _clear_old(folder)
     updated, skipped = [], []
     for path in sorted(folder.glob("*.csv")):
-        _raw, header, rows = _rows(path)
+        try:
+            _raw, header, rows = _rows(path)
+        except OSError:
+            skipped.append(path.name)
+            continue
         if "姓名" not in header or "日期" not in header:
             skipped.append(path.name)
             _discard(path)

@@ -1,6 +1,7 @@
 """Who is employed, from the staff file, and what they are paid, from the pay table."""
 
 import os
+import re
 import warnings
 from datetime import date
 from pathlib import Path
@@ -37,6 +38,35 @@ def _text(value):
     return str(value).strip()
 
 
+_STAFF_STAMP = re.compile(r"^Staff_info_(\d{8}|\d{6})$")
+
+
+def staff_file_day(path):
+    """Date stamped in Staff_info_YYYYMMDD, or the first of the month for YYYYMM."""
+    match = _STAFF_STAMP.match(Path(path).stem)
+    if not match:
+        return None
+    raw = match.group(1)
+    try:
+        if len(raw) == 8:
+            return date(int(raw[0:4]), int(raw[4:6]), int(raw[6:8]))
+        return date(int(raw[0:4]), int(raw[4:6]), 1)
+    except ValueError:
+        return None
+
+
+def staff_version_path(folder, day=None):
+    day = day or date.today()
+    return Path(folder) / f"Staff_info_{day:%Y%m%d}.xlsx"
+
+
+def pick_staff_file(files):
+    files = [path for path in files if not Path(path).name.startswith("~$")]
+    if not files:
+        raise SystemExit("沒有 Staff_info_*.xlsx")
+    return max(files, key=lambda path: (staff_file_day(path) or date.min, path.stat().st_mtime))
+
+
 def latest_staff_file():
     override = os.environ.get("PAYROLL_STAFF", "").strip()
     if override:
@@ -46,13 +76,10 @@ def latest_staff_file():
         return path
     if not STAFF_RECORD_DIR.exists():
         raise SystemExit(f"找不到員工資料夾：{STAFF_RECORD_DIR}")
-    files = [
-        path for path in STAFF_RECORD_DIR.glob("Staff_info_*.xlsx")
-        if not path.name.startswith("~$")
-    ]
+    files = list(STAFF_RECORD_DIR.glob("Staff_info_*.xlsx"))
     if not files:
         raise SystemExit(f"{STAFF_RECORD_DIR} 沒有 Staff_info_*.xlsx")
-    return max(files, key=lambda path: path.stat().st_mtime)
+    return pick_staff_file(files)
 
 
 def _header_row(raw):

@@ -120,13 +120,16 @@ def huizong(data5,books):
     datas = datas.set_index('items')
     datas = datas.T
     datas = datas.reset_index()
-    datas = pd.merge(datas, data5, how='left', on='Name') 
-    datas['本月剩餘休假'] = datas['上月剩餘休假'] - datas['本月休假天數']
-    datas['本月剩餘年假'] = datas['上月剩餘年假'] - datas['本月年假天數']
+    datas = pd.merge(datas, data5, how='left', on='Name')
+    # Excel sometimes leaves these day-counts as text. The sums stay the same.
+    def _days(column):
+        return pd.to_numeric(datas[column], errors="coerce").fillna(0)
+    datas['本月剩餘休假'] = _days('上月剩餘休假') - _days('本月休假天數')
+    datas['本月剩餘年假'] = _days('上月剩餘年假') - _days('本月年假天數')
     datas['本月應工作時長'] = 0
     # datas['本月應工作時長'] = datas['工作天數'] * datas['時長列表']
     # datas['本月應工作時長'] = datas.apply(lambda x: x['本月應工作時長'] if 'PT' not in x['Name'] else 0, axis=1)
-    datas['本月加班時長'] = datas['工作時長'] - datas['本月應工作時長']
+    datas['本月加班時長'] = _days('工作時長') - _days('本月應工作時長')
     datas.drop(columns=['工作時長', '工作天數', '時長列表', '本月應工作時長'], inplace=True)
     col_list = ['Name', '遲到次數', '遲到分鐘', '早退次數', '早退分鐘', '上月剩餘休假', '本月休假天數',
                 '本月剩餘休假', '上月剩餘年假', '本月年假天數', '本月剩餘年假', '本月加班時長']

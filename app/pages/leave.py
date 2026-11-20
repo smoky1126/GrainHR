@@ -7,6 +7,9 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.views.leave import page_leave
+import importlib
 
-page_leave()
+from app.views import leave
+
+importlib.reload(leave)
+leave.page_leave()

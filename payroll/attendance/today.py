@@ -95,6 +95,11 @@ def roster_files(day):
         if path is None:
             path = _one_file(info["rosters"] / shop, file_name)
         if path is None:
+            from payroll.core.history import archived_roster
+            archive = archived_roster(info["year"], info["month"], shop)
+            if archive is not None:
+                path = _one_file(archive, file_name)
+        if path is None:
             missing.append(file_name)
         else:
             found.append((shop, path, info["sheet"]))

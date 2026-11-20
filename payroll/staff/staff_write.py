@@ -7,13 +7,16 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
 from payroll.core.config import home
-from payroll.staff.staff import _as_date, _text, latest_staff_file, load_staff, pay_table_path
+from payroll.staff.staff import (
+    _as_date, _text, latest_staff_file, load_staff, pay_table_path, staff_version_path,
+)
 
 _SECRET = {"身份證號碼", "銀行賬號"}
 _DATE_FIELDS = {"入職日期", "到職日期", "離職日期", "出生日期", "合約完結日期"}
@@ -115,7 +118,10 @@ def _run_excel(payload):
     script = Path(__file__).with_name("staff_write.ps1")
     try:
         done = subprocess.run(
-            ["powershell", "-NoProfile", "-File", str(script), "-JsonPath", str(json_path)],
+            [
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(script), "-JsonPath", str(json_path),
+            ],
             check=False, capture_output=True, timeout=120,
         )
     except (OSError, subprocess.SubprocessError) as error:
@@ -126,6 +132,8 @@ def _run_excel(payload):
         (home() / "_tmp" / "staff_write_error.txt").write_text(detail, encoding="utf-8")
         if "請先關閉" in detail:
             raise SystemExit("請先關閉 Staff_info 檔案，然後再試。")
+        if "UnauthorizedAccess" in detail or "running scripts is disabled" in detail:
+            raise SystemExit("這部電腦不允許執行員工檔程式。請關掉 GrainHR 再開一次。")
         line = next((item for item in reversed(detail.splitlines()) if item.strip()), "")
         raise SystemExit(line or "請先關閉 Staff_info 檔案，然後再試。")
 
@@ -144,8 +152,42 @@ def _sheet_columns(path, sheet):
     return set()
 
 
+def _resolve_staff_path(path):
+    if path is None:
+        return latest_staff_file()
+    path = Path(path)
+    if path.exists():
+        return path
+    current = staff_version_path(path.parent)
+    if current.exists():
+        return current
+    raise SystemExit(f"找不到員工檔：{path}")
+
+
+def _roll_staff_version(path):
+    """Rename the live workbook to Staff_info_YYYYMMDD for today.
+
+    The copy taken just before the edit stays in _備份. A second edit on the
+    same day keeps today's name.
+    """
+    target = staff_version_path(path.parent)
+    if path.resolve() == target.resolve():
+        return path
+    if target.exists():
+        raise SystemExit(f"已經有 {target.name}，這次沒有改檔名。")
+    last_error = None
+    for _attempt in range(8):
+        try:
+            path.rename(target)
+            return target
+        except OSError as error:
+            last_error = error
+            time.sleep(0.4)
+    raise SystemExit(f"員工檔已寫入，但未能改名為 {target.name}。（{last_error}）")
+
+
 def _apply(action, sheet, employee_no, name_zh, fields, path=None):
-    path = Path(path) if path else latest_staff_file()
+    path = _resolve_staff_path(path)
     employee_no = _text(employee_no)
     name_zh = _text(name_zh)
     if not employee_no or not name_zh:
@@ -199,6 +241,7 @@ def _apply(action, sheet, employee_no, name_zh, fields, path=None):
         })
     if rows:
         _append_log(rows)
+    _roll_staff_version(path)
     return after
 
 

@@ -45,7 +45,7 @@ def run_check(info, open_workbook=False, fetch=True):
     info["folder"].mkdir(parents=True, exist_ok=True)
     info["system"].mkdir(parents=True, exist_ok=True)
     if not Path(info["daka"]).exists():
-        raise SystemExit(f"請先放入 DAKA 檔案：{info['daka']}")
+        raise SystemExit(f"本月的 DAKA 還沒有同步：{info['daka']}")
     if fetch:
         try:
             copy_rosters(info)
@@ -129,7 +129,7 @@ def _draft_from_facts(info):
 def run_recalculate(info):
     draft = _draft_from_facts(info)
     if draft is None:
-        raise SystemExit("請先放入 DAKA。")
+        raise SystemExit("本月的 DAKA 還沒有同步。")
     print(f"draft: {info['output'] / 'payroll_draft.xlsx'}")
     return draft
 
@@ -219,7 +219,7 @@ def main(argv=None):
     elif action == "folder":
         folder = info["folder"]
         if not folder.exists():
-            raise SystemExit("這個月還沒有資料。請先放入 DAKA。")
+            raise SystemExit("這個月還沒有資料。DAKA 還沒有同步。")
         os.startfile(folder)
     else:
         raise SystemExit(f"沒有這個動作：{action}。可用 check、recalc、slips 或 folder。")

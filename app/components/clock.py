@@ -1,12 +1,13 @@
 """A clock that ticks without rerunning the page. Times are Hong Kong time."""
 
-import streamlit.components.v1 as components
+import streamlit as st
 
 
 def live_clock():
-    components.html(
+    st.iframe(
         """
-        <div id="clock" style="font:700 24px/32px 'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#2B2B2B;font-variant-numeric:tabular-nums"></div>
+        <style>html,body{margin:0;overflow:hidden;background:transparent}</style>
+        <div id="clock" style="font:700 22px/28px 'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#2B2B2B;text-align:right;font-variant-numeric:tabular-nums"></div>
         <script>
         const node = document.getElementById("clock");
         function tick() {
@@ -19,5 +20,5 @@ def live_clock():
         setInterval(tick, 1000);
         </script>
         """,
-        height=36,
+        height=32,
     )

@@ -2,8 +2,7 @@
  * 把店鋪更表複製成 Excel，薪酬系統就可以從 Google Drive 讀取。
  *
  * 店鋪繼續用 Google 試算表。這個指令碼把 Excel 副本存到
- * 共用雲端硬碟 HR System/_payroll_copies。每位人事的電腦都會同步到，
- * 薪酬系統只讀副本。出糧的電腦不用登入 Google。
+ * 共用雲端硬碟 HR System/GrainHR/data/roster_inbox。薪酬系統只讀這個資料夾。
  * 執行腳本的帳戶要是 HR System 的成員，而且要有編輯權限。
  *
  * 只需設定一次：
@@ -134,20 +133,31 @@ function writeCopy(folder, downloadName, blob) {
 }
 
 function hrCopyRoot() {
-  var folders = DriveApp.getFoldersByName("HR System");
-  var match = null;
-  var count = 0;
-  while (folders.hasNext()) {
-    match = folders.next();
-    count += 1;
+  var match = sharedDriveRoot("HR System");
+  if (!match) {
+    throw new Error("找不到共用雲端硬碟 HR System。在 Apps Script 左側「服務」加 Drive API，然後再執行。");
   }
-  if (count > 1) {
-    throw new Error("多於一個名為 HR System 的資料夾。");
+  var grain = folderNamed(match, "GrainHR", true);
+  var data = folderNamed(grain, "data", true);
+  return folderNamed(data, "roster_inbox", true);
+}
+
+function sharedDriveRoot(name) {
+  if (typeof Drive === "undefined" || !Drive.Drives) {
+    return null;
   }
-  if (count === 0) {
-    throw new Error("這個帳戶打不開共用雲端硬碟 HR System。請把帳戶加進去，並給編輯權限。");
-  }
-  return folderNamed(match, "_payroll_copies", true);
+  var pageToken = null;
+  do {
+    var response = Drive.Drives.list({pageSize: 100, pageToken: pageToken});
+    var drives = response.drives || response.items || [];
+    for (var i = 0; i < drives.length; i++) {
+      if (drives[i].name === name) {
+        return DriveApp.getFolderById(drives[i].id);
+      }
+    }
+    pageToken = response.nextPageToken;
+  } while (pageToken);
+  return null;
 }
 
 function rosterRoot() {

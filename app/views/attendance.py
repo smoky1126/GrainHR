@@ -32,47 +32,40 @@ from payroll.staff.staff import (
     suggested_batch,
 )
 
-from app.context import DEMO, _context, _daka_chip, _month_label, _pull_daka, _save_upload, _text
+from app.context import DEMO, _context, _daka_chip, _month_label, _pull_daka, _text, refresh_rosters
 from app.views.overview import _mark
 
-def step_daka(info, status, demo, readonly, staff=None, upload_info=None):
-    upload_info = upload_info or info
-    other_month = upload_info["key"] != info["key"]
+def step_daka(info, status, demo, readonly, staff=None):
+    from payroll.core.history import is_issued
+    if is_issued(info["key"]):
+        _mark("1. 已出糧", "done", "這個月的糧單已經發出，不會再計算。")
+        return
     daka = info["daka"]
     fresh, missing = roster_report(info, demo)
     if status["daka"] == "done":
-        _mark("1. 放入 DAKA", "done", "出勤已核對。")
+        _mark("1. DAKA 同步", "done", "出勤已核對。")
     elif not daka.exists():
-        _mark("1. 放入 DAKA", "todo", "請放入本月的 DAKA 出勤檔。")
+        _mark("1. DAKA 同步", "todo", "本月的 DAKA 還沒有同步。")
     elif missing:
-        _mark("1. 放入 DAKA", "todo", missing[0])
+        _mark("1. DAKA 同步", "todo", missing[0])
         for line in missing[1:]:
             st.write(line)
     elif st.session_state.get("check_error"):
-        _mark("1. 放入 DAKA", "todo", st.session_state["check_error"])
+        _mark("1. DAKA 同步", "todo", st.session_state["check_error"])
     else:
-        _mark("1. 放入 DAKA", "todo", "正在核對出勤。")
+        _mark("1. DAKA 同步", "todo", "正在核對出勤。")
     st.caption(fresh)
     _daka_chip()
-    st.caption("手機匯出：在 DAKA 按匯出，儲存到 Files，再放到 Google Drive 的 HR System/dev_testing/daka_inbox。")
+    if st.button("更新更表", key="attendance-roster", disabled=readonly):
+        if refresh_rosters(info):
+            st.rerun()
     grey = [] if staff is None else list(staff.attrs.get("grey_active") or [])
     if grey:
         names = "、".join(item["name"] for item in grey)
         st.warning(
             f"員工檔有 {len(grey)} 行是灰色但寫在職：{names}。請改為已離職並填上離職日期。"
         )
-    if other_month:
-        st.caption(f"DAKA 會存入 {upload_info['month']}月，只核對出勤，不會出糧。")
-    upload = st.file_uploader("DAKA 出勤檔（CSV）", type=["csv"], disabled=readonly)
-    if upload is not None and not readonly:
-        token = (upload.name, upload.size, upload_info["key"])
-        if st.session_state.get("daka_token") != token:
-            _save_upload(upload_info, upload, refresh_payroll=not other_month)
-            st.session_state["daka_token"] = token
-            if other_month:
-                st.session_state.pop("day_join", None)
-            st.rerun()
-    if other_month or status["daka"] == "done":
+    if status["daka"] == "done":
         return
     ready = daka.exists() and not missing and not readonly
     stamp = daka.stat().st_mtime if daka.exists() else None
@@ -167,12 +160,12 @@ def _load_month_days(info, view, demo):
     if view["key"] == info["key"]:
         path = info["system"] / "days.xlsx"
         if not path.exists():
-            return None, f"{view['month']}月還沒有出勤紀錄。請先放入 DAKA。"
+            return None, f"{view['month']}月還沒有出勤紀錄。DAKA 還沒有同步。"
         return pd.read_excel(path), None
     if demo:
         return None, f"示範只有十月的副本，沒有 {view['month']}月。請用薪酬系統查真實出勤。"
     if not view["daka"].exists():
-        return None, f"{view['month']}月還沒有 DAKA。請在上面放入。系統只核對出勤，不會出糧。"
+        return None, f"{view['month']}月還沒有 DAKA。等同步之後再看。系統只核對出勤，不會出糧。"
     if not view["rosters"].exists():
         return None, f"{view['month']}月還沒有更表，所以暫時不能核對。"
     token = (str(view["daka"]), view["daka"].stat().st_mtime)
@@ -241,7 +234,7 @@ def page_attendance():
         )
     start, end = _range_bounds(picked, yesterday)
     view = _upload_view(info, start, end, whole)
-    step_daka(info, status, DEMO, readonly, staff, upload_info=view)
+    step_daka(info, status, DEMO, readonly, staff)
     days, note = _days_for_range(info, start, end, whole, DEMO)
     if days is None:
         st.info(note or "沒有出勤紀錄。")
@@ -274,7 +267,7 @@ def page_attendance():
         late_rows["遲到分鐘"] = pd.to_numeric(late_rows["Late"], errors="coerce").fillna(0)
         by_day = late_rows.groupby(late_rows["Date"].astype(str), as_index=False)["遲到分鐘"].sum()
         if len(by_day):
-            st.altair_chart(bars(by_day, "Date", "遲到分鐘", title="每日遲到分鐘"), use_container_width=True)
+            st.altair_chart(bars(by_day, "Date", "遲到分鐘", title="每日遲到分鐘"), width="stretch")
             st.caption("這段日期的遲到分鐘合計。")
     narrow = (not whole) or bool(shop_code) or chosen != "全部"
     frame = shown if narrow else shown.head(400)

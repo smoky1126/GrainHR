@@ -101,6 +101,10 @@ def roster_sources():
     return rows
 
 
+def issued_through():
+    return str((load().get("history") or {}).get("issued_through") or "").strip()
+
+
 def path_for(name):
     text = str((load().get("paths") or {}).get(name) or "").strip()
     return Path(text) if text else None

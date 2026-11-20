@@ -71,10 +71,16 @@ def _choose_month():
             for path in folder.iterdir()
             if path.is_dir() and len(path.name) == 7 and path.name[4] == "_"
         )
+    today = date.today()
+    options.extend(f"{today.year}-{month:02d}" for month in range(1, today.month + 1))
+    from payroll.core.history import is_issued
     current = last_month()
     if current not in options:
         options.append(current)
     options = sorted(set(options))
+    open_months = [key for key in options if not is_issued(key)]
+    if open_months:
+        current = open_months[-1]
     return st.sidebar.selectbox(
         "月份", options, index=options.index(current), format_func=_month_label, key="payroll-month",
     )
@@ -84,8 +90,6 @@ def _month_key(show):
         if show:
             st.sidebar.caption("示範月份：2026年10月")
         return "2026-10"
-    if not show:
-        return st.session_state.get("payroll-month", last_month())
     return _choose_month()
 
 def _remember(info, draft):
@@ -133,13 +137,35 @@ def _patch(draft, staff_id, book="bg", **changes):
         draft.loc[mask, key] = value
     return draft
 
-def _save_upload(info, upload, refresh_payroll=True):
-    info["folder"].mkdir(parents=True, exist_ok=True)
-    info["system"].mkdir(parents=True, exist_ok=True)
-    info["daka"].write_bytes(upload.getvalue())
-    if refresh_payroll:
-        st.session_state["auto_checked"] = None
-        st.session_state.pop("draft", None)
+def refresh_rosters(info):
+    """Copy the latest roster files and check attendance again."""
+    from payroll.attendance.rosters import RosterProblem, copy_rosters
+    from payroll.core.history import is_issued
+
+    if is_issued(info["key"]):
+        st.info("這個月已經出糧，不會改更表。")
+        return False
+
+    try:
+        with st.spinner("正在更新更表"):
+            copy_rosters(info)
+            if info["daka"].exists() and not DEMO:
+                from payroll.pay.run import run_check
+                run_check(info, open_workbook=False, fetch=False)
+    except PermissionError:
+        st.error("請先關閉 Excel 中的考勤核對表，然後再試。")
+        return False
+    except (SystemExit, RosterProblem) as error:
+        st.error(str(error))
+        return False
+    st.session_state.pop("days_frame", None)
+    st.session_state.pop("day_join", None)
+    st.session_state.pop("draft", None)
+    stamp = info["daka"].stat().st_mtime if info["daka"].exists() else None
+    st.session_state["auto_checked"] = stamp
+    st.toast("更表已更新")
+    return True
+
 
 def _pull_daka(force=False):
     """Pull the morning export at most every 30 minutes. The demo never connects.
@@ -155,7 +181,10 @@ def _pull_daka(force=False):
         return ""
     st.session_state["daka_pull_at"] = time.time()
     from payroll.daka.daka_inbox import pull_from_server
-    return pull_from_server() or ""
+    try:
+        return pull_from_server() or ""
+    except OSError:
+        return "有一份 DAKA 檔案暫時讀不到，其他資料照常顯示。"
 
 def _daka_chip():
     from payroll.daka.daka_inbox import read_status
@@ -204,8 +233,15 @@ def _context(steps=False):
             unsafe_allow_html=True,
         )
     info = parse_month(_month_key(steps))
+    from payroll.core.history import is_issued
+    issued = is_issued(info["key"])
     can_edit, owner = claim(info)
-    readonly = not can_edit
+    readonly = (issued and steps) or not can_edit
+    if issued:
+        st.markdown(
+            '<div class="payroll-banner">這個月已經出糧，糧單、更表和出勤只供查看，不會再計算。</div>',
+            unsafe_allow_html=True,
+        )
     staff = load_staff()
     table = ensure_pay_table()
     draft = _drafts(info)
