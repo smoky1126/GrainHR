@@ -17,6 +17,5 @@ python -c "from payroll.setup.demo import build_demo; build_demo()"
 echo 正在關閉先前的示範...
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8502 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { taskkill /F /T /PID $_ }"
 timeout /t 1 >nul
-start "" cmd /c "timeout /t 4 >nul & start http://localhost:8502"
-python -m streamlit run app\main.py --server.headless true --server.port 8502 --server.fileWatcherType poll
+python -m streamlit run app\main.py --server.headless false --server.address 127.0.0.1 --browser.serverAddress 127.0.0.1 --server.port 8502 --server.fileWatcherType poll --browser.gatherUsageStats false
 pause

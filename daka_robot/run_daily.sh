@@ -30,3 +30,14 @@ cleanup() {
 trap cleanup EXIT
 PYTHON="$ROOT/.venv/bin/python"
 "$PYTHON" "$ROOT/robot.py" || "$PYTHON" "$ROOT/robot.py"
+RESULT=$?
+# Upload this run's export into the GrainHR app folder. rclone remote "grainhr" is the HR shared drive.
+RCLONE="$HOME/bin/rclone"
+INBOX="grainhr:HR system (GrainHR)/GrainHR/data/daka_inbox"
+if [ -x "$RCLONE" ]; then
+  "$RCLONE" copy "$ROOT/outbox" "$INBOX" --include "*.csv" --max-age 2h || echo "上傳到共用雲端失敗。" >&2
+  if [ -f "$ROOT/outbox/status.json" ]; then
+    "$RCLONE" copyto "$ROOT/outbox/status.json" "$INBOX/_server.json" || true
+  fi
+fi
+exit $RESULT

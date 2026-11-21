@@ -2,8 +2,8 @@
  * 把店鋪更表複製成 Excel，薪酬系統就可以從 Google Drive 讀取。
  *
  * 店鋪繼續用 Google 試算表。這個指令碼把 Excel 副本存到
- * 共用雲端硬碟 HR System/GrainHR/data/roster_inbox。薪酬系統只讀這個資料夾。
- * 執行腳本的帳戶要是 HR System 的成員，而且要有編輯權限。
+ * 共用雲端硬碟 HR/HR system (GrainHR)/GrainHR/data/roster_inbox。薪酬系統只讀這個資料夾。
+ * 執行腳本的帳戶要是 HR 的成員，而且要有編輯權限。
  *
  * 只需設定一次：
  * 1. 用可以編輯 Shop Admin 的帳戶打開 https://script.google.com 。
@@ -133,11 +133,18 @@ function writeCopy(folder, downloadName, blob) {
 }
 
 function hrCopyRoot() {
-  var match = sharedDriveRoot("HR System");
+  var match = sharedDriveRoot("HR");
   if (!match) {
-    throw new Error("找不到共用雲端硬碟 HR System。在 Apps Script 左側「服務」加 Drive API，然後再執行。");
+    throw new Error("找不到共用雲端硬碟 HR。在 Apps Script 左側「服務」加 Drive API，然後再執行。");
   }
-  var grain = folderNamed(match, "GrainHR", true);
+  var parent = folderNamed(match, "HR system (GrainHR)", false);
+  if (!parent) {
+    throw new Error("找不到 HR system (GrainHR)。");
+  }
+  var grain = folderNamed(parent, "GrainHR", false);
+  if (!grain) {
+    throw new Error("找不到 GrainHR。");
+  }
   var data = folderNamed(grain, "data", true);
   return folderNamed(data, "roster_inbox", true);
 }

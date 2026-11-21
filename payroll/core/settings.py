@@ -105,9 +105,25 @@ def issued_through():
     return str((load().get("history") or {}).get("issued_through") or "").strip()
 
 
+def _on_this_pc(path):
+    """Google Drive may use another drive letter on another PC."""
+    if path.exists() or not path.drive or path.drive.upper() == CODE_ROOT.drive.upper():
+        return path
+    moved = Path(CODE_ROOT.drive + str(path)[len(path.drive):])
+    return moved if moved.exists() else path
+
+
 def path_for(name):
-    text = str((load().get("paths") or {}).get(name) or "").strip()
-    return Path(text) if text else None
+    """A path, or a list of paths tried in order. The first one this PC can see wins.
+
+    Shared-drive shortcuts come first so every Google account finds the same folder.
+    """
+    value = (load().get("paths") or {}).get(name)
+    choices = value if isinstance(value, list) else [value]
+    paths = [_on_this_pc(Path(str(text).strip())) for text in choices if str(text or "").strip()]
+    if not paths:
+        return None
+    return next((path for path in paths if path.exists()), paths[0])
 
 
 def daka():

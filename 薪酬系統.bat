@@ -17,6 +17,5 @@ if not exist "%~dp0_packages\streamlit\__init__.py" if not exist "%PYTHONPATH%\s
 echo 正在關閉先前的 GrainHR...
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8501 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { taskkill /F /T /PID $_ }"
 timeout /t 1 >nul
-start "" cmd /c "timeout /t 4 >nul & start http://localhost:8501"
-python -m streamlit run app\main.py --server.headless true --server.port 8501 --server.fileWatcherType poll
+python -m streamlit run app\main.py --server.headless false --server.address 127.0.0.1 --browser.serverAddress 127.0.0.1 --server.port 8501 --server.fileWatcherType poll --browser.gatherUsageStats false
 pause

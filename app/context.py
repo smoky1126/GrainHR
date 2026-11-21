@@ -168,21 +168,31 @@ def refresh_rosters(info):
 
 
 def _pull_daka(force=False):
-    """Pull the morning export at most every 30 minutes. The demo never connects.
+    """File the exports the DAKA server uploaded, at most every 2 minutes. The demo never connects.
 
-    A forced pull skips the quiet period. The return value is empty when the
-    pull worked, and the reason when it did not.
+    A forced pull asks the server for a fresh export. A PC on Tailscale asks directly
+    and waits about a minute. Other PCs leave a request on the shared drive, and the
+    home page checks for the answer.
     """
     if DEMO:
         return "示範模式不會連線" if force else ""
     import time
     last = st.session_state.get("daka_pull_at")
-    if not force and last is not None and time.time() - last < 30 * 60:
+    if not force and last is not None and time.time() - last < 2 * 60:
         return ""
     st.session_state["daka_pull_at"] = time.time()
-    from payroll.daka.daka_inbox import pull_from_server
+    from payroll.daka.daka_inbox import OFFLINE, export_now, file_inbox, request_export
     try:
-        return pull_from_server() or ""
+        if force:
+            with st.spinner("正在向 DAKA 伺服器取最新打卡，大約一分鐘"):
+                message = export_now()
+            if message == OFFLINE:
+                st.session_state["daka_requested"] = request_export()
+                return "已請 DAKA 伺服器匯出最新打卡，大約兩至三分鐘。今日出勤頁會自動更新。"
+            st.session_state.pop("daka_requested", None)
+            return message
+        file_inbox()
+        return ""
     except OSError:
         return "有一份 DAKA 檔案暫時讀不到，其他資料照常顯示。"
 

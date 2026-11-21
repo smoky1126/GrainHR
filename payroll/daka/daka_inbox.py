@@ -6,13 +6,17 @@ The phone can also drop a CSV in daka_inbox. A month that already has payslips i
 import csv
 import io
 import json
+import re
+import socket
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from payroll.core.config import DAKA_REMOTE, DAKA_SERVER, home, parse_month
 
+OFFLINE = "這部電腦連不上 DAKA 伺服器（需要 Tailscale），打卡資料由其他電腦更新。"
 _PAID = ("payslips.docx", "payslips_md.docx", "payslips_admin.xlsx")
+_EXPORT = re.compile(r"^daka_share_(\d{8}_\d{6})\.csv$")
 
 
 def inbox_dir():
@@ -33,14 +37,27 @@ def _write_status(payload):
     status_path().write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def read_status():
-    path = status_path()
+def _read_json(path):
     if not path.exists():
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def read_status():
+    """The server uploads _server.json with each export. The newer report wins."""
+    status = _read_json(status_path())
+    server = _read_json(inbox_dir() / "_server.json")
+    known = (status.get("server") or {}).get("time") or ""
+    if server.get("time") and server["time"] >= known:
+        status["server"] = server
+        status["ok"] = bool(server.get("ok", True))
+        status["message"] = server.get("message", "")
+        if server["time"] > (status.get("pulled_at") or ""):
+            status["pulled_at"] = server["time"]
+    return status
 
 
 def month_is_paid(year, month):
@@ -181,11 +198,31 @@ def _clear_old(folder):
         _discard(path)
 
 
+def _drop_superseded(folder):
+    """Each robot export holds the month so far, so only the latest run is needed.
+
+    One run can save two files on days 1-5 (this month and last month), hence the window.
+    Phone drops use other names and are always kept.
+    """
+    stamps = {}
+    for path in folder.glob("daka_share_*.csv"):
+        found = _EXPORT.match(path.name)
+        if found:
+            stamps[path] = datetime.strptime(found.group(1), "%Y%m%d_%H%M%S")
+    if not stamps:
+        return
+    newest = max(stamps.values())
+    for path, when in stamps.items():
+        if newest - when > timedelta(minutes=15):
+            _discard(path)
+
+
 def file_inbox(folder=None):
     """Split every new CSV by the month in 日期 and merge it into that month's daka.csv."""
     folder = Path(folder) if folder else inbox_dir()
     folder.mkdir(parents=True, exist_ok=True)
     _clear_old(folder)
+    _drop_superseded(folder)
     updated, skipped = [], []
     for path in sorted(folder.glob("*.csv")):
         try:
@@ -226,14 +263,47 @@ def file_inbox(folder=None):
     return payload
 
 
-def _default_run(args):
+def _default_run(args, timeout=40):
     return subprocess.run(
-        args, capture_output=True, text=True, timeout=40, encoding="utf-8", errors="replace",
+        args, capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace",
     )
 
 
+def request_export():
+    """Ask for a fresh export through the shared drive. andrew checks for these every minute.
+
+    Returns the request time; an export at or after it answers the request.
+    """
+    stamp = datetime.now()
+    host = "".join(ch for ch in socket.gethostname() if ch.isalnum()) or "pc"
+    name = f"_request_{host}_{stamp:%Y%m%d_%H%M%S}.txt"
+    (inbox_dir() / name).write_text(stamp.strftime("%Y-%m-%d %H:%M"), encoding="utf-8")
+    return stamp.strftime("%Y-%m-%d %H:%M")
+
+
+def export_now(run=None):
+    """Ask andrew for a fresh export (about a minute), then pull it.
+
+    A PC off Tailscale gets OFFLINE after the connect timeout and keeps the shared-drive copy.
+    """
+    start = run or (lambda args: _default_run(args, timeout=300))
+    try:
+        done = start([
+            "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", DAKA_SERVER,
+            "systemctl --user start daka-robot.service",
+        ])
+    except (OSError, subprocess.SubprocessError):
+        return _offline(OFFLINE)
+    if getattr(done, "returncode", 1) != 0:
+        return _offline(OFFLINE)
+    return pull_from_server(run)
+
+
 def pull_from_server(run=None):
-    """Copy new exports from andrew. A connection problem returns a message and does not raise."""
+    """Copy new exports from andrew. A connection problem returns a message and does not raise.
+
+    Only PCs on Tailscale can reach andrew. The others read what those PCs filed on the shared drive.
+    """
     run = run or _default_run
     folder = inbox_dir()
     remote = (
@@ -245,9 +315,9 @@ def pull_from_server(run=None):
             "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", DAKA_SERVER, remote,
         ])
     except (OSError, subprocess.SubprocessError):
-        return _offline("伺服器連不上")
+        return _offline(OFFLINE)
     if getattr(done, "returncode", 1) != 0:
-        return _offline("伺服器連不上")
+        return _offline(OFFLINE)
     text = getattr(done, "stdout", "") or ""
     server_text, _, listing = text.partition("---FILES---")
     server = {}
@@ -271,9 +341,9 @@ def pull_from_server(run=None):
                 f"{DAKA_SERVER}:{DAKA_REMOTE}/{name}", str(folder / name),
             ])
         except (OSError, subprocess.SubprocessError):
-            return _offline("伺服器連不上")
+            return _offline(OFFLINE)
         if getattr(copied, "returncode", 1) != 0:
-            return _offline("伺服器連不上")
+            return _offline(OFFLINE)
         seen.add(name)
     if fresh:
         seen_path.write_text("\n".join(sorted(seen)) + "\n", encoding="utf-8")
@@ -293,9 +363,7 @@ def pull_from_server(run=None):
 
 
 def _offline(message):
-    payload = read_status()
-    payload.update({"pulled_at": _now(), "ok": False, "message": message})
-    _write_status(payload)
+    """The status file is shared, so one PC that cannot connect must not mark it failed."""
     try:
         file_inbox()
     except OSError:

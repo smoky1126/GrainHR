@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from payroll.core.config import parse_month, scratch_dir
 from payroll.attendance.daka import load_daka
-from payroll.daka.daka_inbox import file_inbox, pull_from_server
+from payroll.daka.daka_inbox import OFFLINE, export_now, file_inbox, pull_from_server
 
 HEADER = "姓名,日期,上班,上班位置,下班,下班位置,上班,上班位置,下班,下班位置\n"
 
@@ -78,16 +78,53 @@ def test_pull_failure_does_not_raise():
     os.environ["PAYROLL_HOME"] = str(home)
     try:
         message = pull_from_server(run=lambda _args: _Result(1))
-        if message != "伺服器連不上":
+        if message != OFFLINE:
             raise SystemExit(f"message {message}")
         status = json.loads((home / "daka_inbox" / "_狀態.json").read_text(encoding="utf-8"))
-        if status.get("ok") is not False:
+        if status.get("ok") is False:
             raise SystemExit(f"status {status}")
+    finally:
+        os.environ.pop("PAYROLL_HOME", None)
+
+
+def test_export_now_offline_keeps_shared_status():
+    home = scratch_dir("daka-export")
+    os.environ["PAYROLL_HOME"] = str(home)
+    try:
+        message = export_now(run=lambda _args: _Result(255))
+        if message != OFFLINE:
+            raise SystemExit(f"message {message}")
+        status_file = home / "daka_inbox" / "_狀態.json"
+        if status_file.exists() and json.loads(status_file.read_text(encoding="utf-8")).get("ok") is False:
+            raise SystemExit("an offline PC marked the shared status failed")
+    finally:
+        os.environ.pop("PAYROLL_HOME", None)
+
+
+def test_old_exports_are_skipped():
+    home = scratch_dir("daka-backlog")
+    os.environ["PAYROLL_HOME"] = str(home)
+    try:
+        inbox = home / "daka_inbox"
+        inbox.mkdir()
+        _csv(inbox, "daka_share_20261121_090000.csv", "甲,2026-11-03,09:00,灣仔,18:00,灣仔,,,,\n")
+        _csv(inbox, "daka_share_20261121_170000.csv", "乙,2026-11-04,09:00,灣仔,18:00,灣仔,,,,\n")
+        _csv(inbox, "daka_share_20261121_170500.csv", "丙,2026-11-05,09:00,灣仔,18:00,灣仔,,,,\n")
+        _csv(inbox, "phone.csv", "丁,2026-11-06,09:00,灣仔,18:00,灣仔,,,,\n")
+        file_inbox(inbox)
+        text = parse_month("2026-11")["daka"].read_text(encoding="utf-8-sig")
+        if "2026-11-03" in text:
+            raise SystemExit("an export older than the latest run was filed")
+        for day in ("2026-11-04", "2026-11-05", "2026-11-06"):
+            if day not in text:
+                raise SystemExit(f"{day} from the latest run or the phone was dropped")
     finally:
         os.environ.pop("PAYROLL_HOME", None)
 
 
 if __name__ == "__main__":
     test_split_merge_and_paid_month()
+    test_old_exports_are_skipped()
     test_pull_failure_does_not_raise()
+    test_export_now_offline_keeps_shared_status()
     print("daka inbox ok")

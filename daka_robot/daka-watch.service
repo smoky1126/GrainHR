@@ -1,0 +1,8 @@
+[Unit]
+Description=Start a DAKA export when a PC asks through the shared drive
+
+[Service]
+Type=oneshot
+Environment=TZ=Asia/Hong_Kong
+ExecStart=%h/daka-robot/watch_request.sh
+TimeoutStartSec=25min

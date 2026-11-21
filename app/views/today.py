@@ -33,12 +33,10 @@ def _notice():
     if forced:
         st.session_state["daka_notice"] = _pull_daka(force=True)
     else:
-        quiet = _pull_daka()
-        if quiet:
-            st.session_state["daka_notice"] = quiet
+        _pull_daka()
     status = read_status()
     notice = st.session_state.get("daka_notice") or ""
-    if forced and not notice:
+    if forced and not notice and not st.session_state.get("daka_requested"):
         exported = _export_time(status)
         if exported:
             notice = f"已是最新。這份匯出是 {exported}，在這之後的打卡還未包括。"
@@ -46,6 +44,34 @@ def _notice():
     if not notice and status and status.get("ok") is False:
         notice = status.get("message") or ""
     return status.get("pulled_at") or "未同步", _export_time(status), notice
+
+
+@st.fragment(run_every=15)
+def _wait_for_export():
+    """Watch for the export a shared-drive request asked for, then reload the page."""
+    from payroll.daka.daka_inbox import file_inbox
+
+    asked = st.session_state.get("daka_requested")
+    if not asked:
+        return
+    exported = _export_time(read_status())
+    if exported and exported >= asked:
+        file_inbox()
+        st.session_state.pop("daka_requested", None)
+        st.session_state["daka_notice"] = f"已更新。這份匯出是 {exported}。"
+        st.rerun(scope="app")
+
+
+@st.fragment(run_every=60)
+def _watch_daka():
+    """Reload when any PC's refresh or the hourly run brings a newer export."""
+    from payroll.daka.daka_inbox import file_inbox
+
+    exported = _export_time(read_status())
+    if exported and exported > (st.session_state.get("daka_shown") or ""):
+        file_inbox()
+        st.session_state["daka_shown"] = exported
+        st.rerun(scope="app")
 
 
 def _board_stamp(day):
@@ -295,6 +321,11 @@ def render():
     if "board-date" not in st.session_state:
         st.session_state["board-date"] = today
     updated, exported, notice = _notice()
+    st.session_state["daka_shown"] = exported
+    if st.session_state.get("daka_requested"):
+        _wait_for_export()
+    else:
+        _watch_daka()
     head = st.columns([1.6, 1.2], vertical_alignment="center")
     with head[0]:
         st.markdown(f'<h1 class="gh-greet">{_greeting()}</h1><p class="gh-date">今日出勤</p>', unsafe_allow_html=True)
