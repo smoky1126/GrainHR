@@ -6,6 +6,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.workbook import Workbook
 
 from payroll.core.labels import BOOKS, VIEW_ONLY, YES, chinese_note, show
+from payroll.core.money import LATE_GRACE_MINUTES
 
 MONEY = ("基本薪金", "加班費", "無薪假扣款", "租金", "水費", "電費", "強積金", "本月勤工獎", "本季發放", "其他調整", "淨薪金", "津貼")
 COLUMNS = (
@@ -230,7 +231,7 @@ def _days(sheet, days):
                 cell = sheet.cell(row_index, col, None if not _text(value) else value)
                 cell.fill = GREY
                 cell.protection = LOCKED
-                if key == "DAKA in" and late > 5:
+                if key == "DAKA in" and late > LATE_GRACE_MINUTES:
                     cell.font = RED
                 elif key == "DAKA in" and late > 0:
                     cell.font = AMBER

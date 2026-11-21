@@ -1,39 +1,40 @@
+"""Attendance for a chosen range, and who was late in the payroll month."""
+
 import html
-import os
 from datetime import date, timedelta
+from io import BytesIO
 
 import pandas as pd
 import streamlit as st
 
-from app.components.cards import callout, kpi, page_header, section
-from app.components.chips import chip, chips, legend, stepper
-from app.components.format import hk
+from app.components.cards import kpi, page_header
+from app.components.chips import chips, legend
 from app.components.tables import style_days as _day_style
-from app.components.theme import inject, show_logo
-from app.lock import claim
-from app.state import (
-    default_scheme, format_pay_date, last_month, new_joiners, parse_pay_date, problem_people,
-    roster_report, step_status, unlinked_roster_names,
-)
-from payroll.core.config import book_info, home, parse_month
-from payroll.core.holidays import holiday_count, holiday_known
-from payroll.core.labels import (
-    BOOKS, MANUAL_PAY, NEW_JOINER, PAY_HEADINGS, SCHEME, SCHEME_STORED, SECTION, YES, chinese_note, show,
-)
-from payroll.core.money import bonus_rule_text
-from payroll.pay.part_time import (
-    PT_BOOKS, build_pt, pt_reference, save_pt_lines, set_pt_reference, summary_book, summary_name,
-)
-from payroll.pay.payroll import pay_sheet_rows
-from payroll.pay.review import apply_pay, apply_pay_date, approve_all, save_one
-from payroll.pay.run import _draft_from_facts, _pay_date, run_check, run_slips
-from payroll.staff.staff import (
-    add_new_joiner, ensure_pay_table, load_staff, pay_table_path, read_refs, set_batch, set_refs,
-    suggested_batch,
-)
-
 from app.context import DEMO, _context, _daka_chip, _month_label, _pull_daka, _text, refresh_rosters
+from app.state import roster_report, step_status
 from app.views.overview import _mark
+from payroll.attendance.lateness import add_punch_counts, late_summary, link_groups, shops_by_name
+from payroll.core.config import parse_month
+from payroll.core.money import LATE_GRACE_MINUTES
+from payroll.core.settings import shops as shop_rows
+from payroll.pay.run import run_check
+from payroll.staff.directory import GROUPS
+from payroll.staff.staff import pay_table_path
+
+_SHOPS = shop_rows()
+_LATE_LABELS = {
+    "group_label": "組別",
+    "employee_no": "員工編號",
+    "name": "姓名",
+    "times": "遲到次數",
+    "minutes": "遲到分鐘",
+    "over_grace": f"超過{LATE_GRACE_MINUTES}分鐘",
+    "dates": "遲到日期",
+    "affects_bonus": "勤工獎",
+    "ot_hours": "加班時數",
+    "ot_dates": "加班日期",
+}
+
 
 def step_daka(info, status, demo, readonly, staff=None):
     from payroll.core.history import is_issued
@@ -81,10 +82,11 @@ def step_daka(info, status, demo, readonly, staff=None):
             st.session_state.pop("draft", None)
         st.session_state["auto_checked"] = stamp
         st.rerun()
-    if (missing or st.session_state.get("check_error")) and not readonly and st.button("再試"):
+    if (missing or st.session_state.get("check_error")) and not readonly and st.button("再試", key="attendance-retry"):
         st.session_state["auto_checked"] = None
         st.session_state["check_error"] = ""
         st.rerun()
+
 
 def _days_for(info, roster_name):
     path = info["system"] / "days.xlsx"
@@ -97,9 +99,6 @@ def _days_for(info, roster_name):
         return None
     return frame[frame["Name"].astype(str) == roster_name]
 
-from payroll.core.settings import shops as shop_rows
-
-_SHOPS = shop_rows()
 
 def _row_shop(row, code):
     roster = " ".join(str(row.get(column) or "") for column in ("Chosen shop", "Rosters"))
@@ -118,6 +117,7 @@ def _row_shop(row, code):
         return "3F" in roster or "SPK" in roster or "SPK" in places
     return f"{code}_" in text or f" {code}" in f" {text}" or text.startswith(code)
 
+
 def _month_starts(start, end):
     cursor = date(start.year, start.month, 1)
     stop = date(end.year, end.month, 1)
@@ -129,6 +129,7 @@ def _month_starts(start, end):
         else:
             cursor = date(cursor.year, cursor.month + 1, 1)
     return months
+
 
 def _range_bounds(picked, fallback):
     if isinstance(picked, (tuple, list)):
@@ -147,13 +148,6 @@ def _range_bounds(picked, fallback):
         start, end = end, start
     return start, end
 
-def _upload_view(info, start, end, whole):
-    """A file belongs to one month. A range that crosses a month is saved into the later one."""
-    if whole:
-        return info
-    later = _month_starts(start, end)[-1]
-    key = f"{later.year}-{later.month:02d}"
-    return info if key == info["key"] else parse_month(key)
 
 def _load_month_days(info, view, demo):
     """The payroll month uses the stored table. Another month only joins attendance."""
@@ -190,6 +184,7 @@ def _load_month_days(info, view, demo):
     cache[view["key"]] = token
     return days, None
 
+
 def _days_for_range(info, start, end, whole, demo):
     if whole:
         return _load_month_days(info, info, demo)
@@ -212,69 +207,40 @@ def _days_for_range(info, start, end, whole, demo):
     note = " ".join(dict.fromkeys(notes)) if notes else None
     return days, note
 
+
 def _day_counts(shown):
     status = shown["Status"].astype(str) if "Status" in shown.columns else pd.Series([""] * len(shown), index=shown.index)
-    late = int((pd.to_numeric(shown["Late"], errors="coerce").fillna(0) > 0).sum()) if "Late" in shown.columns else 0
+    late_minutes = pd.to_numeric(shown["Late"], errors="coerce").fillna(0) if "Late" in shown.columns else pd.Series(0, index=shown.index)
+    late = int((late_minutes > 0).sum())
+    late_over = int((late_minutes > LATE_GRACE_MINUTES).sum())
     early = int((pd.to_numeric(shown["Early"], errors="coerce").fillna(0) > 0).sum()) if "Early" in shown.columns else 0
     absent = int(status.str.contains("全天缺卡").sum())
     missing = int(status.str.contains("缺卡").sum()) - absent
-    return late, early, max(missing, 0), absent
+    return late, late_over, early, max(missing, 0), absent
 
-def page_attendance():
-    _pull_daka()
-    info, readonly, draft, staff, table = _context(steps=True)
-    status = step_status(info, draft, staff, table)
-    page_header("出勤", _month_label(info["key"]))
-    yesterday = date.today() - timedelta(days=1)
-    with st.container(border=True):
-        controls = st.columns([1, 3])
-        whole = controls[0].checkbox("整月", value=False)
-        picked = controls[1].date_input(
-            "查看日期", value=(yesterday, yesterday), disabled=whole, key="attendance-range",
-        )
-    start, end = _range_bounds(picked, yesterday)
-    view = _upload_view(info, start, end, whole)
-    step_daka(info, status, DEMO, readonly, staff)
-    days, note = _days_for_range(info, start, end, whole, DEMO)
-    if days is None:
-        st.info(note or "沒有出勤紀錄。")
-        return
-    if note:
-        st.info(note)
-    if "Name" not in days.columns or not len(days):
-        st.info("沒有出勤紀錄。" if whole else "這段日期沒有出勤紀錄。")
-        return
-    names = ["全部", *sorted({_text(name) for name in days["Name"] if _text(name)})]
-    with st.container(border=True):
-        picked = st.columns(2)
-        chosen = picked[0].selectbox("員工", names)
-        shop_label = picked[1].selectbox("店鋪", [label for label, _code in _SHOPS])
-    shop_code = dict(_SHOPS)[shop_label]
-    shown = days if chosen == "全部" else days[days["Name"].astype(str) == chosen]
-    if shop_code:
-        shown = shown[shown.apply(lambda row: _row_shop(row, shop_code), axis=1)]
-    late, early, missing, absent = _day_counts(shown)
-    chips([
-        (f"遲到 {late}", "todo" if late else "muted"),
-        (f"早退 {early}", "block" if early else "muted"),
-        (f"缺卡 {missing}", "todo" if missing else "muted"),
-        (f"缺勤 {absent}", "block" if absent else "muted"),
-    ])
-    legend()
-    if "Late" in shown.columns and "Date" in shown.columns and len(shown):
-        from app.components.charts import bars
-        late_rows = shown.copy()
-        late_rows["遲到分鐘"] = pd.to_numeric(late_rows["Late"], errors="coerce").fillna(0)
-        by_day = late_rows.groupby(late_rows["Date"].astype(str), as_index=False)["遲到分鐘"].sum()
-        if len(by_day):
-            st.altair_chart(bars(by_day, "Date", "遲到分鐘", title="每日遲到分鐘"), width="stretch")
-            st.caption("這段日期的遲到分鐘合計。")
-    narrow = (not whole) or bool(shop_code) or chosen != "全部"
-    frame = shown if narrow else shown.head(400)
+
+def _empty(title, detail):
+    st.markdown(
+        f'<div class="gh-empty"><strong>{html.escape(title)}</strong>{html.escape(detail)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _choose(key, options, default):
+    """Keep a widget value only when it is still one of the options."""
+    if not options:
+        return default
+    if st.session_state.get(key) not in options:
+        st.session_state[key] = default if default in options else options[0]
+    return st.session_state[key]
+
+
+def _day_table(frame):
     st.dataframe(
         _day_style(frame),
         hide_index=True,
         width="stretch",
+        alt="出勤日期、更表和打卡時間",
         column_config={
             "姓名": st.column_config.TextColumn("姓名", width="medium", pinned=True),
             "日期": st.column_config.TextColumn("日期", width="small", pinned=True),
@@ -288,3 +254,289 @@ def page_attendance():
             "加班": st.column_config.NumberColumn("加班", width="small"),
         },
     )
+
+
+def _daily_record(info, status, staff, readonly):
+    yesterday = date.today() - timedelta(days=1)
+    with st.container(border=True):
+        controls = st.columns([1, 3], vertical_alignment="bottom")
+        whole = controls[0].checkbox("整月", key="attendance-whole")
+        picked = controls[1].date_input(
+            "查看日期", value=(yesterday, yesterday), disabled=whole, key="attendance-range",
+        )
+    start, end = _range_bounds(picked, yesterday)
+    step_daka(info, status, DEMO, readonly, staff)
+    days, note = _days_for_range(info, start, end, whole, DEMO)
+    if days is None:
+        st.info(note or "沒有出勤紀錄。")
+        return
+    if note:
+        st.info(note)
+    if "Name" not in days.columns or not len(days):
+        _empty("沒有出勤紀錄", "這段日期還沒有打卡，或 DAKA 還沒有同步。")
+        return
+    names = ["全部", *sorted({_text(name) for name in days["Name"] if _text(name)})]
+    shop_labels = [label for label, _code in _SHOPS]
+    with st.container(border=True):
+        picked_filters = st.columns(2)
+        _choose("attendance-person", names, "全部")
+        _choose("attendance-shop", shop_labels, shop_labels[0])
+        chosen = picked_filters[0].selectbox("員工", names, key="attendance-person")
+        shop_label = picked_filters[1].selectbox("店鋪", shop_labels, key="attendance-shop")
+    shop_code = dict(_SHOPS)[shop_label]
+    shown = days if chosen == "全部" else days[days["Name"].astype(str) == chosen]
+    if shop_code:
+        shown = shown[shown.apply(lambda row: _row_shop(row, shop_code), axis=1)]
+    late, late_over, early, missing, absent = _day_counts(shown)
+    if late_over:
+        late_tone = "block"
+    elif late:
+        late_tone = "todo"
+    else:
+        late_tone = "muted"
+    chips([
+        (f"遲到 {late}", late_tone),
+        (f"早退 {early}", "block" if early else "muted"),
+        (f"缺卡 {missing}", "todo" if missing else "muted"),
+        (f"缺勤 {absent}", "block" if absent else "muted"),
+    ])
+    legend()
+    if not len(shown):
+        _empty("沒有符合的出勤", "試下改日期、員工或店鋪。")
+        return
+    if "Late" in shown.columns and "Date" in shown.columns:
+        from app.components.charts import bars
+        late_rows = shown.copy()
+        late_rows["遲到分鐘"] = pd.to_numeric(late_rows["Late"], errors="coerce").fillna(0)
+        by_day = late_rows.groupby(late_rows["Date"].astype(str), as_index=False)["遲到分鐘"].sum()
+        if len(by_day):
+            st.altair_chart(
+                bars(by_day, "Date", "遲到分鐘", title="每日遲到分鐘"),
+                width="stretch",
+                alt="這段日期每日遲到分鐘合計",
+            )
+            st.caption("這段日期的遲到分鐘合計。")
+    if whole and not shop_code and chosen == "全部":
+        st.caption(f"整月全部員工，共 {len(shown)} 行。")
+    _day_table(shown)
+
+
+def _pay_tables():
+    token = []
+    paths = []
+    for book in ("bg", "md", "admin"):
+        path = pay_table_path(book)
+        paths.append((book, path))
+        token.append(path.stat().st_mtime_ns if path.exists() else 0)
+    token = tuple(token)
+    cache = st.session_state.get("late-pay-tables")
+    if cache and cache[0] == token:
+        return cache[1]
+    tables = {}
+    for book, path in paths:
+        if path.exists():
+            tables[book] = pd.read_excel(path, dtype={"employee_no": str, "roster_name": str})
+    st.session_state["late-pay-tables"] = (token, tables)
+    return tables
+
+
+def _part_time_people(staff):
+    if staff is None or "part_time" not in staff.columns:
+        return []
+    people = staff[staff["part_time"].fillna(False).astype(bool)]
+    return people.to_dict("records")
+
+
+def _group_choice(summary):
+    counts = summary["group"].value_counts().to_dict() if len(summary) else {}
+    keys = ["all"]
+    options = [f"全部 {len(summary)}"]
+    for key, label in GROUPS:
+        count = int(counts.get(key, 0))
+        if not count:
+            continue
+        keys.append(key)
+        options.append(f"{label} {count}")
+    other = int(counts.get("", 0))
+    if other:
+        keys.append("")
+        options.append(f"未分類 {other}")
+    if len(options) < 2:
+        st.session_state["late-group-key"] = "all"
+        return "all"
+    saved = st.session_state.get("late-group-key", "all")
+    if saved not in keys:
+        saved = "all"
+    label = options[keys.index(saved)]
+    if st.session_state.get("late-group") not in options:
+        st.session_state["late-group"] = label
+    picked = st.segmented_control("組別", options, key="late-group") or label
+    choice = keys[options.index(picked)] if picked in options else "all"
+    st.session_state["late-group-key"] = choice
+    return choice
+
+
+def _paint_bonus(frame):
+    def paint(row):
+        styles = [""] * len(row)
+        if _text(row.get("勤工獎")) == "影響勤工獎" and "勤工獎" in row.index:
+            styles[list(row.index).index("勤工獎")] = "color: #C0392B; font-weight: 700"
+        return styles
+    return frame.style.apply(paint, axis=1)
+
+
+def _export_late(shown, month_key):
+    view = shown.drop(columns=["group", "roster_names"], errors="ignore").rename(columns=_LATE_LABELS)
+    buffer = BytesIO()
+    view.to_excel(buffer, index=False)
+    from openpyxl import load_workbook
+    from openpyxl.styles import Alignment
+    book = load_workbook(buffer)
+    sheet = book.active
+    for cell in sheet[1]:
+        if cell.value not in {"遲到日期", "加班日期"}:
+            continue
+        sheet.column_dimensions[cell.column_letter].width = 72
+        for row in sheet.iter_rows(min_row=2, min_col=cell.column, max_col=cell.column):
+            row[0].alignment = Alignment(wrap_text=True, vertical="top")
+    packed = BytesIO()
+    book.save(packed)
+    st.download_button(
+        "下載遲到統計",
+        packed.getvalue(),
+        file_name=f"遲到統計_{month_key}.xlsx",
+        key="late-export",
+    )
+
+
+def _person_label(row, index):
+    return " ".join(part for part in (_text(row["employee_no"]), _text(row["name"])) if part) or f"{index}"
+
+
+def _show_late_notes(dates):
+    """One block per late day. The sentence wraps, and the four clocks sit on the next line."""
+    blocks = [block.strip() for block in _text(dates).split("\n\n") if block.strip()]
+    if not blocks:
+        return
+    notes = []
+    for block in blocks:
+        lines = [line.strip() for line in block.split("\n") if line.strip()]
+        body = f"<div>{html.escape(lines[0])}</div>"
+        for line in lines[1:]:
+            body += f'<div class="gh-late-next">{html.escape(line)}</div>'
+        notes.append(f'<div class="gh-late-note">{body}</div>')
+    st.markdown("".join(notes), unsafe_allow_html=True)
+
+
+def _late_report(info, staff):
+    st.caption(
+        f"單次遲到超過 {LATE_GRACE_MINUTES} 分鐘會沒有勤工獎。"
+        f"{LATE_GRACE_MINUTES} 分鐘或以下仍然有。寫字樓、兼職和內地勞工沒有勤工獎。"
+        "打卡次數是當天的上班和下班記錄。平時打卡 4 次而當天少於 4 次會標明。"
+        "打滿 4 次仍然遲到時，四次的上班和下班時間都會列出，方便核對是不是第一次上班遲了。"
+    )
+    days, note = _load_month_days(info, info, DEMO)
+    if days is None:
+        st.info(note or "沒有出勤紀錄。")
+        return
+    if note:
+        st.info(note)
+    if "Name" not in days.columns or not len(days):
+        _empty("這個月沒有出勤紀錄", "DAKA 同步之後，這裡會列出遲到的同事。")
+        return
+    if info["daka"].exists():
+        from payroll.attendance.daka import punch_logs
+        logs = punch_logs(info["daka"])
+        days = add_punch_counts(days, {key: len(value) for key, value in logs.items()}, logs)
+    late_names = sorted({
+        _text(name) for name, minutes in zip(days["Name"], pd.to_numeric(days["Late"], errors="coerce").fillna(0))
+        if _text(name) and minutes > 0
+    })
+    links = link_groups(late_names, staff, _pay_tables(), _part_time_people(staff), shops_by_name(days))
+    # The toggle and the search already wrote their values before this run.
+    hide = bool(st.session_state.get("late-hide-small"))
+    summary = late_summary(days, links, hide_within_grace=hide)
+    with st.container(border=True):
+        choice = _group_choice(summary)
+        with st.container(horizontal=True, vertical_alignment="bottom"):
+            st.toggle(f"隱藏 {LATE_GRACE_MINUTES} 分鐘或以下", key="late-hide-small")
+            st.text_input("搜尋姓名或員工編號", key="late-query", width="stretch")
+    query = _text(st.session_state.get("late-query"))
+    if choice != "all":
+        summary = summary[summary["group"].astype(str).eq(choice)]
+    needle = _text(query).lower()
+    if needle:
+        summary = summary[summary.apply(
+            lambda row: needle in f"{row['employee_no']} {row['name']}".lower(), axis=1,
+        )]
+    people = len(summary)
+    times = int(summary["times"].sum()) if people else 0
+    minutes = int(summary["minutes"].sum()) if people else 0
+    over = int(summary["affects_bonus"].astype(str).eq("影響勤工獎").sum()) if people else 0
+    cards = (
+        ("遲到人數", people, "有遲到的同事", "todo" if people else "ok"),
+        ("遲到次數", times, "一人一日計一次", "info"),
+        ("遲到分鐘", minutes, "全部加起來", "info"),
+        (f"逾{LATE_GRACE_MINUTES}分鐘", over, "單次超過會沒有勤工獎", "block" if over else "ok"),
+    )
+    columns = st.columns(4)
+    for column, (label, value, note_text, tone) in zip(columns, cards):
+        with column:
+            kpi(label, value, note_text, tone)
+    if not people:
+        _empty("沒有符合的遲到", "可以改組別，或關掉「隱藏 5 分鐘或以下」。")
+        return
+    view = summary.drop(columns=["group", "roster_names", "dates", "ot_dates"]).rename(columns=_LATE_LABELS)
+    peak = max(int(summary["minutes"].max()), 1)
+    st.dataframe(
+        _paint_bonus(view),
+        hide_index=True,
+        width="stretch",
+        alt="各員工本月遲到次數和分鐘",
+        column_config={
+            "姓名": st.column_config.TextColumn("姓名", pinned=True),
+            "員工編號": st.column_config.TextColumn("員工編號", width="small"),
+            "遲到分鐘": st.column_config.ProgressColumn(
+                "遲到分鐘", min_value=0, max_value=peak, format="%d", color="#C8963E", width="medium",
+            ),
+            "加班時數": st.column_config.NumberColumn(
+                "加班時數", width="small", format="%.1f",
+                help="零售同事本月的加班。遲到有可能是用這些時間補鐘。",
+            ),
+            "勤工獎": st.column_config.TextColumn(
+                "勤工獎", width="small",
+                help=f"兼職、內地勞工和寫字樓沒有勤工獎。其他人單次超過 {LATE_GRACE_MINUTES} 分鐘就沒有。",
+            ),
+        },
+    )
+    _export_late(summary, info["key"])
+    labels = []
+    seen = {}
+    for index, row in summary.iterrows():
+        label = _person_label(row, index)
+        if label in seen:
+            label = f"{label} {len(seen)}"
+        seen[label] = index
+        labels.append(label)
+    _choose("late-person", labels, labels[0])
+    picked_person = st.selectbox("查看一人", labels, key="late-person")
+    person = summary.loc[seen[picked_person]]
+    st.caption(f"{_text(person['name'])} 的遲到日期。一句太長會換到下一行；打滿 4 次時，四個時間在下一行。")
+    _show_late_notes(person["dates"])
+    if _text(person.get("group")) == "bg_retail" and _text(person.get("ot_dates")):
+        st.caption("這位零售同事本月有加班。遲到有可能是用這些時間補鐘。")
+        _show_late_notes(person["ot_dates"])
+
+
+def page_attendance():
+    _pull_daka()
+    info, readonly, draft, staff, _table = _context(steps=True)
+    status = step_status(info, draft, staff, _table)
+    page_header("出勤", _month_label(info["key"]))
+    daily, late = st.tabs(["每日紀錄", "遲到統計"], on_change="rerun", key="attendance-tabs")
+    if daily.open:
+        with daily:
+            _daily_record(info, status, staff, readonly)
+    if late.open:
+        with late:
+            _late_report(info, staff)

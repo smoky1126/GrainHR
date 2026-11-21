@@ -1,6 +1,7 @@
 import streamlit as st
 
 from app.components.format import hk
+from payroll.core.money import LATE_GRACE_MINUTES
 
 def _chip_html(text, tone):
     safe = "ok" if tone == "ok" else tone if tone in {"todo", "block", "info", "muted"} else "muted"
@@ -15,8 +16,8 @@ def chips(items):
 
 def legend():
     chips([
-        ("遲到超過 5 分鐘", "block"),
-        ("遲到 5 分鐘以內", "todo"),
+        (f"遲到超過 {LATE_GRACE_MINUTES} 分鐘", "block"),
+        (f"遲到 {LATE_GRACE_MINUTES} 分鐘以內", "todo"),
         ("早退", "block"),
         ("加班", "info"),
     ])

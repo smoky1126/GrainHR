@@ -107,6 +107,54 @@ def _pair_punches(columns, values):
     return clock_in, in_place, clock_out, out_place
 
 
+def _clocks(columns, values):
+    """Filled 上班 and 下班 times, in the order DAKA stored them."""
+    found = []
+    for index, column in enumerate(columns):
+        kind = _column_kind(column)
+        if kind not in {"in", "out"}:
+            continue
+        clock = _clock(values[index])
+        if clock:
+            found.append(("上班" if kind == "in" else "下班", clock))
+    return found
+
+
+def format_clocks(clocks):
+    return "、".join(f"{kind} {clock}" for kind, clock in clocks)
+
+
+def punch_logs(path):
+    """Every clock time for each person on each date, in DAKA column order."""
+    table = _read(path)
+    columns = [str(name) for name in table.columns]
+    name_at = columns.index("姓名")
+    date_at = columns.index("日期")
+    logs = {}
+    for row in table.itertuples(index=False):
+        values = list(row)
+        name = str(values[name_at]).strip()
+        if not name or name.lower() == "nan":
+            continue
+        try:
+            when = pd.to_datetime(values[date_at]).strftime("%Y-%m-%d")
+        except Exception:
+            continue
+        clocks = _clocks(columns, values)
+        if clocks:
+            logs[(name, when)] = clocks
+    return logs
+
+
+def punch_counts(path):
+    """How many clock times DAKA stored for each person on each date.
+
+    Each filled 上班 or 下班 counts. A normal day with a lunch break is four:
+    arrive, leave for lunch, return, and leave.
+    """
+    return {key: len(clocks) for key, clocks in punch_logs(path).items()}
+
+
 def load_daka(path):
     """One punch record per person per date.
 

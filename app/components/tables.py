@@ -1,5 +1,7 @@
 import pandas as pd
 
+from payroll.core.money import LATE_GRACE_MINUTES
+
 def style_days(days):
     """Colour clock-in and clock-out. Late over 5 minutes is red, 1 to 5 is amber, early is red, overtime is blue."""
     names = {
@@ -26,7 +28,7 @@ def style_days(days):
         red = "color: #C00000; font-weight: 700"
         amber = "color: #C65911; font-weight: 700"
         blue = "color: #2F5496; font-weight: 700"
-        if "上班" in index and _number(row.get("遲到")) > 5:
+        if "上班" in index and _number(row.get("遲到")) > LATE_GRACE_MINUTES:
             styles[index["上班"]] = red
         elif "上班" in index and _number(row.get("遲到")) > 0:
             styles[index["上班"]] = amber
