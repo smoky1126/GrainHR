@@ -168,15 +168,22 @@ def _with_archive(view):
 
 def _load_month_days(info, view, demo):
     """The open month uses its saved table. A paid month is built once from the archive."""
+    import zipfile
     from contextlib import nullcontext
     from pathlib import Path
 
-    from payroll.core.excel_io import read_excel
+    from payroll.core.excel_io import read_table
     from payroll.core.history import is_issued
 
     days_path = Path(view["system"]) / "days.xlsx"
+    saved = read_table(days_path)
+    if saved is not None:
+        return saved, None
     if days_path.exists():
-        return read_excel(days_path), None
+        try:
+            days_path.unlink()
+        except OSError:
+            return None, f"{view['month']}月的出勤檔讀不到。請改到月份紀錄查看糧單。"
     issued = is_issued(view["key"])
     if view["key"] == info["key"] and not issued:
         return None, f"{view['month']}月還沒有出勤紀錄。DAKA 還沒有同步。"
@@ -198,15 +205,18 @@ def _load_month_days(info, view, demo):
         spinner = st.spinner(label)
     except Exception:
         spinner = nullcontext()
-    with spinner:
-        view["system"].mkdir(parents=True, exist_ok=True)
-        facts = run_attendance(
-            view["daka"], view["rosters"], view["sheet"],
-            view["system"] / f"{view['sheet']}考勤核對表.xlsx",
-            view["system"] / "daily_facts.xlsx",
-        )
-        _summaries, days = merge_days(facts, load_daka(view["daka"]))
-        days.to_excel(days_path, index=False)
+    try:
+        with spinner:
+            view["system"].mkdir(parents=True, exist_ok=True)
+            facts = run_attendance(
+                view["daka"], view["rosters"], view["sheet"],
+                view["system"] / f"{view['sheet']}考勤核對表.xlsx",
+                view["system"] / "daily_facts.xlsx",
+            )
+            _summaries, days = merge_days(facts, load_daka(view["daka"]))
+            days.to_excel(days_path, index=False, engine="openpyxl")
+    except (OSError, ValueError, zipfile.BadZipFile):
+        return None, f"{view['month']}月的出勤檔讀不到。請改到月份紀錄查看糧單。"
     return days, None
 
 

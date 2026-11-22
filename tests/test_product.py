@@ -129,6 +129,25 @@ def test_logo_uses_the_file_beside_company_toml():
         _fail(found)
 
 
+def test_a_broken_workbook_is_skipped():
+    from payroll.core.excel_io import read_table
+    import pandas as pd
+
+    broken = HOME / "broken.xlsx"
+    broken.write_bytes(b"this is not a workbook" * 20)
+    if read_table(broken) is not None:
+        _fail("a non-Excel file should be skipped")
+    empty = HOME / "empty.xlsx"
+    empty.write_bytes(b"")
+    if read_table(empty) is not None:
+        _fail("an empty file should be skipped")
+    real = HOME / "real.xlsx"
+    pd.DataFrame({"Name": ["A"]}).to_excel(real, index=False, engine="openpyxl")
+    frame = read_table(real)
+    if frame is None or list(frame["Name"]) != ["A"]:
+        _fail(frame)
+
+
 def test_settings_reload_when_the_file_changes():
     company = HOME / "reload.toml"
     company.write_text("private = false\n", encoding="utf-8")
@@ -148,5 +167,6 @@ if __name__ == "__main__":
     test_slip_folders_include_ma_douce_without_a_deep_search()
     test_issued_summary_hides_office_rows_from_hr()
     test_logo_uses_the_file_beside_company_toml()
+    test_a_broken_workbook_is_skipped()
     test_settings_reload_when_the_file_changes()
     print("product ok")

@@ -1,6 +1,7 @@
 """Excel reads cached by file time, and writes that replace the real file."""
 
 import os
+import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +33,29 @@ def read_excel(path, *args, **kwargs):
     copied = frame.copy()
     copied.attrs = dict(getattr(frame, "attrs", {}))
     return copied
+
+
+def read_table(path, **kwargs):
+    """A workbook, or None when the file is missing, empty, or not Excel.
+
+    A shared-drive copy can exist before its bytes are a real workbook.
+    Callers should build the month again instead of showing a crash.
+    """
+    path = Path(path)
+    try:
+        if not path.is_file() or path.stat().st_size < 128:
+            return None
+    except OSError:
+        return None
+    kwargs.setdefault("engine", "openpyxl")
+    try:
+        return read_excel(path, **kwargs)
+    except (OSError, ValueError, zipfile.BadZipFile):
+        return None
+    except Exception as error:
+        if error.__class__.__name__ == "InvalidFileException":
+            return None
+        raise
 
 
 def clear_reads():

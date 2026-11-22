@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+- A saved attendance file that is not a real workbook is skipped, and that month is built again.
+
 ## 1.2.0
 
 - Pages stop rewriting the month lock on every click, and Excel files are read again only when they change.
