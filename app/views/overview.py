@@ -47,8 +47,7 @@ def _next_page(status, waiting):
     return "pages/payout.py", "去出糧"
 
 def page_overview():
-    from app.access import hide_pay_page
-    hide_pay_page()
+    from app.access import books as visible_books
     _pull_daka()
     info, _readonly, draft, staff, table = _context(steps=True)
     slips_ready = bool(st.session_state.get("slips_ready"))
@@ -61,28 +60,31 @@ def page_overview():
                 kpi(label, value, "請先到出勤頁", "muted")
         st.info("未有計算結果。請先到出勤頁。")
         return
+    shown_books = visible_books()
     paid_all = draft[draft["pay_this"].astype(bool)] if "pay_this" in draft.columns else draft
+    if "book" in paid_all.columns:
+        paid_all = paid_all[paid_all["book"].astype(str).isin(shown_books)]
     net_all = float(paid_all["net"].sum()) if len(paid_all) and "net" in paid_all.columns else 0
     waiting_all = 0
     made = 0
-    for book in BOOKS:
+    for book in shown_books:
         blocked = _blocked(draft, book)
         waiting_all += 0 if blocked is None else len(blocked)
         if book_info(info, book)["slip_output"].exists():
             made += 1
     columns = st.columns(4)
     cards = (
-        ("本月出糧", f"{len(paid_all)} 人", "三份糧單合計", "info"),
+        ("本月出糧", f"{len(paid_all)} 人", "可見糧單合計", "info"),
         ("淨薪金", hk(net_all), "未計未批准的改動", "ok"),
         ("未批准", f"{waiting_all} 人", "審核後才能出糧", "block" if waiting_all else "ok"),
-        ("糧單", f"{made} / {len(BOOKS)}", "已製作的檔案", "ok" if made == len(BOOKS) else "todo"),
+        ("糧單", f"{made} / {len(shown_books)}", "已製作的檔案", "ok" if made == len(shown_books) else "todo"),
     )
     for column, (label, value, note, tone) in zip(columns, cards):
         with column:
             kpi(label, value, note, tone)
     st.write("")
     cost_rows = []
-    for book, label in BOOKS.items():
+    for book, label in shown_books.items():
         group = draft[draft["book"].astype(str).eq(book)]
         paid = group[group["pay_this"].astype(bool)] if "pay_this" in group.columns else group
         waiting = _blocked(draft, book)

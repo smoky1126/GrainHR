@@ -12,7 +12,7 @@ def page_settings():
     inject()
     show_logo()
     who = _user()
-    roles = {"admin": "HR 管理員", "hr": "HR 同事", "viewer": "店長"}
+    roles = {"admin": "管理員", "hr": "HR 同事"}
     page_header("設定", f"GrainHR v{app_version()}")
     st.markdown(f"**{display_name(who)}** · {roles.get(role_for(who), 'HR 同事')}")
     if not is_private():
@@ -22,4 +22,4 @@ def page_settings():
     st.write(f"伺服器：{info.get('server') or '未設定'}")
     st.write(f"匯出位置：{info.get('remote') or '未設定'}")
     if role_for(who) != "admin":
-        st.caption("只有管理員可以修改薪金設定。")
+        st.caption("寫字樓同事的薪金只顯示給管理員。")

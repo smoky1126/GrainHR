@@ -87,7 +87,7 @@ def run_check(info, open_workbook=False, fetch=True):
     print(text)
     draft_path = info["output"] / "payroll_draft.xlsx"
     print(f"draft: {draft_path}")
-    if open_workbook:
+    if open_workbook and os.name == "nt":
         os.startfile(draft_path)
     return draft
 
@@ -220,7 +220,10 @@ def main(argv=None):
         folder = info["folder"]
         if not folder.exists():
             raise SystemExit("這個月還沒有資料。DAKA 還沒有同步。")
-        os.startfile(folder)
+        if os.name == "nt":
+            os.startfile(folder)
+        else:
+            print(folder)
     else:
         raise SystemExit(f"沒有這個動作：{action}。可用 check、recalc、slips 或 folder。")
     return 0

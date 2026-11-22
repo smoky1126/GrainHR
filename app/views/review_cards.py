@@ -77,7 +77,8 @@ def step_problems(info, status, draft, readonly):
         st.warning(f"有 {len(pending)} 人的加班備註或缺勤未確認，全部批准會跳過他們。")
     if not readonly and len(ready) and st.button("全部批准"):
         pairs = []
-        for book in BOOKS:
+        from app.access import books as visible_books
+        for book in visible_books():
             group = ready[ready["book"].astype(str).eq(book)] if "book" in ready.columns else ready
             pairs.extend((book, _text(value)) for value in group["staff_id"] if _text(value))
         st.session_state["approve_open"] = (info["key"], tuple(pairs), len(pending))
@@ -85,7 +86,8 @@ def step_problems(info, status, draft, readonly):
     if opened and not readonly:
         _confirm_approve_all(*opened)
     chosen = []
-    for book, label in BOOKS.items():
+    from app.access import books as visible_books
+    for book, label in visible_books().items():
         group = people[people["book"].astype(str).eq(book)] if "book" in people.columns else people.iloc[0:0]
         if len(group):
             chosen.append((book, label, group))

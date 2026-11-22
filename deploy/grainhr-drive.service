@@ -1,0 +1,14 @@
+[Unit]
+Description=GrainHR shared-drive mount
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/rclone mount grainhr: /srv/grainhr/hr --vfs-cache-mode full --dir-cache-time 10s
+ExecStop=/bin/fusermount -u /srv/grainhr/hr
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

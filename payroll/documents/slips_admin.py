@@ -261,6 +261,12 @@ def write_person_slip(info, draft, staff_id):
         return target
     _copy_person(target, chosen["anchors"]["start"], chosen["anchors"]["end"])
     pdf = target.with_suffix(".pdf")
+    import os
+    if os.name != "nt":
+        from payroll.documents.slips import _soffice_pdf
+        if _soffice_pdf(target, pdf):
+            return pdf
+        return target
     script = (
         "$excel = New-Object -ComObject Excel.Application; "
         "$excel.Visible = $false; $excel.DisplayAlerts = $false; "

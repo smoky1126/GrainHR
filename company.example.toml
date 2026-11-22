@@ -188,6 +188,10 @@ retail = ["HKU", "JD", "TKS", "TW", "WC"]
 [history]
 issued_through = ""
 
+[server]
+windows_root = ""
+linux_root = ""
+
 [paths]
 staff_record = ""
 roster_sheets = ""

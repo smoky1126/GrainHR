@@ -1,0 +1,17 @@
+[Unit]
+Description=GrainHR
+After=network-online.target grainhr-drive.service
+Wants=grainhr-drive.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/grainhr
+Environment=GRAINHR_SERVER=1
+Environment="PAYROLL_HOME=/srv/grainhr/hr/REPLACE/data"
+Environment="PAYROLL_COMPANY=/srv/grainhr/hr/REPLACE/company.toml"
+ExecStart=/opt/grainhr/.venv/bin/streamlit run app/main.py --server.headless true --server.address 127.0.0.1 --server.port 8501
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

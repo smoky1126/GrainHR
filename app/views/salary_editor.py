@@ -147,9 +147,14 @@ def _grid_dirty(original, edited):
 
 def _salary_editor(info, readonly):
     st.markdown("**薪金資料**")
-    labels = list(BOOKS.values())
+    from app.access import books as visible_books
+    shown = visible_books()
+    labels = list(shown.values())
+    if not labels:
+        st.info("沒有可以查看的糧單。")
+        return
     chosen = st.selectbox("糧單", labels, key="salary-book")
-    book = next(key for key, label in BOOKS.items() if label == chosen)
+    book = next(key for key, label in shown.items() if label == chosen)
     try:
         staff = load_staff()
         table = ensure_pay_table(book=book)

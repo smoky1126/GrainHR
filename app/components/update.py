@@ -31,6 +31,8 @@ def _current():
 
 
 def restart_notice():
+    if os.environ.get("GRAINHR_SERVER") == "1" or os.name != "nt":
+        return
     if _current() > _STARTED + 1:
         st.warning(
             "GrainHR 已更新。請關閉黑色視窗，再雙擊 GrainHR.bat，所有電腦便會用同一個版本。",

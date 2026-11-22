@@ -20,19 +20,54 @@ def _download(path):
 
 
 def _folder_button(path):
-    if st.button(f"開啟 {path.name}", key=f"open-{path}"):
+    if os.name == "nt" and st.button(f"開啟 {path.name}", key=f"open-{path}"):
         os.startfile(path)
+        return
+    files = [item for item in path.iterdir() if item.is_file() and not item.name.startswith("~$")]
+    if os.name == "nt" or not files:
+        return
+    import io
+    import zipfile
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as packed:
+        for item in files:
+            packed.write(item, item.name)
+    st.download_button(
+        f"下載 {path.name}.zip", buffer.getvalue(), file_name=f"{path.name}.zip", key=f"zip-{path}",
+    )
+
+
+def _audit(role):
+    from payroll.core.access import visible_audit
+    from payroll.core.config import home
+    from payroll.staff.staff import pay_table_path
+    path = home() / "data" / "payroll_audit.xlsx"
+    if not path.exists():
+        return
+    import pandas as pd
+    frame = pd.read_excel(path, engine="openpyxl")
+    office_ids = set()
+    table = pay_table_path("admin")
+    if table.exists():
+        office = pd.read_excel(table, engine="openpyxl")
+        if "staff_id" in office.columns:
+            office_ids = {str(value).strip() for value in office["staff_id"]}
+    shown = visible_audit(frame, role, office_ids)
+    if shown is None or not len(shown):
+        return
+    with st.expander("薪金調整紀錄"):
+        st.dataframe(shown, hide_index=True, width="stretch")
 
 
 def page_records():
-    from app.lock import _user
-    from payroll.core.settings import role_for
+    from app.access import current_role
 
     inject()
     show_logo()
     info, _readonly, _draft, _staff, _table = _context()
     page_header("月份紀錄", _month_label(info["key"]))
-    viewer = role_for(_user()) == "viewer"
+    from app.access import see_pay
+    from payroll.core.access import hide_office_file
     if is_issued(info["key"]):
         st.caption("一月至十月的糧單、更表和考勤核對表保持原樣。這裡只打開已保存的檔案。")
     else:
@@ -43,10 +78,8 @@ def page_records():
         st.caption("沒有找到這個月的考勤核對表。")
     else:
         _download(check)
-    if viewer:
-        return
     st.markdown("**這個月保存的檔案**")
-    kept = saved_files(info)
+    kept = [path for path in saved_files(info) if not hide_office_file(path.name, "admin" if see_pay("admin") else "hr")]
     if not kept:
         st.caption("GrainHR 還沒有這個月的計算檔。")
     for path in kept:
@@ -56,6 +89,8 @@ def page_records():
     if not folders:
         st.caption("沒有找到這個月的糧單資料夾。")
     for label, folder in folders:
+        if hide_office_file(label, "admin" if see_pay("admin") else "hr"):
+            continue
         files = [path for path in folder.iterdir() if path.is_file() and not path.name.startswith("~$")]
         with st.container(border=True):
             st.markdown(f"**{label}**")
@@ -64,3 +99,4 @@ def page_records():
             for path in sorted(files):
                 if path.suffix.lower() in {".docx", ".xlsx"}:
                     _download(path)
+    _audit(current_role())

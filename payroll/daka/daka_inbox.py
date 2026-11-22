@@ -293,9 +293,11 @@ def export_now(run=None):
             "systemctl --user start daka-robot.service",
         ])
     except (OSError, subprocess.SubprocessError):
-        return _offline(OFFLINE)
+        request_export()
+        return _offline("已請伺服器匯出打卡。約一分鐘後這一頁會自己更新。")
     if getattr(done, "returncode", 1) != 0:
-        return _offline(OFFLINE)
+        request_export()
+        return _offline("已請伺服器匯出打卡。約一分鐘後這一頁會自己更新。")
     return pull_from_server(run)
 
 

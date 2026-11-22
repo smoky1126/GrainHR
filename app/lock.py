@@ -9,7 +9,8 @@ def _path(info):
 
 
 def _user():
-    return os.environ.get("USERNAME") or os.environ.get("USER") or "user"
+    from app.auth import current_user
+    return current_user() or os.environ.get("USERNAME") or os.environ.get("USER") or "user"
 
 
 def read_lock(info):

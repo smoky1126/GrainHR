@@ -76,7 +76,9 @@ def step_pay(info, status, draft, readonly):
     if status["pay"] == "wait":
         _mark("4. 出糧", "wait", "請先完成「新同事」。")
         return draft
-    present = [book for book in BOOKS if pay_table_path(book).exists()]
+    from app.access import books as visible_books
+    shown = visible_books()
+    present = [book for book in shown if pay_table_path(book).exists()]
     ready = all(book_info(info, book)["slip_output"].exists() for book in present) and present
     if ready and not st.session_state.get("dirty"):
         _mark("4. 出糧", "done", "糧單已做好，可以下載。")
@@ -95,8 +97,8 @@ def step_pay(info, status, draft, readonly):
     any_blocked = any(rows is not None and len(rows) for rows in blocked_by_book.values())
     if not readonly and top[1].button("製作全部糧單", type="primary", disabled=any_blocked):
         _confirm_make_all(info["key"], tuple(present), format_pay_date(picked))
-    columns = st.columns(3)
-    for column, (book, label) in zip(columns, BOOKS.items()):
+    columns = st.columns(max(len(shown), 1))
+    for column, (book, label) in zip(columns, shown.items()):
         with column:
             with st.container(border=True):
                 if book not in present:
@@ -148,7 +150,10 @@ def step_pay(info, status, draft, readonly):
                         st.download_button("下載津貼表", summary.read_bytes(), file_name=summary.name)
     st.markdown("**其他下載**")
     if draft is not None and len(draft) and "staff_id" in draft.columns and not readonly:
+        from app.access import see_pay
         paid = draft[draft["pay_this"].astype(bool)] if "pay_this" in draft.columns else draft
+        if "book" in paid.columns:
+            paid = paid[paid["book"].map(lambda book: see_pay(book))]
         labels = [f"{_text(row.slip_name)}（{_text(row.staff_id)}）" for _, row in paid.iterrows()]
         ids = [_text(row.staff_id) for _, row in paid.iterrows()]
         books_for = [_text(row.book) for _, row in paid.iterrows()] if "book" in paid.columns else ["bg"] * len(ids)
@@ -170,8 +175,9 @@ def step_pay(info, status, draft, readonly):
                 else:
                     st.toast(f"已製作 {path.name}")
                     st.download_button("下載這份糧單", path.read_bytes(), file_name=path.name, key="one-slip")
+    from app.access import see_pay
     report = info["output"] / "payroll_draft.xlsx"
-    if not readonly and st.button("匯出 Excel 報告"):
+    if see_pay("admin") and not readonly and st.button("匯出 Excel 報告"):
         try:
             with st.spinner("正在匯出 Excel 報告"):
                 from payroll.documents.report import write_report
@@ -182,7 +188,7 @@ def step_pay(info, status, draft, readonly):
             st.error(str(error))
         else:
             st.toast("報告已匯出")
-    if report.exists():
+    if see_pay("admin") and report.exists():
         st.download_button("下載 Excel 報告", report.read_bytes(), file_name=report.name, key="report-download")
     return draft
 
@@ -226,8 +232,6 @@ def _pt_payout(info, readonly):
                 )
 
 def page_payout():
-    from app.access import hide_pay_page
-    hide_pay_page()
     info, readonly, draft, staff, table = _context(steps=True)
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)

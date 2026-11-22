@@ -92,8 +92,11 @@ def test_export_now_offline_keeps_shared_status():
     os.environ["PAYROLL_HOME"] = str(home)
     try:
         message = export_now(run=lambda _args: _Result(255))
-        if message != OFFLINE:
+        if "已請伺服器匯出" not in message:
             raise SystemExit(f"message {message}")
+        requests = list((home / "daka_inbox").glob("_request_*.txt"))
+        if not requests:
+            raise SystemExit("the offline PC did not leave a request file")
         status_file = home / "daka_inbox" / "_狀態.json"
         if status_file.exists() and json.loads(status_file.read_text(encoding="utf-8")).get("ok") is False:
             raise SystemExit("an offline PC marked the shared status failed")

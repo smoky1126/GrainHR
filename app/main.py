@@ -13,33 +13,23 @@ from app.components.update import restart_notice
 
 
 def _pages():
-    from app.lock import _user
-    from payroll.core.settings import role_for
-
-    role = role_for(_user())
-    daily = [
-        st.Page("pages/today.py", title="今日出勤", icon=":material/today:", default=True),
-        st.Page("pages/attendance.py", title="出勤紀錄", icon=":material/calendar_month:"),
-    ]
-    people = [
-        st.Page("pages/staff.py", title="員工總表", icon=":material/groups:"),
-        st.Page("pages/leave.py", title="假期", icon=":material/beach_access:"),
-    ]
-    monthly = [
-        st.Page("pages/records.py", title="月份紀錄", icon=":material/inventory_2:"),
-    ]
-    if role != "viewer":
-        people.append(st.Page("pages/names.py", title="名字配對", icon=":material/link:"))
-        monthly.extend([
+    return {
+        "每日": [
+            st.Page("pages/today.py", title="今日出勤", icon=":material/today:", default=True),
+            st.Page("pages/attendance.py", title="出勤紀錄", icon=":material/calendar_month:"),
+        ],
+        "員工": [
+            st.Page("pages/staff.py", title="員工總表", icon=":material/groups:"),
+            st.Page("pages/leave.py", title="假期", icon=":material/beach_access:"),
+            st.Page("pages/names.py", title="名字配對", icon=":material/link:"),
+        ],
+        "每月出糧": [
+            st.Page("pages/records.py", title="月份紀錄", icon=":material/inventory_2:"),
             st.Page("pages/overview.py", title="總覽", icon=":material/dashboard:"),
             st.Page("pages/review.py", title="審核", icon=":material/fact_check:"),
             st.Page("pages/salary.py", title="薪金表", icon=":material/table:"),
             st.Page("pages/payout.py", title="出糧", icon=":material/payments:"),
-        ])
-    return {
-        "每日": daily,
-        "員工": people,
-        "每月出糧": monthly,
+        ],
         "系統": [
             st.Page("pages/settings.py", title="設定", icon=":material/settings:"),
         ],
@@ -48,6 +38,9 @@ def _pages():
 
 def main():
     st.set_page_config(page_title="GrainHR", page_icon=":material/bakery_dining:", layout="wide")
+    from app.auth import allow_sign_in
+    if not allow_sign_in():
+        return
     page = st.navigation(_pages())
     restart_notice()
     try:

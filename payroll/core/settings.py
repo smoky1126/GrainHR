@@ -105,25 +105,86 @@ def issued_through():
     return str((load().get("history") or {}).get("issued_through") or "").strip()
 
 
+def server_settings():
+    return dict(load().get("server") or {})
+
+
+def _path_text(text):
+    return str(text or "").strip().replace("/", "\\").rstrip("\\")
+
+
+def translate_root(text, windows_root, linux_root):
+    """Swap a Windows shared-drive prefix for the Linux mount. The boundary is a folder."""
+    path = _path_text(text)
+    root = _path_text(windows_root)
+    mount = str(linux_root or "").strip().rstrip("/\\")
+    if not path or not root or not mount:
+        return str(text or "").strip()
+    if path.lower() == root.lower():
+        return mount
+    prefix = root.lower() + "\\"
+    if not path.lower().startswith(prefix):
+        return str(text or "").strip()
+    rest = path[len(root):].lstrip("\\").replace("\\", "/")
+    from pathlib import PurePosixPath
+    return str(PurePosixPath(mount) / rest) if rest else mount
+
+
+def _stored_path(text):
+    """On Linux, company.toml still holds the Windows path. Map it onto the server mount."""
+    raw = str(text or "").strip()
+    if os.name == "nt" or not raw:
+        return raw
+    server = server_settings()
+    return translate_root(raw, server.get("windows_root"), server.get("linux_root"))
+
+
 def _on_this_pc(path):
     """Google Drive may use another drive letter on another PC."""
+    if os.name != "nt":
+        return path
     if path.exists() or not path.drive or path.drive.upper() == CODE_ROOT.drive.upper():
         return path
     moved = Path(CODE_ROOT.drive + str(path)[len(path.drive):])
     return moved if moved.exists() else path
 
 
-def path_for(name):
-    """A path, or a list of paths tried in order. The first one this PC can see wins.
+def map_server_path(text, windows_root, linux_root):
+    win = str(windows_root or "").strip().rstrip("\\/")
+    linux = str(linux_root or "").strip().rstrip("/")
+    raw = str(text or "").strip()
+    if not win or not linux or not raw:
+        return raw
+    normalized = raw.replace("/", "\\")
+    prefix = win.replace("/", "\\")
+    if not normalized.lower().startswith(prefix.lower()):
+        return raw
+    rest = normalized[len(prefix):]
+    if rest and rest[0] not in "\\/":
+        return raw
+    rest = rest.lstrip("\\/").replace("\\", "/")
+    return f"{linux}/{rest}" if rest else linux
 
-    Shared-drive shortcuts come first so every Google account finds the same folder.
-    """
+
+def path_for(name):
+    if name == "roster_sheets" and os.name != "nt":
+        return None
     value = (load().get("paths") or {}).get(name)
     choices = value if isinstance(value, list) else [value]
-    paths = [_on_this_pc(Path(str(text).strip())) for text in choices if str(text or "").strip()]
+    server = load().get("server") or {}
+    windows_root = str(server.get("windows_root") or "")
+    linux_root = str(server.get("linux_root") or "")
+    paths = []
+    for item in choices:
+        raw = str(item or "").strip()
+        if not raw:
+            continue
+        if os.name != "nt":
+            raw = map_server_path(raw, windows_root, linux_root)
+        paths.append(_on_this_pc(Path(raw)))
     if not paths:
         return None
-    return next((path for path in paths if path.exists()), paths[0])
+    return next((found for found in paths if found.exists()), paths[0])
 
 
 def daka():
@@ -144,21 +205,42 @@ def users():
     return dict(load().get("users") or {})
 
 
+def _user_row(username):
+    table = users()
+    key = str(username or "")
+    row = table.get(key)
+    if isinstance(row, dict):
+        return row
+    lowered = key.lower()
+    for name, found in table.items():
+        if str(name).lower() == lowered and isinstance(found, dict):
+            return found
+    return {}
+
+
 def role_for(username):
-    row = users().get(username) or {}
-    if isinstance(row, dict) and row.get("role"):
-        return row["role"]
+    row = _user_row(username)
+    if row.get("role"):
+        role = str(row["role"])
+        return "hr" if role == "viewer" else role
     return "hr" if load().get("private") else "admin"
 
 
 def actor():
-    """The person at this computer. Sign-in can replace this later."""
+    """Google email on the server, otherwise the Windows user name."""
+    try:
+        from app.auth import current_user
+        who = current_user()
+        if who:
+            return who
+    except Exception:
+        pass
     return os.environ.get("USERNAME") or os.environ.get("USER") or "user"
 
 
 def display_name(username):
-    row = users().get(username) or {}
-    if isinstance(row, dict) and row.get("name"):
+    row = _user_row(username)
+    if row.get("name"):
         return row["name"]
     return username or "there"
 

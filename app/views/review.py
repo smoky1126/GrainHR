@@ -36,8 +36,6 @@ from app.context import _context, _month_label
 from app.views.review_cards import step_problems
 
 def page_review():
-    from app.access import hide_pay_page
-    hide_pay_page()
     info, readonly, draft, staff, table = _context(steps=True)
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)

@@ -32,7 +32,10 @@ def main():
     if files is None:
         return 1
     failed = False
-    skip = {"company.toml", "company.example.toml", "tools/check_private.py"}
+    skip = {
+        "company.toml", "company.example.toml", "tools/check_private.py",
+        ".streamlit/secrets.toml",
+    }
     for relative in files:
         if relative.replace("\\", "/") in skip:
             continue

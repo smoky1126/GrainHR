@@ -40,14 +40,20 @@ def step_joiners(info, status, staff, table, readonly):
     if status["joiners"] == "wait":
         _mark("2. 新同事", "wait", "請先完成上一步。")
         return
-    people = new_joiners(staff, table, info)
+    from app.access import see_pay
+    from payroll.staff.directory import staff_group
+    people = [
+        record for record in new_joiners(staff, table, info)
+        if see_pay(staff_group(record.get("department"), record.get("employment"), record.get("position"), record.get("sheet")))
+    ]
     if not people:
         _mark("2. 新同事", "done", "沒有新同事。")
         return
     _mark("2. 新同事", "todo", f"有 {len(people)} 位新同事未設定薪金。")
     names = unlinked_roster_names(info, table)
     scheme_labels = list(SCHEME.values())
-    book_labels = list(BOOKS.values())
+    from app.access import books as visible_books
+    book_labels = list(visible_books().values())
     for record in people:
         employee_no = _text(record["employee_no"])
         name = _text(record.get("name_zh")) or _text(record.get("name_en")) or employee_no
@@ -78,16 +84,10 @@ def step_joiners(info, status, staff, table, readonly):
                     st.rerun()
 
 def page_salary():
-    from app.access import current_role, hide_pay_page
-
-    hide_pay_page()
     info, readonly, draft, staff, table = _context(steps=True)
     status = step_status(info, draft, staff, table)
     page_header("薪金表", _month_label(info["key"]))
-    pay_locked = readonly or current_role() != "admin"
-    if current_role() != "admin":
-        st.caption("只有管理員可以修改薪金設定。")
     with st.expander(f"新同事（{status['joiner_count']}）", expanded=bool(status["joiner_count"])):
-        step_joiners(info, status, staff, table, pay_locked)
-    _salary_editor(info, pay_locked)
-    _pt_editor(info, pay_locked)
+        step_joiners(info, status, staff, table, readonly)
+    _salary_editor(info, readonly)
+    _pt_editor(info, readonly)

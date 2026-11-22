@@ -169,7 +169,7 @@ def _pull_daka(force=False):
         if force:
             with st.spinner("正在向 DAKA 伺服器取最新打卡，大約一分鐘"):
                 message = export_now()
-            if message == OFFLINE:
+            if message == OFFLINE or (message and "已請" in str(message)):
                 st.session_state["daka_requested"] = request_export()
                 return "已請 DAKA 伺服器匯出最新打卡，大約兩至三分鐘。今日出勤頁會自動更新。"
             st.session_state.pop("daka_requested", None)
@@ -232,10 +232,7 @@ def _context(steps=False):
     who = _user()
     role = role_for(who)
     issued = is_issued(info["key"])
-    if role == "viewer":
-        can_edit, owner = False, ""
-    else:
-        can_edit, owner = claim(info)
+    can_edit, owner = claim(info)
     readonly = (issued and steps) or not can_edit
     if issued:
         st.markdown(
@@ -248,12 +245,7 @@ def _context(steps=False):
     slips_ready = bool(st.session_state.get("slips_ready"))
     if steps:
         stepper(step_status(info, draft, staff, table, slips_ready=slips_ready))
-    if role == "viewer":
-        st.sidebar.markdown(
-            '<span class="pay-chip pay-chip-muted">只供查看</span>',
-            unsafe_allow_html=True,
-        )
-    elif can_edit:
+    if can_edit:
         st.sidebar.markdown(
             f'<span class="pay-chip pay-chip-ok">你正在處理 {_month_label(info["key"])}</span>',
             unsafe_allow_html=True,
@@ -267,13 +259,11 @@ def _context(steps=False):
             claim(info, take_over=True)
             st.rerun()
     from payroll.core.settings import app_version, display_name
-    roles = {"admin": "HR 管理員", "hr": "HR 同事", "viewer": "店長"}
+    roles = {"admin": "管理員", "hr": "HR 同事"}
     st.sidebar.markdown(
         f'<div class="gh-footer">GrainHR v{app_version()}<br>{display_name(who)} · {roles.get(role, "HR 同事")}</div>',
         unsafe_allow_html=True,
     )
-    if role == "viewer":
-        return info, readonly, draft, staff, table
     with st.sidebar.expander("進階"):
         if st.button("立即同步 DAKA", disabled=readonly or DEMO):
             _pull_daka(force=True)

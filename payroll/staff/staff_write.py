@@ -113,6 +113,10 @@ def _same(field, record, expected):
 
 
 def _run_excel(payload):
+    if os.name != "nt":
+        from payroll.staff.sheet_patch import apply_staff_edit
+        apply_staff_edit(payload)
+        return
     folder = home() / "_tmp"
     folder.mkdir(parents=True, exist_ok=True)
     json_path = folder / "staff_write.json"
@@ -211,14 +215,18 @@ def _apply(action, sheet, employee_no, name_zh, fields, path=None):
     clean["中文姓名"] = name_zh
     _backup(path)
     clear_staff_cache()
-    _run_excel({
-        "path": str(path.resolve()),
-        "action": action,
-        "sheet": sheet,
-        "employee_no": employee_no,
-        "name_zh": name_zh,
-        "fields": clean,
-    })
+    if os.name == "nt":
+        _run_excel({
+            "path": str(path.resolve()),
+            "action": action,
+            "sheet": sheet,
+            "employee_no": employee_no,
+            "name_zh": name_zh,
+            "fields": clean,
+        })
+    else:
+        from payroll.staff.sheet_edit import edit_staff_sheet
+        edit_staff_sheet(path, sheet, employee_no, name_zh, clean, action)
     after = _current(path, employee_no, name_zh)
     if after is None:
         raise SystemExit(f"寫入後找不到 {employee_no} {name_zh}。")
@@ -226,7 +234,7 @@ def _apply(action, sheet, employee_no, name_zh, fields, path=None):
         if not _same(field, after, value):
             raise SystemExit(f"{field} 沒有寫進員工檔。")
     when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    user = os.environ.get("USERNAME", "")
+    user = _actor()
     rows = []
     for field, value in clean.items():
         old = ""
@@ -270,11 +278,16 @@ def salary_history_path():
     return folder / "salary_history.xlsx"
 
 
-def _salary_log(employee_no, old, new, kind):
+def _actor():
+    from app.auth import current_user
+    return current_user() or os.environ.get("USERNAME") or os.environ.get("USER") or ""
+
+
+def _salary_log(employee_no, old, new, kind, user=None):
     path = salary_history_path()
     row = pd.DataFrame([{
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "user": os.environ.get("USERNAME", ""),
+        "user": user if user is not None else _actor(),
         "employee_no": employee_no,
         "kind": kind,
         "old": old,

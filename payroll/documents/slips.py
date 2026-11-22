@@ -539,7 +539,26 @@ def write_person_slip(info, draft, staff_id):
     return target
 
 
+def _soffice_pdf(source, target):
+    import shutil
+    import subprocess
+    program = shutil.which("soffice") or shutil.which("libreoffice")
+    if not program:
+        return False
+    try:
+        subprocess.run(
+            [program, "--headless", "--convert-to", "pdf", "--outdir", str(target.parent), str(source)],
+            check=True, capture_output=True, timeout=120,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return target.exists()
+
+
 def _to_pdf(source, target):
+    import os
+    if os.name != "nt":
+        return _soffice_pdf(source, target)
     import subprocess
     script = (
         "$word = New-Object -ComObject Word.Application; "

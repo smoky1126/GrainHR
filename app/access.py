@@ -1,17 +1,18 @@
-"""Who can see salary, identity numbers, and bank details."""
+"""The signed-in role, and whether this person may see office pay."""
 
-import streamlit as st
-
-from app.lock import _user
+from payroll.core.access import can_see_pay, hide_office_file, scrub_office_row, visible_books
+from payroll.core.labels import BOOKS
 from payroll.core.settings import role_for
 
 
 def current_role():
+    from app.lock import _user
     return role_for(_user())
 
 
-def hide_pay_page():
-    """Stop a pay page when the signed-in role is a shop viewer."""
-    if current_role() == "viewer":
-        st.error("這頁有薪金資料，店長不能查看。")
-        st.stop()
+def see_pay(book_or_group):
+    return can_see_pay(book_or_group, current_role())
+
+
+def books():
+    return visible_books(BOOKS, current_role())
