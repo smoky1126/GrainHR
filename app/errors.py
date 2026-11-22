@@ -1,5 +1,6 @@
 """Turn a crash into a short message and a log file."""
 
+import sys
 import traceback
 from datetime import datetime
 
@@ -34,4 +35,9 @@ def show_failure(error):
         return
     detail = "".join(traceback.format_exception(type(error), error, error.__traceback__))
     write_log(f"{when} {who}\n{detail}")
-    st.error("這頁出了問題。詳細內容已寫入 data/logs/grainhr.log。")
+    print(detail, file=sys.stderr, flush=True)
+    from payroll.core.settings import role_for
+    st.error("這頁出了問題。請通知管理員。")
+    if role_for(who) == "admin":
+        with st.expander("詳細內容"):
+            st.code(detail)

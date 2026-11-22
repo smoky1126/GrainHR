@@ -13,7 +13,7 @@ def page_settings():
     show_logo()
     who = _user()
     roles = {"admin": "管理員", "hr": "HR 同事"}
-    page_header("設定", f"GrainHR v{app_version()}")
+    page_header("設定", f"GrainHR v{app_version()}", purpose="這台電腦正在用的設定。")
     st.markdown(f"**{display_name(who)}** · {roles.get(role_for(who), 'HR 同事')}")
     if not is_private():
         st.info("現在用的是 company.example.toml。把 company.toml 放在程式旁邊，就會用你公司的名稱。")

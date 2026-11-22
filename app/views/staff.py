@@ -79,10 +79,11 @@ def _office_open(group):
 
 
 def _history(employee_no, see_private=True):
+    from payroll.core.excel_io import read_excel
     frames = []
     path = _log_path()
     if path.exists():
-        changes = pd.read_excel(path, engine="openpyxl")
+        changes = read_excel(path, engine="openpyxl")
         changes = changes[changes["employee_no"].map(_text) == employee_no]
         if not changes.empty:
             if not see_private and "field" in changes.columns:
@@ -92,7 +93,7 @@ def _history(employee_no, see_private=True):
                 frames.append(changes.assign(來源="員工檔"))
     pay = salary_history_path()
     if see_private and pay.exists():
-        salary = pd.read_excel(pay, engine="openpyxl")
+        salary = read_excel(pay, engine="openpyxl")
         salary = salary[salary["employee_no"].map(_text) == employee_no]
         if not salary.empty:
             frames.append(salary.assign(來源="薪金"))
@@ -290,7 +291,7 @@ def _export(rows):
 
 
 def render(info, readonly, staff, demo, month_label):
-    page_header("員工", month_label)
+    page_header("員工總表", month_label, purpose="查看員工資料。寫字樓薪金只顯示給管理員。")
     locked = _locked_note(readonly, demo)
     st.caption(
         "入職、離職、職位和個人資料寫回員工檔。月薪和時薪寫入所選月份的薪金表。"

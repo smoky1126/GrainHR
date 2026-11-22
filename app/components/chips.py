@@ -32,3 +32,14 @@ def stepper(status):
             f'<li class="pay-step-{state}"><span>{marks.get(state, "·")}</span>{name}</li>'
         )
     st.sidebar.markdown(f'<ol class="pay-steps">{"".join(items)}</ol>', unsafe_allow_html=True)
+    words = {
+        "daka": "下一步：到出勤頁核對打卡和更表。",
+        "joiners": "下一步：為新同事設定薪金。",
+        "problems": "下一步：審核遲到、加班和例外。",
+        "pay": "下一步：選出糧日期並製作糧單。",
+    }
+    for _name, key in steps:
+        if status.get(key, "wait") != "done":
+            st.sidebar.caption(words[key])
+            return
+    st.sidebar.caption("這個月的步驟已完成。")

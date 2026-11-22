@@ -340,8 +340,10 @@ def _month_progress():
 def render():
     from app.components.clock import live_clock
 
+    from app.components.cards import first_tip
     inject()
     show_logo()
+    first_tip("today", "這裡看今天誰應出勤、誰已打卡。換月份請用左邊的「月份」。")
     _banner()
     today = date.today()
     if "board-date" not in st.session_state:

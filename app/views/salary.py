@@ -84,9 +84,14 @@ def step_joiners(info, status, staff, table, readonly):
                     st.rerun()
 
 def page_salary():
+    from payroll.core.history import is_issued
     info, readonly, draft, staff, table = _context(steps=True)
     status = step_status(info, draft, staff, table)
-    page_header("薪金表", _month_label(info["key"]))
+    page_header("薪金表", _month_label(info["key"]), purpose="查看和修改這個月的薪金。已出糧的月份只供查看。")
+    if is_issued(info["key"]) and not (info["folder"] / "payroll_draft.xlsx").exists():
+        from app.views.overview import _issued_view
+        _issued_view(info)
+        return
     with st.expander(f"新同事（{status['joiner_count']}）", expanded=bool(status["joiner_count"])):
         step_joiners(info, status, staff, table, readonly)
     _salary_editor(info, readonly)

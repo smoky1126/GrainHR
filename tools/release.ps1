@@ -24,7 +24,9 @@ if (Test-Path $company) {
 # test_october writes against the private October files, so a release does not run it.
 $tests = @(
     "test_days.py", "test_holidays.py", "test_rosters.py", "test_today.py",
-    "test_daka_inbox.py", "test_directory.py", "test_lateness.py"
+    "test_daka_inbox.py", "test_directory.py", "test_lateness.py",
+    "test_product.py", "test_cloud.py", "test_improvements.py",
+    "test_part_time.py", "test_staff_write.py"
 )
 foreach ($test in $tests) {
     Write-Output "RUN $test"

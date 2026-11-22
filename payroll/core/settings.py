@@ -2,7 +2,6 @@
 
 import os
 import tomllib
-from functools import lru_cache
 from pathlib import Path
 
 CODE_ROOT = Path(__file__).resolve().parents[2]
@@ -26,13 +25,35 @@ def _candidate():
     return CODE_ROOT / "company.example.toml"
 
 
-@lru_cache(maxsize=1)
+_loaded = {"path": None, "stamp": None, "data": None}
+
+
 def load():
+    """Company settings. A saved company.toml is picked up without restarting."""
     path = _candidate()
+    try:
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        stamp = None
+    if _loaded["data"] is not None and _loaded["path"] == str(path) and _loaded["stamp"] == stamp:
+        return _loaded["data"]
     with path.open("rb") as handle:
         raw = tomllib.load(handle)
     raw["_path"] = str(path)
+    _loaded["path"] = str(path)
+    _loaded["stamp"] = stamp
+    _loaded["data"] = raw
     return raw
+
+
+def _clear_loaded():
+    _loaded["path"] = None
+    _loaded["stamp"] = None
+    _loaded["data"] = None
+
+
+load.cache_clear = _clear_loaded
 
 
 def books():

@@ -76,10 +76,15 @@ def latest_staff_file():
         return path
     if not STAFF_RECORD_DIR.exists():
         raise SystemExit(f"找不到員工資料夾：{STAFF_RECORD_DIR}")
-    files = list(STAFF_RECORD_DIR.glob("Staff_info_*.xlsx"))
-    if not files:
-        raise SystemExit(f"{STAFF_RECORD_DIR} 沒有 Staff_info_*.xlsx")
-    return pick_staff_file(files)
+
+    def build():
+        files = list(STAFF_RECORD_DIR.glob("Staff_info_*.xlsx"))
+        if not files:
+            raise SystemExit(f"{STAFF_RECORD_DIR} 沒有 Staff_info_*.xlsx")
+        return pick_staff_file(files)
+
+    from payroll.core.listings import remember
+    return remember(("staff-file", str(STAFF_RECORD_DIR)), STAFF_RECORD_DIR, build)
 
 
 def _header_row(raw):
@@ -531,7 +536,8 @@ def _match_person(person, staff):
 def ensure_pay_table(staff=None, book="bg"):
     path = pay_table_path(book)
     if path.exists():
-        table = pd.read_excel(path, dtype={"employee_no": str, "staff_id": str})
+        from payroll.core.excel_io import read_excel
+        table = read_excel(path, dtype={"employee_no": str, "staff_id": str})
         table["employee_no"] = table["employee_no"].map(_text)
         table["staff_id"] = table["staff_id"].map(_text)
         return table
@@ -545,7 +551,8 @@ def ensure_pay_table(staff=None, book="bg"):
         )
     if staff is None:
         staff = load_staff()
-    master = pd.read_excel(master_path)
+    from payroll.core.excel_io import read_excel
+    master = read_excel(master_path)
     rows = []
     for _, person in master.iterrows():
         match = _match_person(person, staff)

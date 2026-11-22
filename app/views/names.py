@@ -1,6 +1,5 @@
 """Link a roster or DAKA spelling to one employee."""
 
-import pandas as pd
 import streamlit as st
 
 from app.components.cards import page_header
@@ -9,6 +8,7 @@ from payroll.attendance.daka import daka_names, load_daka
 from payroll.attendance.lateness import link_groups
 from payroll.attendance.matching import unmatched_names
 from payroll.core.aliases import set_name_alias
+from payroll.core.excel_io import read_excel
 from payroll.staff.staff import pay_table_path
 
 
@@ -17,7 +17,7 @@ def _tables():
     for book in ("bg", "md", "admin"):
         path = pay_table_path(book)
         if path.exists():
-            found[book] = pd.read_excel(path)
+            found[book] = read_excel(path)
     return found
 
 
@@ -25,7 +25,7 @@ def _roster_names(info):
     path = info["system"] / "days.xlsx"
     if not path.exists():
         return []
-    days = pd.read_excel(path)
+    days = read_excel(path)
     if "Name" not in days.columns:
         return []
     return sorted({_text(name) for name in days["Name"] if _text(name)})
@@ -46,7 +46,7 @@ def _people(staff):
 
 def page_names():
     info, readonly, _draft, staff, _table = _context()
-    page_header("名字配對", _month_label(info["key"]))
+    page_header("名字配對", _month_label(info["key"]), purpose="把更表或打卡上的名字對到一位員工。")
     st.caption("更表或 DAKA 上的寫法對不上員工檔時，在這裡記成同一個人。別名存在公司設定，下次計算會用。")
     roster_names = _roster_names(info)
     punches = load_daka(info["daka"]) if info["daka"].exists() else {}

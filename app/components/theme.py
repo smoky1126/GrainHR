@@ -16,6 +16,24 @@ def inject():
     st.markdown("<style>\n" + text + "\n</style>", unsafe_allow_html=True)
 
 
-def show_logo():
+def logo_file():
+    """The logo shipped with the code, or the one kept beside company.toml."""
     if LOGO.exists():
-        st.logo(str(LOGO), size="large")
+        return LOGO
+    try:
+        from payroll.core.settings import load
+        company = Path(str(load().get("_path") or "")).resolve().parent / "assets" / "logo.jpg"
+    except (OSError, TypeError):
+        return None
+    return company if company.exists() else None
+
+
+_logo = {"ready": False, "path": None}
+
+
+def show_logo():
+    if not _logo["ready"]:
+        _logo["path"] = logo_file()
+        _logo["ready"] = True
+    if _logo["path"]:
+        st.logo(str(_logo["path"]), size="large")

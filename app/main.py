@@ -31,9 +31,25 @@ def _pages():
             st.Page("pages/payout.py", title="出糧", icon=":material/payments:"),
         ],
         "系統": [
+            st.Page("pages/guide.py", title="使用說明", icon=":material/menu_book:"),
             st.Page("pages/settings.py", title="設定", icon=":material/settings:"),
         ],
     }
+
+
+def _run_page(page):
+    import os
+    import time
+
+    started = time.perf_counter()
+    try:
+        page.run()
+    finally:
+        if os.environ.get("GRAINHR_TIMING") == "1":
+            from payroll.core.settings import actor, role_for
+            elapsed = time.perf_counter() - started
+            title = getattr(page, "title", "") or "page"
+            print(f"GRAINHR_TIMING {title} {role_for(actor())} {elapsed:.3f}", flush=True)
 
 
 def main():
@@ -44,7 +60,7 @@ def main():
     page = st.navigation(_pages())
     restart_notice()
     try:
-        page.run()
+        _run_page(page)
     except SystemExit as error:
         from app.errors import show_failure
         show_failure(error)

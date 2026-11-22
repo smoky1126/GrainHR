@@ -29,12 +29,19 @@ def read_lock(info):
 
 
 def claim(info, take_over=False):
-    """Return (can_edit, owner). A lock older than two hours can be taken."""
+    """Return (can_edit, owner). A lock older than two hours can be taken.
+
+    The same person does not rewrite the lock file on every click. A new stamp
+    is written when they take over, or when the last stamp is older than 10 minutes.
+    """
     info["system"].mkdir(parents=True, exist_ok=True)
     owner, when = read_lock(info)
     user = _user()
     fresh = when is not None and datetime.now() - when < timedelta(hours=2)
     if owner and owner != user and fresh and not take_over:
         return False, owner
+    recent = owner == user and when is not None and datetime.now() - when < timedelta(minutes=10)
+    if recent and not take_over:
+        return True, user
     _path(info).write_text(f"{user}\n{datetime.now().isoformat(timespec='minutes')}\n", encoding="utf-8")
     return True, user

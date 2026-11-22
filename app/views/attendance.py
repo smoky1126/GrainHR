@@ -92,9 +92,8 @@ def _days_for(info, roster_name):
     path = info["system"] / "days.xlsx"
     if not path.exists() or not _text(roster_name):
         return None
-    if "days_frame" not in st.session_state:
-        st.session_state["days_frame"] = pd.read_excel(path)
-    frame = st.session_state["days_frame"]
+    from payroll.core.excel_io import read_excel
+    frame = read_excel(path)
     if frame is None or "Name" not in frame.columns:
         return None
     return frame[frame["Name"].astype(str) == roster_name]
@@ -149,39 +148,65 @@ def _range_bounds(picked, fallback):
     return start, end
 
 
+def _with_archive(view):
+    """Use the saved punch export and roster folder when this month was not run in GrainHR."""
+    from pathlib import Path
+
+    from payroll.core.history import archive_folder, month_punches
+
+    view = dict(view)
+    punches = month_punches(view)
+    if punches is not None:
+        view["daka"] = punches
+    if not Path(view["rosters"]).exists():
+        folder = archive_folder(view["year"], view["month"])
+        shops = None if folder is None else folder / "店鋪數據"
+        if shops is not None and shops.exists():
+            view["rosters"] = shops
+    return view
+
+
 def _load_month_days(info, view, demo):
-    """The payroll month uses the stored table. Another month only joins attendance."""
-    if view["key"] == info["key"]:
-        path = info["system"] / "days.xlsx"
-        if not path.exists():
-            return None, f"{view['month']}月還沒有出勤紀錄。DAKA 還沒有同步。"
-        return pd.read_excel(path), None
+    """The open month uses its saved table. A paid month is built once from the archive."""
+    from contextlib import nullcontext
+    from pathlib import Path
+
+    from payroll.core.excel_io import read_excel
+    from payroll.core.history import is_issued
+
+    days_path = Path(view["system"]) / "days.xlsx"
+    if days_path.exists():
+        return read_excel(days_path), None
+    issued = is_issued(view["key"])
+    if view["key"] == info["key"] and not issued:
+        return None, f"{view['month']}月還沒有出勤紀錄。DAKA 還沒有同步。"
     if demo:
         return None, f"示範只有十月的副本，沒有 {view['month']}月。請用薪酬系統查真實出勤。"
-    if not view["daka"].exists():
+    view = _with_archive(view)
+    if not Path(view["daka"]).exists():
+        if issued:
+            return None, f"{view['month']}月已出糧，但找不到打卡檔。檔案應在出勤封存的 Time_in_data。"
         return None, f"{view['month']}月還沒有 DAKA。等同步之後再看。系統只核對出勤，不會出糧。"
-    if not view["rosters"].exists():
+    if not Path(view["rosters"]).exists():
         return None, f"{view['month']}月還沒有更表，所以暫時不能核對。"
-    token = (str(view["daka"]), view["daka"].stat().st_mtime)
-    cache = st.session_state.get("day_join")
-    if not isinstance(cache, dict):
-        cache = {}
-        st.session_state["day_join"] = cache
-    days_path = view["system"] / "days.xlsx"
-    if cache.get(view["key"]) == token and days_path.exists():
-        return pd.read_excel(days_path), None
     from payroll.attendance.attendance import run_attendance
     from payroll.attendance.daka import load_daka
     from payroll.attendance.days import merge_days
 
-    facts = run_attendance(
-        view["daka"], view["rosters"], view["sheet"],
-        view["system"] / f"{view['sheet']}考勤核對表.xlsx",
-        view["system"] / "daily_facts.xlsx",
-    )
-    _summaries, days = merge_days(facts, load_daka(view["daka"]))
-    days.to_excel(days_path, index=False)
-    cache[view["key"]] = token
+    label = f"第一次打開{view['month']}月，正在整理出勤，大約半分鐘"
+    try:
+        spinner = st.spinner(label)
+    except Exception:
+        spinner = nullcontext()
+    with spinner:
+        view["system"].mkdir(parents=True, exist_ok=True)
+        facts = run_attendance(
+            view["daka"], view["rosters"], view["sheet"],
+            view["system"] / f"{view['sheet']}考勤核對表.xlsx",
+            view["system"] / "daily_facts.xlsx",
+        )
+        _summaries, days = merge_days(facts, load_daka(view["daka"]))
+        days.to_excel(days_path, index=False)
     return days, None
 
 
@@ -269,7 +294,17 @@ def _daily_record(info, status, staff, readonly):
     step_daka(info, status, DEMO, readonly, staff)
     days, note = _days_for_range(info, start, end, whole, DEMO)
     if days is None:
-        st.info(note or "沒有出勤紀錄。")
+        from app.components.cards import empty_state
+        from payroll.core.history import is_issued
+        if is_issued(info["key"]):
+            empty_state(
+                "這個月沒有出勤紀錄",
+                note or "已出糧，只供查看。",
+                "前往月份紀錄",
+                "pages/records.py",
+            )
+        else:
+            empty_state("沒有出勤紀錄", note or "DAKA 還沒有同步。")
         return
     if note:
         st.info(note)
@@ -336,7 +371,8 @@ def _pay_tables():
     tables = {}
     for book, path in paths:
         if path.exists():
-            tables[book] = pd.read_excel(path, dtype={"employee_no": str, "roster_name": str})
+            from payroll.core.excel_io import read_excel
+            tables[book] = read_excel(path, dtype={"employee_no": str, "roster_name": str})
     st.session_state["late-pay-tables"] = (token, tables)
     return tables
 
@@ -449,7 +485,17 @@ def _late_report(info, staff):
     )
     days, note = _load_month_days(info, info, DEMO)
     if days is None:
-        st.info(note or "沒有出勤紀錄。")
+        from app.components.cards import empty_state
+        from payroll.core.history import is_issued
+        if is_issued(info["key"]):
+            empty_state(
+                "這個月沒有出勤紀錄",
+                note or "已出糧，只供查看。",
+                "前往月份紀錄",
+                "pages/records.py",
+            )
+        else:
+            empty_state("沒有出勤紀錄", note or "DAKA 還沒有同步。")
         return
     if note:
         st.info(note)
@@ -545,7 +591,7 @@ def page_attendance():
     _pull_daka()
     info, readonly, draft, staff, _table = _context(steps=True)
     status = step_status(info, draft, staff, _table)
-    page_header("出勤", _month_label(info["key"]))
+    page_header("出勤紀錄", _month_label(info["key"]), purpose="核對打卡、更表、遲到和加班。已出糧的月份只供查看。")
     daily, late = st.tabs(["每日紀錄", "遲到統計"], on_change="rerun", key="attendance-tabs")
     if daily.open:
         with daily:

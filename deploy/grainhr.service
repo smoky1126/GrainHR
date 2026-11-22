@@ -5,13 +5,17 @@ Wants=grainhr-drive.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/grainhr
+User=andrew
+Group=andrew
+WorkingDirectory=/home/andrew/GrainHR
+Environment=HOME=/home/andrew
 Environment=GRAINHR_SERVER=1
+Environment=GRAINHR_TIMING=1
 Environment="PAYROLL_HOME=/srv/grainhr/hr/REPLACE/data"
 Environment="PAYROLL_COMPANY=/srv/grainhr/hr/REPLACE/company.toml"
-ExecStart=/opt/grainhr/.venv/bin/streamlit run app/main.py --server.headless true --server.address 127.0.0.1 --server.port 8501
+ExecStart=/home/andrew/GrainHR/.venv/bin/streamlit run app/main.py --server.headless true --server.address 127.0.0.1 --server.port 8080 --server.fileWatcherType none
 Restart=on-failure
 RestartSec=3
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

@@ -95,7 +95,10 @@ def step_pay(info, status, draft, readonly):
     st.caption(bonus_rule_text())
     blocked_by_book = {book: _blocked(draft, book) for book in present}
     any_blocked = any(rows is not None and len(rows) for rows in blocked_by_book.values())
-    if not readonly and top[1].button("製作全部糧單", type="primary", disabled=any_blocked):
+    if not readonly and top[1].button(
+        "製作全部糧單", type="primary", disabled=any_blocked,
+        icon=":material/payments:", help="按已批准的數字製作這個月的糧單。",
+    ):
         _confirm_make_all(info["key"], tuple(present), format_pay_date(picked))
     columns = st.columns(max(len(shown), 1))
     for column, (book, label) in zip(columns, shown.items()):
@@ -232,9 +235,15 @@ def _pt_payout(info, readonly):
                 )
 
 def page_payout():
+    from app.components.cards import empty_state, first_tip
+    from payroll.core.history import is_issued
     info, readonly, draft, staff, table = _context(steps=True)
+    page_header("出糧", _month_label(info["key"]), purpose="選出糧日期，然後製作糧單。")
+    if is_issued(info["key"]):
+        empty_state("這個月已出糧", "糧單已經發出，可以在月份紀錄下載。", "前往月份紀錄", "pages/records.py")
+        return
+    first_tip("payout", "先完成審核，再按「製作全部糧單」。已出糧的月份不會重新計算。")
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)
-    page_header("出糧", _month_label(info["key"]))
     step_pay(info, status, draft, readonly)
     _pt_payout(info, readonly)

@@ -26,24 +26,29 @@ def month_choices(today=None):
     """Payroll months on this computer, and the one HR should open."""
     from payroll.core.config import home
     from payroll.core.history import is_issued
+    from payroll.core.listings import remember
 
     today = today or date.today()
     folder = home() / "months"
-    options = []
-    if folder.exists():
-        options = [
-            path.name.replace("_", "-")
-            for path in folder.iterdir()
-            if path.is_dir() and len(path.name) == 7 and path.name[4] == "_"
-        ]
-    options.extend(f"{today.year}-{month:02d}" for month in range(1, today.month + 1))
-    current = last_month(today)
-    options.append(current)
-    options = sorted(set(options))
-    open_months = [key for key in options if not is_issued(key)]
-    if open_months:
-        current = open_months[-1]
-    return options, current
+
+    def build():
+        options = []
+        if folder.exists():
+            options = [
+                path.name.replace("_", "-")
+                for path in folder.iterdir()
+                if path.is_dir() and len(path.name) == 7 and path.name[4] == "_"
+            ]
+        options.extend(f"{today.year}-{month:02d}" for month in range(1, today.month + 1))
+        current = last_month(today)
+        options.append(current)
+        options = sorted(set(options))
+        open_months = [key for key in options if not is_issued(key)]
+        if open_months:
+            current = open_months[-1]
+        return options, current
+
+    return remember(("month-choices", str(folder), today.isoformat()), folder, build)
 
 
 def month_progress(info):
@@ -172,7 +177,8 @@ def unlinked_roster_names(info, pay_table=None):
     facts_path = info["system"] / "daily_facts.xlsx"
     if not facts_path.exists():
         return []
-    facts = pd.read_excel(facts_path)
+    from payroll.core.excel_io import read_excel
+    facts = read_excel(facts_path)
     if "name" not in facts.columns:
         return []
     names = {_text(value) for value in facts["name"]}
@@ -183,7 +189,7 @@ def unlinked_roster_names(info, pay_table=None):
         path = pay_table_path(book)
         if not path.exists():
             continue
-        table = pd.read_excel(path)
+        table = read_excel(path)
         if "roster_name" in table.columns:
             linked.update(_text(value) for value in table["roster_name"])
     if pay_table is not None and "roster_name" in pay_table.columns:

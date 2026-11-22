@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Pages stop rewriting the month lock on every click, and Excel files are read again only when they change.
+- Past months open the saved attendance export and the issued salary slips, without recalculating pay.
+- Month records download a file only when it is clicked.
+- The logo is read from beside company.toml when it is not in the program folder.
+- A 使用說明 page explains the daily check, month end, and where old slips are.
+
 ## 1.1.0
 
 - One command runs the tests, and a release copies that version onto the shared drive.

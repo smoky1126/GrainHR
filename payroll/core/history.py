@@ -17,8 +17,36 @@ def archive_folder(year, month):
     root = path_for("attendance_archive")
     if root is None:
         return None
-    folder = root / f"{_TOKENS[month]}_{year}"
-    return folder if folder.exists() else None
+
+    def build():
+        folder = root / f"{_TOKENS[month]}_{year}"
+        return folder if folder.exists() else None
+
+    from payroll.core.listings import remember
+    return remember(("archive", str(root), year, month), root, build)
+
+
+def month_punches(info):
+    """The punch file for one month. GrainHR's copy wins, then the archived DAKA export."""
+    own = info["daka"]
+    if own.exists():
+        return own
+    root = path_for("attendance_archive")
+    if root is None:
+        return None
+    from payroll.core.settings import daka as daka_settings
+    company = str(daka_settings().get("company") or "").strip()
+    if not company:
+        return None
+    name = f"{info['month']}月{company}內勤報表.csv"
+    data = root / "Time_in_data"
+    direct = data / name
+    if direct.exists():
+        return direct
+    nested = data / str(info["year"]) / name
+    if nested.exists():
+        return nested
+    return None
 
 
 def attendance_workbook(year, month):
@@ -43,8 +71,43 @@ def archived_roster(year, month, shop):
     return shop_dir if shop_dir.exists() else None
 
 
+def _child_dirs(folder):
+    if folder is None or not folder.exists():
+        return []
+    try:
+        return [path for path in folder.iterdir() if path.is_dir() and not path.name.startswith("~$")]
+    except OSError:
+        return []
+
+
+def classify_slip_dirs(folders, token):
+    """Label slip folders. The second company is the MD folder inside the full-time folder."""
+    found = []
+    seen = set()
+    for path in folders:
+        name = path.name
+        label = ""
+        if f"({token} FT)" in name:
+            label = "全職"
+        elif f"({token} PT)" in name:
+            label = "兼職"
+        elif f"Admin ({token})" in name:
+            label = "寫字樓"
+        elif name == "MD" and f"({token} FT)" in path.parent.name:
+            label = "md"
+        if not label:
+            continue
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append((label, path))
+    order = {"全職": 0, "md": 1, "兼職": 2, "寫字樓": 3}
+    return sorted(found, key=lambda item: (order.get(item[0], 9), item[1].name))
+
+
 def slip_folders(year, month):
-    """Full-time, part-time, and office slip folders for one issued month."""
+    """Full-time, second-company, part-time, and office slip folders for one issued month."""
     root = path_for("accounting")
     if root is None:
         return []
@@ -52,17 +115,17 @@ def slip_folders(year, month):
     if not year_dir.exists():
         return []
     token = _TOKENS[month]
-    found = []
-    folders = [path for path in year_dir.rglob("*") if path.is_dir()]
-    for path in folders:
-        name = path.name
-        if f"({token} FT)" in name:
-            found.append(("全職", path))
-        elif f"({token} PT)" in name:
-            found.append(("兼職", path))
-        elif f"Admin ({token})" in name:
-            found.append(("寫字樓", path))
-    return found
+
+    def build():
+        candidates = []
+        for path in _child_dirs(year_dir):
+            candidates.append(path)
+            if "Admin Payslip" in path.name or f"({token} FT)" in path.name:
+                candidates.extend(_child_dirs(path))
+        return classify_slip_dirs(candidates, token)
+
+    from payroll.core.listings import remember
+    return remember(("slips", str(year_dir), token), year_dir, build)
 
 
 def saved_files(info):

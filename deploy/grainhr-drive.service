@@ -5,10 +5,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/rclone mount grainhr: /srv/grainhr/hr --vfs-cache-mode full --dir-cache-time 10s
+User=andrew
+Group=andrew
+Environment=HOME=/home/andrew
+ExecStart=/usr/bin/rclone mount grainhr: /srv/grainhr/hr --vfs-cache-mode full --dir-cache-time 1000h --poll-interval 30s --vfs-cache-max-age 720h --vfs-cache-max-size 5G
 ExecStop=/bin/fusermount -u /srv/grainhr/hr
 Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import pandas as pd
 import streamlit as st
 
-from app.components.cards import callout, kpi, page_header, section
+from app.components.cards import callout, empty_state, kpi, page_header, section
 from app.components.chips import chip, chips, legend, stepper
 from app.components.format import hk
 from app.components.tables import style_days as _day_style
@@ -46,19 +46,67 @@ def _next_page(status, waiting):
         return "pages/review.py", "去審核"
     return "pages/payout.py", "去出糧"
 
+def _issued_view(info):
+    """Salary figures copied once from the slips that were already issued."""
+    from app.access import current_role
+    from payroll.core.labels import BOOKS
+    from payroll.pay.issued import load_issued, visible_issued
+
+    with st.spinner("正在讀取已發出的糧單，第一次會稍慢。"):
+        frame = visible_issued(load_issued(info), current_role())
+    if frame is None or not len(frame):
+        empty_state(
+            "找不到已發出的糧單",
+            "原來的糧單檔可以在月份紀錄打開。",
+            "前往月份紀錄",
+            "pages/records.py",
+        )
+        return
+    st.caption("這是已發出糧單的數字，不能在這裡修改。")
+    show = frame.copy()
+    show["糧單"] = show["book"].map(lambda book: BOOKS.get(str(book), str(book)))
+    names = show["name_zh"].astype(str).str.strip()
+    show["姓名"] = names.where(names != "", show["slip_name"].astype(str))
+    net = float(pd.to_numeric(show["net"], errors="coerce").fillna(0).sum())
+    columns = st.columns(2)
+    with columns[0]:
+        kpi("人數", f"{len(show)} 人", "已發出糧單", "info")
+    with columns[1]:
+        kpi("淨薪金", hk(net), "已發出糧單合計", "ok")
+    st.dataframe(
+        show[["糧單", "姓名", "basic_salary", "net", "mpf_employee", "mpf_employer"]],
+        column_config={
+            "糧單": st.column_config.TextColumn("糧單", width="small"),
+            "姓名": st.column_config.TextColumn("姓名", width="medium"),
+            "basic_salary": st.column_config.NumberColumn("基本薪金", format="dollar"),
+            "net": st.column_config.NumberColumn("淨薪金", format="dollar"),
+            "mpf_employee": st.column_config.NumberColumn("僱員強積金", format="dollar"),
+            "mpf_employer": st.column_config.NumberColumn("僱主強積金", format="dollar"),
+        },
+        hide_index=True,
+        width="stretch",
+        alt="已發出糧單的薪金",
+    )
+
+
 def page_overview():
     from app.access import books as visible_books
     _pull_daka()
     info, _readonly, draft, staff, table = _context(steps=True)
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)
-    page_header("總覽", _month_label(info["key"]))
+    from payroll.core.history import is_issued
+    page_header("總覽", _month_label(info["key"]), purpose="看這個月出糧做到哪一步。")
+    if is_issued(info["key"]) and not (info["folder"] / "payroll_draft.xlsx").exists():
+        _issued_view(info)
+        return
     if draft is None or "book" not in getattr(draft, "columns", []):
-        columns = st.columns(4)
-        for column, (label, value) in zip(columns, (("本月出糧", "—"), ("淨薪金", "—"), ("未批准", "—"), ("糧單", "—"))):
-            with column:
-                kpi(label, value, "請先到出勤頁", "muted")
-        st.info("未有計算結果。請先到出勤頁。")
+        empty_state(
+            "未有計算結果",
+            "請先到出勤頁同步打卡和更表。",
+            "前往出勤紀錄",
+            "pages/attendance.py",
+        )
         return
     shown_books = visible_books()
     paid_all = draft[draft["pay_this"].astype(bool)] if "pay_this" in draft.columns else draft

@@ -56,7 +56,9 @@ def _number(value):
 
 def _month_label(key):
     year, month = key.split("-")
-    return f"{year}年{int(month)}月"
+    from payroll.core.history import is_issued
+    state = "已出糧" if is_issued(key) else "進行中"
+    return f"{year}年{int(month)}月 · {state}"
 
 def _choose_month():
     if DEMO:
@@ -179,6 +181,7 @@ def _pull_daka(force=False):
     except OSError:
         return "有一份 DAKA 檔案暫時讀不到，其他資料照常顯示。"
 
+@st.fragment(run_every="2m")
 def _daka_chip():
     from payroll.daka.daka_inbox import read_status
     status = read_status()
@@ -232,8 +235,11 @@ def _context(steps=False):
     who = _user()
     role = role_for(who)
     issued = is_issued(info["key"])
-    can_edit, owner = claim(info)
-    readonly = (issued and steps) or not can_edit
+    if issued:
+        can_edit, owner = False, ""
+    else:
+        can_edit, owner = claim(info)
+    readonly = issued or not can_edit
     if issued:
         st.markdown(
             '<div class="payroll-banner">這個月已經出糧，糧單、更表和出勤只供查看，不會再計算。</div>',
@@ -255,7 +261,7 @@ def _context(steps=False):
             f'<span class="pay-chip pay-chip-block">{owner} 正在使用</span>',
             unsafe_allow_html=True,
         )
-        if st.sidebar.button("接手"):
+        if st.sidebar.button("接手", help="另一位同事正在處理這個月時，才需要接手。"):
             claim(info, take_over=True)
             st.rerun()
     from payroll.core.settings import app_version, display_name
@@ -265,10 +271,10 @@ def _context(steps=False):
         unsafe_allow_html=True,
     )
     with st.sidebar.expander("進階"):
-        if st.button("立即同步 DAKA", disabled=readonly or DEMO):
+        if st.button("立即同步 DAKA", disabled=readonly or DEMO, help="向打卡伺服器要最新的打卡，大約一分鐘。"):
             _pull_daka(force=True)
             st.rerun()
-        if st.button("重新檢查", disabled=readonly):
+        if st.button("重新檢查", disabled=readonly, help="用現有打卡和更表再核對一次出勤。"):
             try:
                 run_check(info, open_workbook=False, fetch=not DEMO)
             except PermissionError:

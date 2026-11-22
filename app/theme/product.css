@@ -130,6 +130,11 @@ iframe { border: 0; }
 div[data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 12px; background: var(--white); }
 [data-testid="stSidebar"] a { border-radius: 8px; }
 .gh-footer { color: var(--ink-500); font-size: 12px; margin-top: 12px; }
+@media (max-width: 640px) {
+    .block-container { padding-top: 3rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+    h1, .gh-greet { font-size: 22px; line-height: 30px; }
+    .pay-head { flex-direction: column; align-items: flex-start; }
+}
 @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
 }
