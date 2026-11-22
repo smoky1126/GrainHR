@@ -63,16 +63,34 @@ def _save(action):
     st.rerun()
 
 
-def _history(employee_no):
+def _role():
+    from app.lock import _user
+    from payroll.core.settings import role_for
+    return role_for(_user())
+
+
+def _see_private():
+    return _role() in {"admin", "hr"}
+
+
+def _edit_pay():
+    return _role() == "admin"
+
+
+def _history(employee_no, see_private=True):
     frames = []
     path = _log_path()
     if path.exists():
         changes = pd.read_excel(path, engine="openpyxl")
         changes = changes[changes["employee_no"].map(_text) == employee_no]
         if not changes.empty:
-            frames.append(changes.assign(來源="員工檔"))
+            if not see_private and "field" in changes.columns:
+                hidden = {"身份證號碼", "銀行賬號", "銀行名稱"}
+                changes = changes[~changes["field"].map(_text).isin(hidden)]
+            if not changes.empty:
+                frames.append(changes.assign(來源="員工檔"))
     pay = salary_history_path()
-    if pay.exists():
+    if see_private and pay.exists():
         salary = pd.read_excel(pay, engine="openpyxl")
         salary = salary[salary["employee_no"].map(_text) == employee_no]
         if not salary.empty:
@@ -104,26 +122,34 @@ def _profile(row, info, locked):
             action = "resign"
     with pay:
         left, right = st.columns(2)
-        if row["pay_basis"] == "時薪":
-            left.metric("時薪", "—" if row["salary"] is None else hk(row["salary"]))
-        else:
-            left.metric("月薪", "—" if row["salary"] is None else hk(row["salary"]))
+        if _see_private():
+            if row["pay_basis"] == "時薪":
+                left.metric("時薪", "—" if row["salary"] is None else hk(row["salary"]))
+            else:
+                left.metric("月薪", "—" if row["salary"] is None else hk(row["salary"]))
         left.metric("本年年假", "—" if row["annual_entitled"] is None else f"{row['annual_entitled']} 日")
         left.metric("本年已用年假", "—" if row["annual_taken"] is None else f"{row['annual_taken']:g} 日")
         right.metric("剩餘年假", "—" if row["annual"] is None else f"{row['annual']:g} 日")
         right.metric("剩餘休假", "—" if row["rest"] is None else f"{row['rest']:g} 日")
-        if st.button("調整薪金", key="staff-salary", disabled=locked or is_issued(info["key"])):
+        if _see_private() and st.button(
+            "調整薪金", key="staff-salary",
+            disabled=locked or is_issued(info["key"]) or not _edit_pay(),
+        ):
             action = "salary"
+        if _see_private() and not _edit_pay():
+            st.caption("只有管理員可以修改薪金。")
         if is_issued(info["key"]):
             st.caption("這個月已經出糧，不能改這個月的薪金。員工資料和離職仍可修改。")
     with personal:
         for key, label in _PERSONAL:
+            if not _see_private() and key in {"hkid", "bank_name", "bank_account"}:
+                continue
             value = row.get(key)
             shown = _iso(value) if key == "birth_date" else _text(value)
             if shown:
                 st.write(f"{label}：{shown}")
     with history:
-        _history(row["employee_no"])
+        _history(row["employee_no"], see_private=_see_private())
     return action
 
 
@@ -160,7 +186,7 @@ def _add_dialog(group, staff):
     suggested = next_employee_no(staff, _PREFIX.get(group, "A"))
     number = st.text_input("員工編號", value=suggested)
     name = st.text_input("中文姓名")
-    fields = _collect(options, group, {}, "add")
+    fields = _collect(options, group, {}, "add", hide_private=not _see_private())
     if st.button("確定新增", type="primary"):
         if _text(number) == "" or _text(name) == "":
             st.error("請填員工編號和中文姓名。")
@@ -174,7 +200,7 @@ def _add_dialog(group, staff):
 @st.dialog("修改資料")
 def _edit_dialog(row, staff):
     options = staff_options()
-    fields = _collect(options, row["group"], row, "edit")
+    fields = _collect(options, row["group"], row, "edit", hide_private=not _see_private())
     original = {_name: _original(row, _name) for _name, _kind in _field_map(row["group"])}
     if st.button("確定修改", type="primary"):
         changed = {key: value for key, value in fields.items() if value != original.get(key, "")}
@@ -193,9 +219,12 @@ def _original(row, column):
     return _text(value)
 
 
-def _collect(options, group, row, prefix):
+def _collect(options, group, row, prefix, hide_private=False):
     fields = {}
+    hidden = {"身份證號碼", "銀行名稱", "銀行賬號"}
     for column, kind in _field_map(group):
+        if hide_private and column in hidden:
+            continue
         current = _original(row, column) if row else ""
         key = f"staff-{prefix}-{column}"
         if kind == "text":
@@ -245,12 +274,13 @@ def _salary_dialog(row, info):
 
 def _export(rows):
     frame = pd.DataFrame(rows)
+    secret = set() if _see_private() else {"salary", "pay_basis", "bank_name"}
     keep = [column for column in (
         "employee_no", "name_zh", "name_en", "group_label", "position", "department",
         "status", "join_date", "leave_date", "service_days", "salary", "pay_basis",
         "annual_entitled", "annual_taken", "annual", "rest",
         "phone", "bank_name",
-    ) if column in frame.columns]
+    ) if column in frame.columns and column not in secret]
     buffer = BytesIO()
     frame[keep].to_excel(buffer, index=False)
     st.download_button("下載員工總表", buffer.getvalue(), file_name="員工總表.xlsx", key="staff-export")
@@ -309,9 +339,12 @@ def render(info, readonly, staff, demo, month_label):
             "position": "職位", "department": "部門", "status": "狀況",
             "service_days": "在職", "salary": "薪金", "pay_basis": "計薪",
         })
+        order = ["員工編號", "中文姓名", "英文姓名", "職位", "部門", "狀況", "在職"]
+        if _see_private():
+            order.extend(["薪金", "計薪"])
         st.dataframe(
             view, hide_index=True, width="stretch",
-            column_order=["員工編號", "中文姓名", "英文姓名", "職位", "部門", "狀況", "在職", "薪金", "計薪"],
+            column_order=order,
         )
     if shown:
         _export(shown)

@@ -108,7 +108,8 @@ def roster_files(day):
 
 def facts_from_book(path, sheet, shop, day):
     """The roster cell for one date. Late and overtime are not decided here."""
-    frame = pd.read_excel(path, sheet_name=sheet, header=None)
+    from payroll.core.excel_io import read_excel
+    frame = read_excel(path, sheet_name=sheet, header=None)
     records = frame.values.tolist()
     rows = []
     for index, row in enumerate(records):
@@ -182,6 +183,27 @@ def _alias_punches(punches, roster_names):
         names.add(roster_name)
         for name, when in keys:
             punches[(roster_name, when)] = punches[(name, when)]
+    from payroll.core.settings import name_aliases
+    aliases = name_aliases()
+    if aliases:
+        by_target = {}
+        for source, target in aliases.items():
+            by_target.setdefault(target, set()).add(source)
+        for roster_name in roster_names:
+            sources = set(by_target.get(roster_name, ()))
+            target = aliases.get(roster_name, "")
+            if target:
+                sources.update(by_target.get(target, ()))
+            for source in sources:
+                if not source or source == roster_name:
+                    continue
+                for key, punch in list(punches.items()):
+                    if not isinstance(key, tuple) or len(key) != 2 or key[0] != source:
+                        continue
+                    dest = (roster_name, key[1])
+                    if dest not in punches:
+                        punches[dest] = punch
+                        names.add(roster_name)
     punches["__names__"] = names
     return punches
 

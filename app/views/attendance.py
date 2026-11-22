@@ -263,6 +263,7 @@ def _daily_record(info, status, staff, readonly):
         whole = controls[0].checkbox("整月", key="attendance-whole")
         picked = controls[1].date_input(
             "查看日期", value=(yesterday, yesterday), disabled=whole, key="attendance-range",
+            format="YYYY-MM-DD",
         )
     start, end = _range_bounds(picked, yesterday)
     step_daka(info, status, DEMO, readonly, staff)
@@ -428,6 +429,17 @@ def _show_late_notes(dates):
     st.markdown("".join(notes), unsafe_allow_html=True)
 
 
+def _late_checked(info):
+    path = info["system"] / "late_checked.txt"
+    if path.exists():
+        st.caption(f"上次核對：{path.read_text(encoding='utf-8').strip()}")
+    if st.button("已核對遲到", key="late-checked"):
+        from app.state import mark_late_checked
+        mark_late_checked(info)
+        st.toast("已記錄本月的遲到核對。")
+        st.rerun()
+
+
 def _late_report(info, staff):
     st.caption(
         f"單次遲到超過 {LATE_GRACE_MINUTES} 分鐘會沒有勤工獎。"
@@ -444,6 +456,7 @@ def _late_report(info, staff):
     if "Name" not in days.columns or not len(days):
         _empty("這個月沒有出勤紀錄", "DAKA 同步之後，這裡會列出遲到的同事。")
         return
+    _late_checked(info)
     if info["daka"].exists():
         from payroll.attendance.daka import punch_logs
         logs = punch_logs(info["daka"])

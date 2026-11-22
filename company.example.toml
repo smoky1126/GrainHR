@@ -214,3 +214,5 @@ role = "admin"
 
 [privacy]
 words = ["Bakery A", "Bakery B", "Example company"]
+
+[name_aliases]

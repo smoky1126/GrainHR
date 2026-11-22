@@ -353,7 +353,8 @@ def datapro(file_path2, facts=None):
     book.drop(book.columns[1:3], axis=1, inplace=True)
 
     # 2.读取編更表
-    data1 = pd.read_excel(file_path2, month_sheet, skiprows=skiprow_num)
+    from payroll.core.excel_io import read_excel
+    data1 = read_excel(file_path2, month_sheet, skiprows=skiprow_num)
     shop_name = data1.iloc[[0], [0]].values[0][0]  # 店铺名称
     data1 = data1.dropna(thresh=2)
     col_lists = ['Name', '星期一', '', '星期二', '', '星期三', '', '星期四', '',

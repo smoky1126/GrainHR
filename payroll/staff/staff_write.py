@@ -14,8 +14,10 @@ from pathlib import Path
 import pandas as pd
 
 from payroll.core.config import home
+from payroll.core.excel_io import save_excel
 from payroll.staff.staff import (
-    _as_date, _text, latest_staff_file, load_staff, pay_table_path, staff_version_path,
+    _as_date, _text, clear_staff_cache, latest_staff_file, load_staff, pay_table_path,
+    staff_version_path,
 )
 
 _SECRET = {"身份證號碼", "銀行賬號"}
@@ -85,7 +87,7 @@ def _append_log(rows):
     if path.exists():
         old = pd.read_excel(path, engine="openpyxl")
         frame = pd.concat([old, frame], ignore_index=True)
-    frame.to_excel(path, index=False)
+    save_excel(path, frame)
 
 
 def _current(path, employee_no, name_zh):
@@ -208,6 +210,7 @@ def _apply(action, sheet, employee_no, name_zh, fields, path=None):
     clean["員工編號"] = employee_no
     clean["中文姓名"] = name_zh
     _backup(path)
+    clear_staff_cache()
     _run_excel({
         "path": str(path.resolve()),
         "action": action,
@@ -279,7 +282,7 @@ def _salary_log(employee_no, old, new, kind):
     }])
     if path.exists():
         row = pd.concat([pd.read_excel(path, engine="openpyxl"), row], ignore_index=True)
-    row.to_excel(path, index=False)
+    save_excel(path, row)
 
 
 def set_monthly_salary(book, employee_no, amount):
@@ -300,7 +303,7 @@ def set_monthly_salary(book, employee_no, amount):
     index = found[0]
     old = table.at[index, "basic_salary"]
     table.at[index, "basic_salary"] = amount
-    table.to_excel(path, index=False)
+    save_excel(path, table)
     _salary_log(employee_no, old, amount, "月薪")
     return amount
 

@@ -89,7 +89,7 @@ def step_pay(info, status, draft, readonly):
     _prepare_pay_keys(info, present)
     current = parse_pay_date(_pay_date(info)) or date.today()
     top = st.columns([2, 1])
-    picked = top[0].date_input("出糧日期", value=current, disabled=readonly)
+    picked = top[0].date_input("出糧日期", value=current, disabled=readonly, format="YYYY-MM-DD")
     st.caption(bonus_rule_text())
     blocked_by_book = {book: _blocked(draft, book) for book in present}
     any_blocked = any(rows is not None and len(rows) for rows in blocked_by_book.values())
@@ -226,6 +226,8 @@ def _pt_payout(info, readonly):
                 )
 
 def page_payout():
+    from app.access import hide_pay_page
+    hide_pay_page()
     info, readonly, draft, staff, table = _context(steps=True)
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)

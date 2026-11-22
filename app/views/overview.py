@@ -47,6 +47,8 @@ def _next_page(status, waiting):
     return "pages/payout.py", "去出糧"
 
 def page_overview():
+    from app.access import hide_pay_page
+    hide_pay_page()
     _pull_daka()
     info, _readonly, draft, staff, table = _context(steps=True)
     slips_ready = bool(st.session_state.get("slips_ready"))

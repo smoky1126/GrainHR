@@ -210,6 +210,15 @@ def link_groups(roster_names, staff, pay_tables, pt_people, name_shops=None):
             if len(numbers) == 1 and not links[roster]["employee_no"]:
                 _apply(links[roster], numbers.pop(), staff_by_number)
 
+    from payroll.core.settings import name_aliases
+    aliases = name_aliases()
+    for roster, link in links.items():
+        if link["employee_no"]:
+            continue
+        target = aliases.get(roster, "")
+        if target in staff_by_number:
+            _apply(link, target, staff_by_number)
+
     shops = name_shops or {}
     for roster, link in links.items():
         if link["employee_no"]:

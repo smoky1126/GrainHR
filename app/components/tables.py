@@ -1,6 +1,7 @@
 import pandas as pd
 
 from payroll.core.money import LATE_GRACE_MINUTES
+from payroll.core.settings import shop_label
 
 def style_days(days):
     """Colour clock-in and clock-out. Late over 5 minutes is red, 1 to 5 is amber, early is red, overtime is blue."""
@@ -11,6 +12,8 @@ def style_days(days):
         "DAKA place": "打卡地點", "Status": "情況",
     }
     shown = days.loc[:, [column for column in names if column in days.columns]].rename(columns=names)
+    if "採用店鋪" in shown.columns:
+        shown["採用店鋪"] = shown["採用店鋪"].map(lambda value: shop_label(value) or value)
     shown["遲到"] = list(days["Late"]) if "Late" in days.columns else [0] * len(shown)
     shown["早退"] = list(days["Early"]) if "Early" in days.columns else [0] * len(shown)
     shown["加班"] = list(days["OT"]) if "OT" in days.columns else [0] * len(shown)

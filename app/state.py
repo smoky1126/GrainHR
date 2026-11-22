@@ -5,20 +5,7 @@ from datetime import date, datetime
 
 import pandas as pd
 
-SHOP_NAMES = {
-    "3F_Bread": "新蒲崗工場麵包",
-    "3F_Pastry": "新蒲崗工場餅房",
-    "11F": "寫字樓",
-    "JD_Bread": "佐敦麵包",
-    "TKS_Bread": "太古麵包",
-    "TW_Bread": "荃灣麵包",
-    "WC_Bread": "灣仔麵包",
-    "HKU_Retail": "西環零售",
-    "JD_Retail": "佐敦零售",
-    "TKS_Retail": "太古零售",
-    "TW_Retail": "荃灣零售",
-    "WC_Retail": "灣仔零售",
-}
+from payroll.core.settings import shop_label
 
 _MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -33,6 +20,76 @@ def _text(value):
         pass
     text = str(value).strip()
     return "" if text.lower() == "nan" else text
+
+
+def month_choices(today=None):
+    """Payroll months on this computer, and the one HR should open."""
+    from payroll.core.config import home
+    from payroll.core.history import is_issued
+
+    today = today or date.today()
+    folder = home() / "months"
+    options = []
+    if folder.exists():
+        options = [
+            path.name.replace("_", "-")
+            for path in folder.iterdir()
+            if path.is_dir() and len(path.name) == 7 and path.name[4] == "_"
+        ]
+    options.extend(f"{today.year}-{month:02d}" for month in range(1, today.month + 1))
+    current = last_month(today)
+    options.append(current)
+    options = sorted(set(options))
+    open_months = [key for key in options if not is_issued(key)]
+    if open_months:
+        current = open_months[-1]
+    return options, current
+
+
+def month_progress(info):
+    """The six checks HR finishes before a month is paid."""
+    from payroll.core.config import book_info
+
+    daka_ready = info["daka"].exists()
+    try:
+        from datetime import date as _date
+        from payroll.attendance.today import roster_files
+        _info, _found, missing_files = roster_files(_date(info["year"], info["month"], 1))
+        rosters_ready = not missing_files
+    except SystemExit:
+        rosters_ready = False
+    except Exception:
+        rosters_ready = False
+    facts = info["system"] / "daily_facts.xlsx"
+    if facts.exists():
+        try:
+            names_ready = not unlinked_roster_names(info)
+        except SystemExit:
+            names_ready = False
+        except Exception:
+            names_ready = False
+    else:
+        names_ready = False
+    slips = [book_info(info, book)["slip_output"].exists() for book in ("bg", "md", "admin")]
+    return [
+        ("DAKA 已上傳", daka_ready),
+        ("更表已找到", rosters_ready),
+        ("名字已配對", names_ready),
+        ("遲到已核對", (info["system"] / "late_checked.txt").exists()),
+        ("糧單已計算", (info["folder"] / "payroll_draft.xlsx").exists()),
+        ("糧單已製作", all(slips)),
+    ]
+
+
+def mark_late_checked(info):
+    from datetime import datetime
+
+    from payroll.core.settings import actor
+
+    path = info["system"] / "late_checked.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"{datetime.now():%Y-%m-%d %H:%M} {actor()}\n", encoding="utf-8")
+    return path
 
 
 def last_month(today=None):
@@ -145,7 +202,7 @@ def roster_report(info, demo=False):
     for row in rows:
         if row["狀態"] == "已找到":
             continue
-        missing.append(f"{SHOP_NAMES.get(row['店鋪'], row['店鋪'])}：缺少更表")
+        missing.append(f"{shop_label(row['店鋪']) or row['店鋪']}：缺少更表")
     return _freshness(copied, demo, not missing), missing
 
 

@@ -151,11 +151,52 @@ def role_for(username):
     return "hr" if load().get("private") else "admin"
 
 
+def actor():
+    """The person at this computer. Sign-in can replace this later."""
+    return os.environ.get("USERNAME") or os.environ.get("USER") or "user"
+
+
 def display_name(username):
     row = users().get(username) or {}
     if isinstance(row, dict) and row.get("name"):
         return row["name"]
     return username or "there"
+
+
+def app_version():
+    path = CODE_ROOT / "VERSION"
+    if not path.exists():
+        return "1.0.0"
+    text = path.read_text(encoding="utf-8-sig").strip()
+    return text or "1.0.0"
+
+
+def group_label(key):
+    return dict(groups()).get(str(key), str(key or ""))
+
+
+def shop_label(code):
+    """Chinese shop name from company.toml. Unknown codes stay as they are."""
+    text = str(code or "").strip()
+    if not text or text.lower() == "nan":
+        return ""
+    for label, coded in locations():
+        if coded and coded == text:
+            return label
+    return text
+
+
+def name_aliases():
+    raw = load().get("name_aliases") or {}
+    if not isinstance(raw, dict):
+        return {}
+    found = {}
+    for key, value in raw.items():
+        source = str(key).strip()
+        target = str(value).strip()
+        if source and target:
+            found[source] = target
+    return found
 
 
 def privacy_words():

@@ -638,8 +638,34 @@ def _put_cell(lines, index, key, value):
     lines.at[index, key] = stored
 
 
+def _cell_text(value):
+    if _blank(value):
+        return ""
+    text = str(value).strip()
+    if text.endswith(".0") and text[:-2].lstrip("-").isdigit():
+        text = text[:-2]
+    return "" if text.lower() == "nan" else text
+
+
+def _record_audit(info, rows):
+    if not rows:
+        return
+    from payroll.core.config import home
+    from payroll.core.excel_io import save_excel
+    path = home() / "data" / "payroll_audit.xlsx"
+    frame = pd.DataFrame(rows)
+    if path.exists():
+        old = pd.read_excel(path, engine="openpyxl")
+        frame = pd.concat([old, frame], ignore_index=True)
+    save_excel(path, frame)
+
+
 def apply_review(info, edits):
     """Save review edits. A staff id with no line yet gets one, so a new joiner can be approved."""
+    from datetime import datetime
+
+    from payroll.core.excel_io import save_excel
+    from payroll.core.settings import actor
     from payroll.staff.staff import blank_adjustment
     lines = pd.read_excel(info["adjustments"], sheet_name="lines")
     meta = pd.read_excel(info["adjustments"], sheet_name="meta")
@@ -648,6 +674,13 @@ def apply_review(info, edits):
         if key not in lines.columns:
             lines[key] = ""
     index_by_id = {staff_id: index for index, staff_id in lines["staff_id"].items() if staff_id}
+    original = {
+        staff_id: lines.loc[index].to_dict()
+        for staff_id, index in index_by_id.items()
+    }
+    audit = []
+    when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    who = actor()
     for edit in edits:
         staff_id = "" if _blank(edit.get("staff_id")) else str(edit["staff_id"]).strip()
         if not staff_id or staff_id.lower() == "nan":
@@ -656,14 +689,27 @@ def apply_review(info, edits):
             row = blank_adjustment({"staff_id": staff_id, "slip_name": edit.get("slip_name", "")})
             lines = pd.concat([lines, pd.DataFrame([row])], ignore_index=True)
             index_by_id[staff_id] = lines.index[-1]
+            original[staff_id] = {}
         index = index_by_id[staff_id]
+        previous = original.get(staff_id) or {}
         for key in EDITABLE:
             if key not in edit:
                 continue
+            old = _cell_text(previous.get(key))
+            new = _cell_text(edit.get(key))
             _put_cell(lines, index, key, edit[key])
-    with pd.ExcelWriter(info["adjustments"], engine="openpyxl") as writer:
-        lines.to_excel(writer, sheet_name="lines", index=False)
-        meta.to_excel(writer, sheet_name="meta", index=False)
+            if old != new:
+                audit.append({
+                    "time": when,
+                    "user": who,
+                    "month": info.get("key", ""),
+                    "staff_id": staff_id,
+                    "field": key,
+                    "old": old,
+                    "new": new,
+                })
+    save_excel(info["adjustments"], sheets={"lines": lines, "meta": meta})
+    _record_audit(info, audit)
 
 
 def approve_all(info, staff_ids):

@@ -24,7 +24,7 @@ def home():
 
 
 def scratch_dir(name):
-    """A folder inside dev_testing for a test. Nothing is written outside the project."""
+    """A folder inside _tmp for a test. Nothing is written outside the project."""
     folder = CODE_ROOT / "_tmp" / name
     if folder.exists():
         shutil.rmtree(folder)

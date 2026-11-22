@@ -91,7 +91,8 @@ def _header_row(raw):
 
 
 def _read_sheet(path, sheet):
-    raw = pd.read_excel(path, sheet_name=sheet, header=None)
+    from payroll.core.excel_io import read_excel
+    raw = read_excel(path, sheet_name=sheet, header=None)
     header_index = _header_row(raw)
     headers = []
     seen = {}
@@ -135,8 +136,9 @@ _OPTION_COLUMNS = {
 
 def staff_options(path=None):
     """Dropdown lists on Sheet2, in the same order as the staff file."""
+    from payroll.core.excel_io import read_excel
     path = Path(path) if path else latest_staff_file()
-    raw = pd.read_excel(path, sheet_name="Sheet2", header=None)
+    raw = read_excel(path, sheet_name="Sheet2", header=None)
     options = {name: [] for name in _OPTION_COLUMNS.values()}
     for _, row in raw.iterrows():
         for index, name in _OPTION_COLUMNS.items():
@@ -159,8 +161,34 @@ def next_employee_no(staff, prefix):
     return f"{prefix}{(max(used) if used else 0) + 1:03d}"
 
 
+_loaded = {}
+_grey = {}
+
+
+def clear_staff_cache():
+    _loaded.clear()
+    _grey.clear()
+    from payroll.core.excel_io import clear_reads
+    clear_reads()
+
+
+def _copy_staff(frame):
+    copied = frame.copy()
+    copied.attrs = dict(getattr(frame, "attrs", {}))
+    return copied
+
+
 def load_staff(path=None):
+    from payroll.core.excel_io import file_stamp
     path = Path(path) if path else latest_staff_file()
+    try:
+        stamp = file_stamp(path)
+    except OSError:
+        stamp = None
+    key = str(path.resolve()) if path.exists() else str(path)
+    found = _loaded.get(key)
+    if stamp and found and found[0] == stamp:
+        return _copy_staff(found[1])
     try:
         frames = [_read_sheet(path, sheet) for sheet in STAFF_SHEETS]
     except PermissionError:
@@ -206,7 +234,9 @@ def load_staff(path=None):
     staff.attrs["source"] = str(path)
     staff.attrs["duplicate_ids"] = duplicates
     staff.attrs["grey_active"] = grey_but_employed(path)
-    return staff
+    if stamp:
+        _loaded[key] = (stamp, staff)
+    return _copy_staff(staff)
 
 
 def _as_date(value):
@@ -296,8 +326,17 @@ def _is_grey(color):
 def grey_but_employed(path=None):
     """在職 rows painted with the same solid grey already used on 已離職 rows."""
     from openpyxl import load_workbook
+    from payroll.core.excel_io import file_stamp
 
     path = Path(path) if path else latest_staff_file()
+    try:
+        stamp = file_stamp(path)
+    except OSError:
+        stamp = None
+    cache_key = str(path.resolve()) if path.exists() else str(path)
+    cached = _grey.get(cache_key)
+    if stamp and cached and cached[0] == stamp:
+        return list(cached[1])
     book = load_workbook(path, data_only=True)
     found = []
     for sheet in book.worksheets:
@@ -334,7 +373,9 @@ def grey_but_employed(path=None):
                 name = _text(row[name_col - 1].value) if name_col else ""
                 found.append({"employee_no": number, "name": name or number})
     book.close()
-    return found
+    if stamp:
+        _grey[cache_key] = (stamp, list(found))
+    return list(found)
 
 
 def _fill_key(color):

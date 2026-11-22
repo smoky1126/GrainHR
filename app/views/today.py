@@ -153,7 +153,8 @@ def _buckets(frame, day):
 
 
 def _fact(row):
-    shop = str(row.get("Chosen shop") or "").strip()
+    from payroll.core.settings import shop_label
+    shop = shop_label(row.get("Chosen shop"))
     roster = str(row.get("Roster cell") or "").strip()
     listed = str(row.get("Rosters") or "").strip()
     fact = " · ".join(part for part in (shop, roster) if part and part.lower() != "nan")
@@ -311,6 +312,31 @@ def _freshness(updated, exported):
     st.markdown(f'<div class="gh-strip">{"".join(chips)}</div>', unsafe_allow_html=True)
 
 
+def _month_progress():
+    from app.state import month_choices, month_progress
+    from payroll.core.config import parse_month
+    import os
+
+    if os.environ.get("PAYROLL_DEMO") == "1":
+        key = "2026-10"
+    else:
+        _options, key = month_choices()
+    try:
+        info = parse_month(key)
+        rows = month_progress(info)
+    except (OSError, SystemExit):
+        return
+    year, month = key.split("-")
+    with st.container(border=True):
+        st.markdown(f"**本月出糧進度** · {year}年{int(month)}月")
+        st.dataframe(
+            pd.DataFrame([{"項目": label, "狀態": "完成" if done else "未做"} for label, done in rows]),
+            hide_index=True,
+            width="stretch",
+            alt="本月出糧進度",
+        )
+
+
 def render():
     from app.components.clock import live_clock
 
@@ -332,32 +358,24 @@ def render():
     with head[1]:
         live_clock()
     _freshness(updated, exported)
-    when, actions = st.columns([2.4, 1.3], vertical_alignment="bottom")
-    with when:
-        day_pick = st.columns([0.7, 0.7, 1.5], vertical_alignment="bottom")
-        with day_pick[0]:
-            if st.button("今天", key="today-now", width="stretch"):
-                st.session_state["board-date"] = today
+    _month_progress()
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        if st.button("今天", key="today-now"):
+            st.session_state["board-date"] = today
+            st.rerun()
+        if st.button("昨天", key="today-yesterday"):
+            st.session_state["board-date"] = today - timedelta(days=1)
+            st.rerun()
+        picked = st.date_input("日期", key="board-date", format="YYYY-MM-DD")
+        if st.button("立即更新", key="today-refresh"):
+            st.session_state["today-force"] = True
+            st.rerun()
+        if st.button("更新更表", key="today-roster"):
+            from app.context import refresh_rosters
+            from payroll.core.config import parse_month
+            month = parse_month(f"{picked.year}-{picked.month:02d}")
+            if refresh_rosters(month):
                 st.rerun()
-        with day_pick[1]:
-            if st.button("昨天", key="today-yesterday", width="stretch"):
-                st.session_state["board-date"] = today - timedelta(days=1)
-                st.rerun()
-        with day_pick[2]:
-            picked = st.date_input("日期", key="board-date", label_visibility="collapsed")
-    with actions:
-        act = st.columns(2, vertical_alignment="bottom")
-        with act[0]:
-            if st.button("立即更新", key="today-refresh", width="stretch"):
-                st.session_state["today-force"] = True
-                st.rerun()
-        with act[1]:
-            if st.button("更新更表", key="today-roster", width="stretch"):
-                from app.context import refresh_rosters
-                from payroll.core.config import parse_month
-                month = parse_month(f"{picked.year}-{picked.month:02d}")
-                if refresh_rosters(month):
-                    st.rerun()
     if notice:
         st.warning(notice)
     query = st.text_input("搜尋姓名", key="today-query").strip()

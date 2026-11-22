@@ -1,4 +1,4 @@
-# Edit Staff_info through Excel so the Sheet2 dropdowns stay in the file.
+﻿# Edit Staff_info through Excel so the Sheet2 dropdowns stay in the file.
 param(
     [Parameter(Mandatory = $true)][string]$JsonPath
 )

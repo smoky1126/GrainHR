@@ -25,10 +25,14 @@ def _folder_button(path):
 
 
 def page_records():
+    from app.lock import _user
+    from payroll.core.settings import role_for
+
     inject()
     show_logo()
     info, _readonly, _draft, _staff, _table = _context()
     page_header("月份紀錄", _month_label(info["key"]))
+    viewer = role_for(_user()) == "viewer"
     if is_issued(info["key"]):
         st.caption("一月至十月的糧單、更表和考勤核對表保持原樣。這裡只打開已保存的檔案。")
     else:
@@ -39,6 +43,8 @@ def page_records():
         st.caption("沒有找到這個月的考勤核對表。")
     else:
         _download(check)
+    if viewer:
+        return
     st.markdown("**這個月保存的檔案**")
     kept = saved_files(info)
     if not kept:

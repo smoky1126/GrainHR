@@ -1,6 +1,5 @@
 import html
 import os
-from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -12,10 +11,10 @@ from app.components.tables import style_days as _day_style
 from app.components.theme import inject, show_logo
 from app.lock import claim
 from app.state import (
-    default_scheme, format_pay_date, last_month, new_joiners, parse_pay_date, problem_people,
+    default_scheme, format_pay_date, new_joiners, parse_pay_date, problem_people,
     roster_report, step_status, unlinked_roster_names,
 )
-from payroll.core.config import book_info, home, parse_month
+from payroll.core.config import book_info, parse_month
 from payroll.core.holidays import holiday_count, holiday_known
 from payroll.core.labels import (
     BOOKS, MANUAL_PAY, NEW_JOINER, PAY_HEADINGS, SCHEME, SCHEME_STORED, SECTION, YES, chinese_note, show,
@@ -63,24 +62,8 @@ def _choose_month():
     if DEMO:
         st.sidebar.caption("示範月份：2026年10月")
         return "2026-10"
-    folder = home() / "months"
-    options = []
-    if folder.exists():
-        options = sorted(
-            path.name.replace("_", "-")
-            for path in folder.iterdir()
-            if path.is_dir() and len(path.name) == 7 and path.name[4] == "_"
-        )
-    today = date.today()
-    options.extend(f"{today.year}-{month:02d}" for month in range(1, today.month + 1))
-    from payroll.core.history import is_issued
-    current = last_month()
-    if current not in options:
-        options.append(current)
-    options = sorted(set(options))
-    open_months = [key for key in options if not is_issued(key)]
-    if open_months:
-        current = open_months[-1]
+    from app.state import month_choices
+    options, current = month_choices()
     return st.sidebar.selectbox(
         "月份", options, index=options.index(current), format_func=_month_label, key="payroll-month",
     )
@@ -243,9 +226,16 @@ def _context(steps=False):
             unsafe_allow_html=True,
         )
     info = parse_month(_month_key(steps))
+    from app.lock import _user
     from payroll.core.history import is_issued
+    from payroll.core.settings import role_for
+    who = _user()
+    role = role_for(who)
     issued = is_issued(info["key"])
-    can_edit, owner = claim(info)
+    if role == "viewer":
+        can_edit, owner = False, ""
+    else:
+        can_edit, owner = claim(info)
     readonly = (issued and steps) or not can_edit
     if issued:
         st.markdown(
@@ -258,7 +248,12 @@ def _context(steps=False):
     slips_ready = bool(st.session_state.get("slips_ready"))
     if steps:
         stepper(step_status(info, draft, staff, table, slips_ready=slips_ready))
-    if can_edit:
+    if role == "viewer":
+        st.sidebar.markdown(
+            '<span class="pay-chip pay-chip-muted">只供查看</span>',
+            unsafe_allow_html=True,
+        )
+    elif can_edit:
         st.sidebar.markdown(
             f'<span class="pay-chip pay-chip-ok">你正在處理 {_month_label(info["key"])}</span>',
             unsafe_allow_html=True,
@@ -271,14 +266,14 @@ def _context(steps=False):
         if st.sidebar.button("接手"):
             claim(info, take_over=True)
             st.rerun()
-    from app.lock import _user
-    from payroll.core.settings import display_name, role_for
-    who = _user()
+    from payroll.core.settings import app_version, display_name
     roles = {"admin": "HR 管理員", "hr": "HR 同事", "viewer": "店長"}
     st.sidebar.markdown(
-        f'<div class="gh-footer">GrainHR v1.0.0<br>{display_name(who)} · {roles.get(role_for(who), "HR 同事")}</div>',
+        f'<div class="gh-footer">GrainHR v{app_version()}<br>{display_name(who)} · {roles.get(role, "HR 同事")}</div>',
         unsafe_allow_html=True,
     )
+    if role == "viewer":
+        return info, readonly, draft, staff, table
     with st.sidebar.expander("進階"):
         if st.button("立即同步 DAKA", disabled=readonly or DEMO):
             _pull_daka(force=True)

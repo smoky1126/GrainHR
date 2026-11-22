@@ -78,10 +78,16 @@ def step_joiners(info, status, staff, table, readonly):
                     st.rerun()
 
 def page_salary():
+    from app.access import current_role, hide_pay_page
+
+    hide_pay_page()
     info, readonly, draft, staff, table = _context(steps=True)
     status = step_status(info, draft, staff, table)
     page_header("薪金表", _month_label(info["key"]))
+    pay_locked = readonly or current_role() != "admin"
+    if current_role() != "admin":
+        st.caption("只有管理員可以修改薪金設定。")
     with st.expander(f"新同事（{status['joiner_count']}）", expanded=bool(status["joiner_count"])):
-        step_joiners(info, status, staff, table, readonly)
-    _salary_editor(info, readonly)
-    _pt_editor(info, readonly)
+        step_joiners(info, status, staff, table, pay_locked)
+    _salary_editor(info, pay_locked)
+    _pt_editor(info, pay_locked)
