@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3
+
+- Today's attendance counts someone as late as soon as they clock in, without waiting for the clock-out.
+
 ## 1.2.2
 
 - The website trusts the Cloudflare Google sign-in, so people are not asked to sign in a second time.

@@ -141,6 +141,27 @@ def test_late_early_and_overtime_columns():
         raise SystemExit(f"four minutes late should stay on the row: {overtime.to_dict()}")
 
 
+def test_open_shift_counts_late_before_clock_out():
+    date = "2026-11-23"
+    facts = _facts([{
+        "shop": "JD_Bread", "name": "Ada", "date": date, "roster": "07:00-16:00",
+        "late_mins": 0, "early_mins": 0, "ot_hours": 0, "wrong_site": 0,
+    }])
+    punches = {"__names__": {"Ada"}, ("Ada", date): {
+        "in": "08:48", "out": "", "place": "", "code": "JD",
+    }}
+    summary, days = merge_days(facts, punches)
+    row = days.iloc[0]
+    if int(row["Late"]) != 108 or "遲到 108 分鐘" not in str(row["Status"]):
+        raise SystemExit(f"an open shift should already be late: {row.to_dict()}")
+    if int(summary["Ada"]["late_mins"]) != 108:
+        raise SystemExit(summary["Ada"]["late_mins"])
+    punches[("Ada", date)]["in"] = "06:50"
+    _summary, days = merge_days(facts, punches)
+    if int(days.iloc[0]["Late"]) != 0:
+        raise SystemExit(f"an early arrival was marked late: {days.iloc[0]['Late']}")
+
+
 def test_overtime_pay():
     amount = overtime_pay(20000, 31, 3)
     if amount != 203.74:
@@ -223,6 +244,7 @@ def main():
     test_shift_without_punch_is_missing()
     test_rest_without_punch_says_rest()
     test_late_early_and_overtime_columns()
+    test_open_shift_counts_late_before_clock_out()
     test_two_shifts_are_flagged()
     test_overtime_pay()
     test_lunch_pair_is_not_clock_out()

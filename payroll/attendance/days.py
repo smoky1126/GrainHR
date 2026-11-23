@@ -120,6 +120,18 @@ def _place_ok(punch_code, codes):
     return punch_code in {"SPK", "Pastry"} and bool({"SPK", "Pastry"} & set(codes))
 
 
+def _arrival_late(roster, clock_in):
+    """Minutes after the roster start. A missing clock-out does not hide this."""
+    match = SHIFT.search(_text(roster))
+    if not match:
+        return 0
+    start = _minutes(match.group(0).split("-")[0])
+    arrived = _minutes(clock_in)
+    if start is None or arrived is None:
+        return 0
+    return max(0, arrived - start)
+
+
 def _metrics(roster, clock_in, clock_out):
     """Same lateness and overtime steps as the attendance check, using DAKA times."""
     match = SHIFT.search(_text(roster))
@@ -335,8 +347,16 @@ def merge_days(facts, punches):
             status = STATUS["missing clock-in"]
             person["missing"].append(punch_label(label, "in"))
         elif kind == "shift" and not has_out:
+            roster_for_late = chosen.get("roster")
+            if two_shifts and morning is not None:
+                roster_for_late = morning.get("roster")
+            late = _arrival_late(roster_for_late, clock_in)
             status = STATUS["missing clock-out"]
             person["missing"].append(punch_label(label, "out"))
+            if late:
+                person["late"] += late
+                person["late_dates"].append(f"{label} {int(late)}分鐘")
+                status = f"遲到 {int(late)} 分鐘、{status}"
         elif kind == "leave" and not has_in and not has_out:
             leave_kind = detail
             status = LEAVE_LABEL.get(detail, STATUS["leave"])
