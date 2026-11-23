@@ -133,7 +133,8 @@ def _move_into_place(source, target):
             return
         except PermissionError:
             try:
-                shutil.copy2(source, target)
+                from payroll.core.excel_io import copy_file
+                copy_file(source, target)
             except PermissionError:
                 return
     try:

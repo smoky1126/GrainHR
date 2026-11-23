@@ -1,6 +1,5 @@
 """Copy the month's shop rosters from the Excel folder the Apps Script fills."""
 
-import shutil
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -72,7 +71,8 @@ def copy_rosters(info, source=None, destination=None):
         for old in target.parent.glob("*.xlsx"):
             if not old.name.startswith("~$"):
                 old.unlink()
-        shutil.copy2(source_file, target)
+        from payroll.core.excel_io import copy_file
+        copy_file(source_file, target)
         saved.append(target)
     return saved
 

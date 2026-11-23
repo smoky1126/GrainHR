@@ -75,6 +75,8 @@ def step_daka(info, status, demo, readonly, staff=None):
             run_check(info, open_workbook=False, fetch=not demo)
         except PermissionError:
             st.session_state["check_error"] = "請先關閉 Excel 中的考勤核對表，然後再試。"
+        except OSError:
+            st.session_state["check_error"] = "更表暫時讀不到。請稍後再按「再試」。"
         except SystemExit as error:
             st.session_state["check_error"] = str(error)
         else:

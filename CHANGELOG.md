@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.2
+
+- Copying a roster from the shared drive no longer crashes when the drive rejects extra file attributes. If a copy still fails, the attendance page shows a message instead of an error number.
+
 ## 1.6.1
 
 - Today's page can read the newest roster time again.

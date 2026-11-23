@@ -50,6 +50,24 @@ def main():
         file_name = pattern.format(year=2026, mon="Oct")
         if not (destination / shop / f"{file_name}.xlsx").exists():
             raise SystemExit("a good roster was not copied")
+        copied = (destination / shop / f"{file_name}.xlsx").read_bytes()
+        original = (source / shop / f"{file_name}.xlsx").read_bytes()
+        if copied != original:
+            raise SystemExit("the copied roster bytes changed")
+        from payroll.core.excel_io import copy_file
+        again = root / "again.xlsx"
+        real_copy2 = shutil.copy2
+
+        def refuse_attributes(source_file, target_file, *args, **kwargs):
+            raise OSError(5, "Input/output error")
+
+        shutil.copy2 = refuse_attributes
+        try:
+            copy_file(source / shop / f"{file_name}.xlsx", again)
+        finally:
+            shutil.copy2 = real_copy2
+        if again.read_bytes() != original:
+            raise SystemExit("a Drive-style copy should still keep the workbook bytes")
 
         missing = root / "missing"
         _fill(missing, skip=shop)

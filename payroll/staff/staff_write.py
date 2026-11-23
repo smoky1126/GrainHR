@@ -68,7 +68,8 @@ def restore_staff_backup(path, backup):
     folder = (path.parent / "_備份").resolve()
     if folder not in backup.parents or not backup.is_file():
         raise SystemExit("只能還原員工檔資料夾裡的備份。")
-    shutil.copy2(backup, path)
+    from payroll.core.excel_io import copy_file
+    copy_file(backup, path)
     return path
 
 
@@ -81,7 +82,8 @@ def _backup(path):
     while dest.exists():
         dest = folder / f"{path.stem}_{stamp}_{count}{path.suffix}"
         count += 1
-    shutil.copy2(path, dest)
+    from payroll.core.excel_io import copy_file
+    copy_file(path, dest)
     copies = sorted(folder.glob(f"{path.stem}_*{path.suffix}"), key=lambda item: item.stat().st_mtime)
     while len(copies) > 30:
         copies.pop(0).unlink(missing_ok=True)

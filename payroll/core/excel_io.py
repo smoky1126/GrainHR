@@ -1,6 +1,7 @@
 """Excel reads cached by file time, and writes that replace the real file."""
 
 import os
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -12,6 +13,24 @@ _reads = {}
 def file_stamp(path):
     stat = Path(path).stat()
     return (stat.st_mtime_ns, stat.st_size)
+
+
+def copy_file(source, target):
+    """Copy the bytes. A Drive mount rejects the extra attributes copy2 tries to read."""
+    source = Path(source)
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    try:
+        shutil.copymode(source, target)
+    except OSError:
+        pass
+    try:
+        stat = source.stat()
+        os.utime(target, (stat.st_atime, stat.st_mtime))
+    except OSError:
+        pass
+    return target
 
 
 def read_excel(path, *args, **kwargs):
