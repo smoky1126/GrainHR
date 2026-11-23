@@ -120,6 +120,11 @@ def test_version_name_beats_a_newer_old_file():
         raise SystemExit("沒有日期的檔名不應有版本日")
     if staff_version_path(home, date(2026, 11, 20)).name != "Staff_info_20261120.xlsx":
         raise SystemExit("今天的版本檔名不對")
+    missing = home / "Staff_info_20261120.xlsx"
+    current = home / "Staff_info_20261123.xlsx"
+    current.write_bytes(b"c")
+    if pick_staff_file([missing, current]) != current:
+        raise SystemExit("已經不在的舊員工檔不應被打開")
 
 
 def test_excel_add_edit_resign():

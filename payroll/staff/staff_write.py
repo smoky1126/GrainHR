@@ -206,6 +206,8 @@ def _roll_staff_version(path):
     for _attempt in range(8):
         try:
             path.rename(target)
+            from payroll.core.listings import clear_listings
+            clear_listings()
             return target
         except OSError as error:
             last_error = error

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.7
+
+- The staff page opens the staff file that is actually there after a resignation renames it.
+
 ## 1.6.6
 
 - Marking someone as resigned works when the staff sheet's first column is blank.

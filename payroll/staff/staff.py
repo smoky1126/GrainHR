@@ -61,10 +61,19 @@ def staff_version_path(folder, day=None):
 
 
 def pick_staff_file(files):
-    files = [path for path in files if not Path(path).name.startswith("~$")]
-    if not files:
+    ranked = []
+    for path in files:
+        path = Path(path)
+        if path.name.startswith("~$"):
+            continue
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        ranked.append(((staff_file_day(path) or date.min, mtime), path))
+    if not ranked:
         raise SystemExit("沒有 Staff_info_*.xlsx")
-    return max(files, key=lambda path: (staff_file_day(path) or date.min, path.stat().st_mtime))
+    return max(ranked)[1]
 
 
 def latest_staff_file():
@@ -185,11 +194,23 @@ def _copy_staff(frame):
 
 def load_staff(path=None):
     from payroll.core.excel_io import file_stamp
-    path = Path(path) if path else latest_staff_file()
-    try:
-        stamp = file_stamp(path)
-    except OSError:
-        stamp = None
+    given = path is not None
+    path = Path(path) if given else latest_staff_file()
+
+    def _stamp(target):
+        try:
+            return file_stamp(target)
+        except OSError:
+            return None
+
+    stamp = _stamp(path)
+    if stamp is None and not given:
+        from payroll.core.listings import clear_listings
+        clear_listings()
+        path = latest_staff_file()
+        stamp = _stamp(path)
+    if stamp is None:
+        raise SystemExit(f"找不到員工檔：{Path(path).name}。請稍後再打開這一頁。")
     key = str(path.resolve()) if path.exists() else str(path)
     found = _loaded.get(key)
     if stamp and found and found[0] == stamp:
