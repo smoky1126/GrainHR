@@ -1,5 +1,6 @@
 """Turn a crash into a short message and a log file."""
 
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -25,6 +26,22 @@ def write_log(message):
     return path
 
 
+def notify(subject, body):
+    """Record an alert. Email it when GRAINHR_ALERT_TO is set and sendmail exists."""
+    import shutil
+    import subprocess
+    write_log(f"ALERT {subject}\n{body}")
+    recipient = os.environ.get("GRAINHR_ALERT_TO", "").strip()
+    program = shutil.which("sendmail")
+    if not recipient or not program:
+        return
+    message = f"To: {recipient}\nSubject: GrainHR {subject}\n\n{body}\n"
+    try:
+        subprocess.run([program, "-t"], input=message, text=True, timeout=20, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return
+
+
 def show_failure(error):
     when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     who = actor()
@@ -33,11 +50,13 @@ def show_failure(error):
         write_log(f"{when} {who} {text}")
         st.error(text)
         return
+    code = datetime.now().strftime("%m%d%H%M%S")
     detail = "".join(traceback.format_exception(type(error), error, error.__traceback__))
-    write_log(f"{when} {who}\n{detail}")
+    write_log(f"{when} {who} {code}\n{detail}")
+    notify(f"頁面錯誤 {code}", f"{when} {who}\n編號 {code}")
     print(detail, file=sys.stderr, flush=True)
     from payroll.core.settings import role_for
-    st.error("這頁出了問題。請通知管理員。")
+    st.error(f"這頁出了問題。請把編號 {code} 告訴管理員。")
     if role_for(who) == "admin":
         with st.expander("詳細內容"):
             st.code(detail)

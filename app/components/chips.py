@@ -24,20 +24,33 @@ def legend():
         ("加班", "info"),
     ])
 
-def stepper(status):
-    steps = (("出勤", "daka"), ("新同事", "joiners"), ("審核", "problems"), ("出糧", "pay"))
-    marks = {"done": "✓", "todo": "!", "wait": "·"}
+def stepper(status, notes=None):
+    steps = (
+        ("出勤", "daka"),
+        ("遲到", "late"),
+        ("新同事", "joiners"),
+        ("審核", "problems"),
+        ("薪金", "salary"),
+        ("出糧", "pay"),
+    )
+    words_state = {"done": "完成", "todo": "未做", "wait": "等候"}
+    notes = notes or {}
     items = []
     for name, key in steps:
         state = status.get(key, "wait")
+        note = notes.get(key, "")
+        extra = f'<small>{escape(note)}</small>' if note else ""
         items.append(
-            f'<li class="pay-step-{state}"><span>{escape(marks.get(state, "·"))}</span>{escape(name)}</li>'
+            f'<li class="pay-step-{state}"><span>{escape(words_state.get(state, "等候"))}</span>'
+            f'{escape(name)}{extra}</li>'
         )
     st.sidebar.markdown(f'<ol class="pay-steps">{"".join(items)}</ol>', unsafe_allow_html=True)
     words = {
         "daka": "下一步：到出勤頁核對打卡和更表。",
+        "late": "下一步：核對遲到，然後按已核對。",
         "joiners": "下一步：為新同事設定薪金。",
         "problems": "下一步：審核遲到、加班和例外。",
+        "salary": "下一步：核對薪金表。",
         "pay": "下一步：選出糧日期並製作糧單。",
     }
     for _name, key in steps:

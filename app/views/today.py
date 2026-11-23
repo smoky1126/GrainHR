@@ -220,21 +220,21 @@ def _kpi_tabs(frame, day):
     choice = st.session_state.get("today-bucket", "due")
     if choice not in known:
         choice = "due"
-    columns = st.columns(4)
-    for column, (code, label, people, tone) in zip(columns, buckets):
-        with column:
+    with st.container(horizontal=True):
+        for code, label, people, tone in buckets:
             count = 0 if people is None else len(people)
             kind = tone if count else "muted"
             marked = " gh-kpi-on" if choice == code else ""
-            st.markdown(
-                f'<div class="pay-kpi pay-kpi-{kind} gh-kpi-face{marked}">'
-                f'<span class="pay-kpi-label">{label}</span>'
-                f'<span class="pay-kpi-value">{count}</span></div>',
-                unsafe_allow_html=True,
-            )
-            if st.button(label, key=f"today-kpi-{code}", width="stretch") and choice != code:
-                st.session_state["today-bucket"] = code
-                st.rerun()
+            with st.container():
+                st.markdown(
+                    f'<div class="pay-kpi pay-kpi-{kind} gh-kpi-face{marked}">'
+                    f'<span class="pay-kpi-label">{html.escape(str(label))}</span>'
+                    f'<span class="pay-kpi-value">{count}</span></div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button(label, key=f"today-kpi-{code}", width="stretch") and choice != code:
+                    st.session_state["today-bucket"] = code
+                    st.rerun()
     return next(people for code, _label, people, _tone in buckets if code == choice)
 
 

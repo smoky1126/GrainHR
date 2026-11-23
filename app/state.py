@@ -295,11 +295,63 @@ def step_status(info, draft=None, staff=None, pay_table=None, slips_ready=False)
         pay_state = "done"
     else:
         pay_state = "todo"
+    late_done = (info["system"] / "late_checked.txt").exists()
+    if not daka_done:
+        late_state = "wait"
+    elif late_done:
+        late_state = "done"
+    else:
+        late_state = "todo"
+    if joiner_state != "done":
+        salary_state = "wait"
+    elif draft is not None:
+        salary_state = "done"
+    else:
+        salary_state = "todo"
     return {
         "daka": "done" if daka_done else "todo",
+        "late": late_state,
         "joiners": joiner_state,
         "joiner_count": len(joiners),
         "problems": problem_state,
         "problem_count": 0 if problems is None else len(problems),
+        "salary": salary_state,
         "pay": pay_state,
+    }
+
+
+def pipeline_notes(info):
+    """When each month file was last saved, and whether an earlier file is newer."""
+    from datetime import datetime
+    from payroll.core.config import book_info
+
+    def saved(path):
+        try:
+            return datetime.fromtimestamp(path.stat().st_mtime)
+        except OSError:
+            return None
+
+    daka = saved(info["daka"])
+    facts = saved(info["system"] / "daily_facts.xlsx")
+    late = saved(info["system"] / "late_checked.txt")
+    adjustments = saved(info["adjustments"])
+    slips = [saved(book_info(info, book)["slip_output"]) for book in ("bg", "md", "admin")]
+    slips = [item for item in slips if item]
+    newest_slip = max(slips) if slips else None
+
+    def text(when, earlier):
+        if when is None:
+            return "未有"
+        label = when.strftime("%m-%d %H:%M")
+        if earlier is not None and earlier > when:
+            return f"{label} 需更新"
+        return label
+
+    return {
+        "daka": text(facts or daka, None),
+        "late": text(late, facts),
+        "joiners": text(adjustments, facts),
+        "problems": text(adjustments, facts),
+        "salary": text(adjustments, facts),
+        "pay": text(newest_slip, adjustments),
     }

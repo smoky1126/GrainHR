@@ -16,7 +16,6 @@ def _pages():
     return {
         "每日": [
             st.Page("pages/today.py", title="今日出勤", icon=":material/today:", default=True),
-            st.Page("pages/attendance.py", title="出勤紀錄", icon=":material/calendar_month:"),
         ],
         "員工": [
             st.Page("pages/staff.py", title="員工總表", icon=":material/groups:"),
@@ -24,11 +23,12 @@ def _pages():
             st.Page("pages/names.py", title="名字配對", icon=":material/link:"),
         ],
         "每月出糧": [
-            st.Page("pages/records.py", title="月份紀錄", icon=":material/inventory_2:"),
-            st.Page("pages/overview.py", title="總覽", icon=":material/dashboard:"),
+            st.Page("pages/attendance.py", title="出勤紀錄", icon=":material/calendar_month:"),
             st.Page("pages/review.py", title="審核", icon=":material/fact_check:"),
             st.Page("pages/salary.py", title="薪金表", icon=":material/table:"),
             st.Page("pages/payout.py", title="出糧", icon=":material/payments:"),
+            st.Page("pages/overview.py", title="總覽", icon=":material/dashboard:"),
+            st.Page("pages/records.py", title="月份紀錄", icon=":material/inventory_2:"),
         ],
         "系統": [
             st.Page("pages/guide.py", title="使用說明", icon=":material/menu_book:"),

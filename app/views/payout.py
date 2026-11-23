@@ -125,16 +125,16 @@ def _confirm_person(month_key, book, staff_id, name):
 
 def step_pay(info, status, draft, readonly):
     if status["pay"] == "wait":
-        _mark("4. 出糧", "wait", "請先完成「新同事」。")
+        _mark("6. 出糧", "wait", "請先完成「新同事」。")
         return draft
     from app.access import books as visible_books
     shown = visible_books()
     present = [book for book in shown if pay_table_path(book).exists()]
     ready = all(book_info(info, book)["slip_output"].exists() for book in present) and present
     if ready and not st.session_state.get("dirty"):
-        _mark("4. 出糧", "done", "糧單已做好，可以下載。")
+        _mark("6. 出糧", "done", "糧單已做好，可以下載。")
     else:
-        _mark("4. 出糧", "todo", "選出糧日期，然後按各份糧單的按鈕。")
+        _mark("6. 出糧", "todo", "選出糧日期，然後按各份糧單的按鈕。")
     if st.session_state.get("dirty") and draft is not None:
         with st.spinner("正在計算總數"):
             draft = _drafts(info)
@@ -151,7 +151,11 @@ def step_pay(info, status, draft, readonly):
         icon=":material/payments:", help="按已批准的數字製作這個月的糧單。",
     ):
         _confirm_make_all(info["key"], tuple(present), format_pay_date(picked))
-    columns = st.columns(max(len(shown), 1))
+    names = list(shown.values())
+    if names:
+        choice = st.segmented_control("這次出糧", names, default=names[0], key="payout-book") or names[0]
+        shown = {book: label for book, label in shown.items() if label == choice}
+    columns = st.columns(1)
     for column, (book, label) in zip(columns, shown.items()):
         with column:
             with st.container(border=True):

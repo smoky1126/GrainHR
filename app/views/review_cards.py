@@ -59,17 +59,17 @@ def _confirm_approve_all(month_key, pairs, skipped):
 
 def step_problems(info, status, draft, readonly):
     if status["problems"] == "wait":
-        _mark("3. 處理問題", "wait", "請先完成上一步。")
+        _mark("4. 審核", "wait", "請先完成上一步。")
         return draft
     people = problem_people(draft)
     if people is None or len(people) == 0:
-        _mark("3. 處理問題", "done", "沒有需要處理的問題。")
+        _mark("4. 審核", "done", "沒有需要處理的問題。")
         return draft
     waiting = people[~people["approved"].astype(str).str.strip().str.upper().isin(["Y", "是"])]
     if len(waiting) == 0:
-        _mark("3. 處理問題", "done", "問題已全部批准。")
+        _mark("4. 審核", "done", "問題已全部批准。")
     else:
-        _mark("3. 處理問題", "todo", f"還有 {len(waiting)} 人未批准。")
+        _mark("4. 審核", "todo", f"還有 {len(waiting)} 人未批准。")
     st.progress((len(people) - len(waiting)) / len(people), text=f"{len(people) - len(waiting)} / {len(people)} 已批准")
     pending = waiting[waiting.apply(lambda row: _ot_pending(row) or _absence_pending(row), axis=1)] if len(waiting) else waiting
     ready = waiting.drop(index=pending.index) if len(waiting) else waiting

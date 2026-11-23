@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+
+- The month steps in the sidebar are 出勤, 遲到, 新同事, 審核, 薪金, and 出糧. Each one shows when its file was last saved, and 需更新 when an earlier file is newer.
+- 出勤紀錄 sits with the monthly pages. 薪金表 is split into 新同事, 全職, and 兼職. 出糧 shows one payroll book at a time.
+- A page error shows a number staff can quote.
+
 ## 1.4.0
 
 - Pages that only show information no longer build the payroll draft. The draft is cached and rebuilt when a punch, roster fact, staff file, or adjustment changes.

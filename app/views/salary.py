@@ -38,7 +38,7 @@ from app.views.salary_editor import _pt_editor, _salary_editor
 
 def step_joiners(info, status, staff, table, readonly):
     if status["joiners"] == "wait":
-        _mark("2. 新同事", "wait", "請先完成上一步。")
+        _mark("3. 新同事", "wait", "請先完成上一步。")
         return
     from app.access import see_pay
     from payroll.staff.directory import staff_group
@@ -47,9 +47,9 @@ def step_joiners(info, status, staff, table, readonly):
         if see_pay(staff_group(record.get("department"), record.get("employment"), record.get("position"), record.get("sheet")))
     ]
     if not people:
-        _mark("2. 新同事", "done", "沒有新同事。")
+        _mark("3. 新同事", "done", "沒有新同事。")
         return
-    _mark("2. 新同事", "todo", f"有 {len(people)} 位新同事未設定薪金。")
+    _mark("3. 新同事", "todo", f"有 {len(people)} 位新同事未設定薪金。")
     names = unlinked_roster_names(info, table)
     scheme_labels = list(SCHEME.values())
     from app.access import books as visible_books
@@ -92,7 +92,12 @@ def page_salary():
         from app.views.overview import _issued_view
         _issued_view(info)
         return
-    with st.expander(f"新同事（{status['joiner_count']}）", expanded=bool(status["joiner_count"])):
+    section = st.segmented_control(
+        "薪金", ["新同事", "全職", "兼職"], default="新同事" if status["joiner_count"] else "全職", key="salary-section",
+    ) or "全職"
+    if section == "新同事":
         step_joiners(info, status, staff, table, readonly)
-    _salary_editor(info, readonly)
-    _pt_editor(info, readonly)
+    elif section == "兼職":
+        _pt_editor(info, readonly)
+    else:
+        _salary_editor(info, readonly)

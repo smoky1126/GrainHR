@@ -302,7 +302,9 @@ def _context(steps=False, edit=False, payroll=True):
         draft = None
     slips_ready = bool(st.session_state.get("slips_ready"))
     if steps:
-        stepper(step_status(info, draft, staff, table, slips_ready=slips_ready))
+        from app.state import pipeline_notes
+        status = step_status(info, draft, staff, table, slips_ready=slips_ready)
+        stepper(status, pipeline_notes(info))
     from html import escape
     if edit and can_edit and not issued:
         st.sidebar.markdown(

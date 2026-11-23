@@ -120,15 +120,14 @@ def page_overview():
         waiting_all += 0 if blocked is None else len(blocked)
         if book_info(info, book)["slip_output"].exists():
             made += 1
-    columns = st.columns(4)
     cards = (
         ("本月出糧", f"{len(paid_all)} 人", "可見糧單合計", "info"),
         ("淨薪金", hk(net_all), "未計未批准的改動", "ok"),
         ("未批准", f"{waiting_all} 人", "審核後才能出糧", "block" if waiting_all else "ok"),
         ("糧單", f"{made} / {len(shown_books)}", "已製作的檔案", "ok" if made == len(shown_books) else "todo"),
     )
-    for column, (label, value, note, tone) in zip(columns, cards):
-        with column:
+    with st.container(horizontal=True):
+        for label, value, note, tone in cards:
             kpi(label, value, note, tone)
     st.write("")
     cost_rows = []
