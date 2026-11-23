@@ -116,6 +116,28 @@ def test_server_unknown_user_is_not_an_admin():
             os.environ["GRAINHR_SERVER"] = saved
 
 
+def test_a_staff_backup_outside_the_folder_is_refused():
+    from payroll.staff.staff_write import restore_staff_backup
+    folder = ROOT / "_tmp" / "restore"
+    backup_dir = folder / "_備份"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    live = folder / "Staff_info_test.xlsx"
+    live.write_bytes(b"live")
+    inside = backup_dir / "Staff_info_test_20260101_000000.xlsx"
+    inside.write_bytes(b"old")
+    outside = folder / "other.xlsx"
+    outside.write_bytes(b"nope")
+    try:
+        restore_staff_backup(live, outside)
+    except SystemExit:
+        pass
+    else:
+        _fail("a file outside the backup folder was restored")
+    restore_staff_backup(live, inside)
+    if live.read_bytes() != b"old":
+        _fail(live.read_bytes())
+
+
 def test_a_salary_change_records_who_did_it():
     import pandas as pd
     from payroll.core.config import home
@@ -140,5 +162,6 @@ if __name__ == "__main__":
     test_html_and_powershell_cannot_break_out()
     test_a_broken_secrets_file_is_not_treated_as_no_login()
     test_server_unknown_user_is_not_an_admin()
+    test_a_staff_backup_outside_the_folder_is_refused()
     test_a_salary_change_records_who_did_it()
     print("security ok")

@@ -201,12 +201,21 @@ def _page(info, problem_ids, md_id, pending_ids):
     payout = _open(app, "pages/payout.py")
     if "出糧" not in payout:
         raise SystemExit(f"沒有打開出糧：{payout}")
+    book_picker = next((item for item in app.segmented_control if item.key == "payout-book"), None)
+    if book_picker is not None:
+        book_picker.set_value(BOOKS["md"])
+        app.run(timeout=300)
     make = next((item for item in app.button if item.label == "製作" + BOOKS["md"] + "糧單"), None)
     if make is None:
         raise SystemExit("頁面沒有製作" + BOOKS["md"] + "糧單。")
     if getattr(make, "disabled", False):
         raise SystemExit("製作糧單不應被另一份的未批准擋住。")
     make.click()
+    app.run(timeout=300)
+    confirm_slip = next((item for item in app.button if item.label == "確定製作"), None)
+    if confirm_slip is None:
+        raise SystemExit("製作糧單之後沒有確認。")
+    confirm_slip.click()
     app.run(timeout=300)
     if app.exception:
         raise SystemExit(app.exception)
@@ -221,6 +230,11 @@ def _page(info, problem_ids, md_id, pending_ids):
         raise SystemExit("頁面沒有「製作這個人的糧單」。")
     one.click()
     app.run(timeout=300)
+    confirm_one = next((item for item in app.button if item.label == "確定製作"), None)
+    if confirm_one is None:
+        raise SystemExit("個人糧單之後沒有確認。")
+    confirm_one.click()
+    app.run(timeout=300)
     if app.exception:
         raise SystemExit(app.exception)
     made = []
@@ -230,6 +244,22 @@ def _page(info, problem_ids, md_id, pending_ids):
             made.extend(folder.glob("*"))
     if not made:
         raise SystemExit("個人糧單沒有產生檔案")
+    _smoke(app)
+
+
+def _smoke(app):
+    """Pages that only open files or explain the program."""
+    expected = (
+        ("pages/leave.py", "假期"),
+        ("pages/names.py", "名字"),
+        ("pages/records.py", "月份紀錄"),
+        ("pages/guide.py", "使用說明"),
+        ("pages/settings.py", "設定"),
+    )
+    for path, title in expected:
+        text = _open(app, path)
+        if title not in text:
+            raise SystemExit(f"沒有打開{title}：{text}")
 
 
 def _overtime(info, staff_id, net_before):
@@ -252,6 +282,10 @@ def _slip(info, draft, staff_id):
     row = draft[draft["staff_id"].astype(str) == staff_id].iloc[0]
     if abs(float(found[0]["net"]) - float(row["net"])) > 0.02:
         raise SystemExit(f"{staff_id} 糧單淨薪 {found[0]['net']}，應為 {row['net']}")
+
+
+def test_payroll_flow():
+    assert main() == 0
 
 
 def main():

@@ -76,6 +76,10 @@ role = "hr"
 
 An email that is not listed sees 沒有權限. The website reads the email from the Cloudflare sign-in. On a PC, with no `secrets.toml` and with Access turned off, GrainHR still uses the Windows user name.
 
+In Cloudflare Access, the application policy should list the same people, not every address at the company domain. Someone with a company address who is not on this list can still open the site's login page, but GrainHR will not show payroll.
+
+Set `GRAINHR_ALERT_TO` to an admin email on the server if `sendmail` is installed. GrainHR then emails that address when a page crashes or someone takes over a month. The same text is always written to the log.
+
 ## 7. Drive folders
 
 Hiding office pay in the app is not enough if HR can open the files in Drive. After the server's rclone account can read the HR drive, remove HR staff access to:
@@ -95,6 +99,32 @@ In `deploy/grainhr.service`, replace `REPLACE` with the GrainHR folder path unde
 systemctl --user enable --now grainhr.service
 ```
 
-Updates after that: push code to GitHub, SSH to the server, run `deploy/update.sh`.
+The unit file in this folder uses the account name `app`. The machine that is already running should keep its current account. Do not copy this file over the live unit. Add the protection lines below to the live unit, with that machine's own home directory:
+
+```
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/YOUR_USER/GrainHR /srv/grainhr
+```
+
+Then `systemctl --user daemon-reload` and restart grainhr.
+
+Updates install a tagged version, not the main branch:
+
+```
+export GRAINHR_REF=v1.6.0
+bash deploy/update.sh
+```
+
+A daily backup of the data folder:
+
+```
+export PAYROLL_HOME=/srv/grainhr/hr/REPLACE/data
+bash deploy/backup.sh
+```
+
+Put that command in the user crontab at a quiet hour. Backups older than 30 days are removed.
 
 See `deploy/CUTOVER.md` for the week of running both copies.

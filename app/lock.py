@@ -77,6 +77,9 @@ def claim(info, take_over=False):
     owner, when = read_lock(info)
     if owner and owner != user and _fresh(when) and not take_over:
         return False, owner
+    if take_over and owner and owner != user:
+        from app.errors import notify
+        notify("月份被接手", f"{user} 接手了 {info.get('key', '')}，原先是 {owner}。")
     recent = owner == user and when is not None and datetime.now() - when < _REFRESH
     if recent and not take_over:
         return True, user

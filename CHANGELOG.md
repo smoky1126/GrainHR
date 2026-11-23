@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0
+
+- GitHub runs the tests on every push. The page check also opens 假期, 名字配對, 月份紀錄, 使用說明, and 設定.
+- The server update installs a version tag. Direct library versions are pinned.
+- The service file keeps the process from gaining extra privileges. The live unit should keep its own account name.
+- A backup script copies the data folder once a day and drops copies older than 30 days. Staff-file backups can be restored from the staff page.
+- A page crash or a month takeover is emailed when GRAINHR_ALERT_TO is set and sendmail is installed.
+
 ## 1.5.0
 
 - The month steps in the sidebar are 出勤, 遲到, 新同事, 審核, 薪金, and 出糧. Each one shows when its file was last saved, and 需更新 when an earlier file is newer.

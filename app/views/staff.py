@@ -55,6 +55,30 @@ def _locked_note(readonly, demo):
     return False
 
 
+def _restore_backup(readonly):
+    from payroll.staff.staff import latest_staff_file
+    from payroll.staff.staff_write import list_staff_backups, restore_staff_backup
+    try:
+        current = latest_staff_file()
+    except SystemExit:
+        return
+    copies = list_staff_backups(current)
+    if not copies:
+        return
+    with st.expander(f"還原員工檔（{len(copies)} 份備份）"):
+        choice = st.selectbox("備份", [path.name for path in copies], key="staff-backup")
+        if readonly or not st.button("還原這份備份", disabled=readonly):
+            return
+        picked = next(path for path in copies if path.name == choice)
+        try:
+            restore_staff_backup(current, picked)
+        except SystemExit as error:
+            st.error(str(error))
+            return
+        st.toast("已還原員工檔。")
+        st.rerun()
+
+
 def _save(action):
     with st.spinner("正在寫入員工檔…"):
         action()
@@ -365,6 +389,7 @@ def render(info, readonly, staff, demo, month_label):
         )
     if shown:
         _export(shown)
+    _restore_backup(readonly)
     # A dialog stays open on its own after this run. Calling it again from a
     # saved flag opens a second dialog and Streamlit rejects the page.
     for stale in ("staff_add", "staff_edit", "staff_resign", "staff_salary"):

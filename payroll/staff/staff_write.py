@@ -53,6 +53,25 @@ _CHECK = {
 }
 
 
+def list_staff_backups(path):
+    folder = Path(path).parent / "_備份"
+    if not folder.is_dir():
+        return []
+    copies = folder.glob(f"{Path(path).stem}_*{Path(path).suffix}")
+    return sorted(copies, key=lambda item: item.stat().st_mtime, reverse=True)
+
+
+def restore_staff_backup(path, backup):
+    """Copy one backup over the live staff file. The backup must sit in _備份."""
+    path = Path(path)
+    backup = Path(backup).resolve()
+    folder = (path.parent / "_備份").resolve()
+    if folder not in backup.parents or not backup.is_file():
+        raise SystemExit("只能還原員工檔資料夾裡的備份。")
+    shutil.copy2(backup, path)
+    return path
+
+
 def _backup(path):
     folder = path.parent / "_備份"
     folder.mkdir(parents=True, exist_ok=True)
