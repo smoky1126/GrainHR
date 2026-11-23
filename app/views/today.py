@@ -1,7 +1,7 @@
 """The first screen: one day, one card per shop."""
 
 import html
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st

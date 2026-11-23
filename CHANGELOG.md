@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1
+
+- Today's page can read the newest roster time again.
+
 ## 1.6.0
 
 - GitHub runs the tests on every push. The page check also opens 假期, 名字配對, 月份紀錄, 使用說明, and 設定.

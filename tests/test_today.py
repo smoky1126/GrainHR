@@ -103,5 +103,16 @@ def test_one_day():
     print("today board ok")
 
 
+def test_newest_roster_reads_the_file_time():
+    from app.views.today import _newest_roster
+    folder = scratch_dir("newest-roster")
+    (folder / "roster.xlsx").write_bytes(b"x")
+    found = _newest_roster(folder)
+    if found is None:
+        raise SystemExit("the newest roster time was not read")
+
+
 if __name__ == "__main__":
     test_one_day()
+    test_newest_roster_reads_the_file_time()
+    print("roster time ok")
