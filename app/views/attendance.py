@@ -326,7 +326,7 @@ def _daily_record(info, status, staff, readonly):
                 "這個月沒有出勤紀錄",
                 note or "已出糧，只供查看。",
                 "前往月份紀錄",
-                "pages/records.py",
+                "screens/records.py",
             )
         else:
             empty_state("沒有出勤紀錄", note or "DAKA 還沒有同步。")
@@ -511,7 +511,7 @@ def _late_report(info, staff):
                 "這個月沒有出勤紀錄",
                 note or "已出糧，只供查看。",
                 "前往月份紀錄",
-                "pages/records.py",
+                "screens/records.py",
             )
         else:
             empty_state("沒有出勤紀錄", note or "DAKA 還沒有同步。")

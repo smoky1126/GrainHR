@@ -179,6 +179,6 @@ def page_records():
             "這個月還沒有保存的檔案",
             "出糧完成後，糧單和考勤會出現在這裡。",
             "前往出糧",
-            "pages/payout.py",
+            "screens/payout.py",
         )
     _audit(current_role())

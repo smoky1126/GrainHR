@@ -129,14 +129,14 @@ def _page(info, problem_ids, md_id, pending_ids):
     home = _titles(app)
     if "今日出勤" not in home or "立即更新" not in [item.label for item in app.button]:
         raise SystemExit(f"沒有打開今日出勤：{home}")
-    overview = _open(app, "pages/overview.py")
+    overview = _open(app, "screens/overview.py")
     for word in (BOOKS["bg"], BOOKS["md"], BOOKS["admin"]):
         if word not in overview:
             raise SystemExit(f"總覽沒有「{word}」。見到：{overview}")
     from payroll.staff.staff import latest_staff_file
     staff_file = latest_staff_file()
     staff_stamp = staff_file.stat().st_mtime
-    app.switch_page("pages/staff.py")
+    app.switch_page("screens/staff.py")
     app.run(timeout=300)
     if app.exception:
         raise SystemExit(app.exception)
@@ -145,13 +145,13 @@ def _page(info, problem_ids, md_id, pending_ids):
         raise SystemExit(f"員工頁沒有「新增員工」：{labels}")
     if staff_file.stat().st_mtime != staff_stamp:
         raise SystemExit("員工頁寫入了真正的員工檔。")
-    attendance = _open(app, "pages/attendance.py")
+    attendance = _open(app, "screens/attendance.py")
     if "出勤" not in attendance and "DAKA 同步" not in attendance:
         raise SystemExit(f"沒有打開出勤：{attendance}")
-    salary = _open(app, "pages/salary.py")
+    salary = _open(app, "screens/salary.py")
     if "新同事" not in salary and "薪金表" not in salary:
         raise SystemExit(f"沒有打開薪金表：{salary}")
-    review = _open(app, "pages/review.py")
+    review = _open(app, "screens/review.py")
     if "處理問題" not in review and "審核" not in review:
         raise SystemExit(f"沒有打開審核：{review}")
     choices = []
@@ -198,7 +198,7 @@ def _page(info, problem_ids, md_id, pending_ids):
         "admin": book_info(info, "admin")["slip_output"],
     }
     before = {key: path.stat().st_mtime if path.exists() else None for key, path in outputs.items()}
-    payout = _open(app, "pages/payout.py")
+    payout = _open(app, "screens/payout.py")
     if "出糧" not in payout:
         raise SystemExit(f"沒有打開出糧：{payout}")
     book_picker = next((item for item in app.segmented_control if item.key == "payout-book"), None)
@@ -250,11 +250,11 @@ def _page(info, problem_ids, md_id, pending_ids):
 def _smoke(app):
     """Pages that only open files or explain the program."""
     expected = (
-        ("pages/leave.py", "假期"),
-        ("pages/names.py", "名字"),
-        ("pages/records.py", "月份紀錄"),
-        ("pages/guide.py", "使用說明"),
-        ("pages/settings.py", "設定"),
+        ("screens/leave.py", "假期"),
+        ("screens/names.py", "名字"),
+        ("screens/records.py", "月份紀錄"),
+        ("screens/guide.py", "使用說明"),
+        ("screens/settings.py", "設定"),
     )
     for path, title in expected:
         text = _open(app, path)

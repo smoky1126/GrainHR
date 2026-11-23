@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.8
+
+- Refreshing a page keeps the Chinese menu. The old menu of English file names no longer replaces it.
+
 ## 1.6.7
 
 - The staff page opens the staff file that is actually there after a resignation renames it.

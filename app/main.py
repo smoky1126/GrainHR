@@ -13,26 +13,28 @@ from app.components.update import restart_notice
 
 
 def _pages():
+    # This folder must not be named pages. Streamlit would then use the file
+    # names as the menu and drop these titles when a page is refreshed.
     return {
         "每日": [
-            st.Page("pages/today.py", title="今日出勤", icon=":material/today:", default=True),
+            st.Page("screens/today.py", title="今日出勤", icon=":material/today:", default=True),
         ],
         "員工": [
-            st.Page("pages/staff.py", title="員工總表", icon=":material/groups:"),
-            st.Page("pages/leave.py", title="假期", icon=":material/beach_access:"),
-            st.Page("pages/names.py", title="名字配對", icon=":material/link:"),
+            st.Page("screens/staff.py", title="員工總表", icon=":material/groups:"),
+            st.Page("screens/leave.py", title="假期", icon=":material/beach_access:"),
+            st.Page("screens/names.py", title="名字配對", icon=":material/link:"),
         ],
         "每月出糧": [
-            st.Page("pages/attendance.py", title="出勤紀錄", icon=":material/calendar_month:"),
-            st.Page("pages/review.py", title="審核", icon=":material/fact_check:"),
-            st.Page("pages/salary.py", title="薪金表", icon=":material/table:"),
-            st.Page("pages/payout.py", title="出糧", icon=":material/payments:"),
-            st.Page("pages/overview.py", title="總覽", icon=":material/dashboard:"),
-            st.Page("pages/records.py", title="月份紀錄", icon=":material/inventory_2:"),
+            st.Page("screens/attendance.py", title="出勤紀錄", icon=":material/calendar_month:"),
+            st.Page("screens/review.py", title="審核", icon=":material/fact_check:"),
+            st.Page("screens/salary.py", title="薪金表", icon=":material/table:"),
+            st.Page("screens/payout.py", title="出糧", icon=":material/payments:"),
+            st.Page("screens/overview.py", title="總覽", icon=":material/dashboard:"),
+            st.Page("screens/records.py", title="月份紀錄", icon=":material/inventory_2:"),
         ],
         "系統": [
-            st.Page("pages/guide.py", title="使用說明", icon=":material/menu_book:"),
-            st.Page("pages/settings.py", title="設定", icon=":material/settings:"),
+            st.Page("screens/guide.py", title="使用說明", icon=":material/menu_book:"),
+            st.Page("screens/settings.py", title="設定", icon=":material/settings:"),
         ],
     }
 
@@ -57,7 +59,7 @@ def main():
     from app.auth import allow_sign_in
     if not allow_sign_in():
         return
-    page = st.navigation(_pages())
+    page = st.navigation(_pages(), expanded=True)
     restart_notice()
     try:
         _run_page(page)

@@ -268,7 +268,7 @@ def page_payout():
     info, readonly, draft, staff, table = _context(steps=True, edit=True)
     page_header("出糧", _month_label(info["key"]), purpose="選出糧日期，然後製作糧單。")
     if is_issued(info["key"]):
-        empty_state("這個月已出糧", "糧單已經發出，可以在月份紀錄下載。", "前往月份紀錄", "pages/records.py")
+        empty_state("這個月已出糧", "糧單已經發出，可以在月份紀錄下載。", "前往月份紀錄", "screens/records.py")
         return
     first_tip("payout", "先完成審核，再按「製作全部糧單」。已出糧的月份不會重新計算。")
     slips_ready = bool(st.session_state.get("slips_ready"))

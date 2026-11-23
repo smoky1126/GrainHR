@@ -41,7 +41,7 @@ def page_review():
     info, readonly, draft, staff, table = _context(steps=True, edit=True)
     page_header("審核", _month_label(info["key"]), purpose="核對遲到、加班和例外。批准後才能出糧。")
     if is_issued(info["key"]):
-        empty_state("這個月已出糧", "已發出的糧單不會再審核。", "前往月份紀錄", "pages/records.py")
+        empty_state("這個月已出糧", "已發出的糧單不會再審核。", "前往月份紀錄", "screens/records.py")
         return
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)

@@ -39,12 +39,12 @@ def _mark(title, state, detail):
 
 def _next_page(status, waiting):
     if status["daka"] != "done":
-        return "pages/attendance.py", "處理出勤"
+        return "screens/attendance.py", "處理出勤"
     if status["joiners"] != "done":
-        return "pages/salary.py", "設定新同事"
+        return "screens/salary.py", "設定新同事"
     if waiting:
-        return "pages/review.py", "去審核"
-    return "pages/payout.py", "去出糧"
+        return "screens/review.py", "去審核"
+    return "screens/payout.py", "去出糧"
 
 def _issued_view(info):
     """Salary figures copied once from the slips that were already issued."""
@@ -59,7 +59,7 @@ def _issued_view(info):
             "找不到已發出的糧單",
             "原來的糧單檔可以在月份紀錄打開。",
             "前往月份紀錄",
-            "pages/records.py",
+            "screens/records.py",
         )
         return
     st.caption("這是已發出糧單的數字，不能在這裡修改。")
@@ -105,7 +105,7 @@ def page_overview():
             "未有計算結果",
             "請先到出勤頁同步打卡和更表。",
             "前往出勤紀錄",
-            "pages/attendance.py",
+            "screens/attendance.py",
         )
         return
     shown_books = visible_books()

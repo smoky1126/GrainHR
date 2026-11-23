@@ -12,7 +12,7 @@ def page_guide():
     show_logo()
     _context(payroll=False)
     page_header("使用說明", "GrainHR", purpose="日常怎麼用，以及去哪裡找舊資料。")
-    st.page_link("pages/today.py", label="今日出勤", icon=":material/today:")
+    st.page_link("screens/today.py", label="今日出勤", icon=":material/today:")
     with st.container(border=True):
         st.markdown("**登入**")
         st.markdown("打開網站後，用公司 Google 帳戶登入一次。登出在左邊選單。")
@@ -37,7 +37,7 @@ def page_guide():
             "全職、第二間公司、兼職和寫字樓分開放。"
             "按下載才會讀取檔案。"
         )
-        st.page_link("pages/records.py", label="前往月份紀錄", icon=":material/inventory_2:")
+        st.page_link("screens/records.py", label="前往月份紀錄", icon=":material/inventory_2:")
     with st.container(border=True):
         st.markdown("**誰看得到寫字樓薪金**")
         st.markdown("管理員看得到寫字樓的薪金、強積金和銀行資料。HR 同事看得到出勤和假期，但看不到這些金額。")
