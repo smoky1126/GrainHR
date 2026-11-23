@@ -15,6 +15,8 @@ curl -fsSL -o "$archive" "https://github.com/smoky1126/GrainHR/archive/refs/tags
 tar -xzf "$archive" -C "$unpack"
 src="$(find "$unpack" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 find "$src" -mindepth 1 -maxdepth 1 ! -name .venv ! -name .streamlit -exec cp -a {} "$ROOT"/ \;
+# A folder named pages makes Streamlit replace the Chinese menu with file names.
+rm -rf "$ROOT/app/pages"
 "$ROOT/.venv/bin/pip" install -r "$ROOT/requirements.txt"
 sudo systemctl restart grainhr
 echo "GrainHR restarted."

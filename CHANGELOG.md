@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.9
+
+- The server update removes the old pages folder, so a refresh no longer replaces the Chinese menu with English file names.
+
 ## 1.6.8
 
 - Refreshing a page keeps the Chinese menu. The old menu of English file names no longer replaces it.
