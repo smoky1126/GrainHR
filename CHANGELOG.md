@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.5
+
+- The daily attendance page no longer draws a late chart. Lateness stays on 遲到統計.
+
 ## 1.6.4
 
 - The month-step status sits in a pill beside the step name. It no longer stacks down the side of the menu.
