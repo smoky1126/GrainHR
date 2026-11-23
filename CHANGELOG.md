@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.4
+
+- The month-step status sits in a pill beside the step name. It no longer stacks down the side of the menu.
+
 ## 1.6.3
 
 - The attendance chart names who was late and for how many minutes. A day with nobody late has no chart.
