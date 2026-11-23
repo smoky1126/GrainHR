@@ -76,9 +76,10 @@ def _pt_editor(info, readonly):
         return
     frame, scheme_options = _pt_frame(shown)
     locked = ["employee_no", "name", "hours", "salary", "employer_mpf", "employee_mpf", "transfer"]
-    edited = st.data_editor(
-        frame,
-        column_config={
+    with st.form(f"pt-form-{info['key']}-{company}"):
+        edited = st.data_editor(
+            frame,
+            column_config={
             "employee_no": st.column_config.TextColumn("員工編號", disabled=True, pinned=True),
             "name": st.column_config.TextColumn("姓名", disabled=True, pinned=True),
             "hours": st.column_config.NumberColumn("更表時數", disabled=True, format="%.2f"),
@@ -103,13 +104,12 @@ def _pt_editor(info, readonly):
             "employer_mpf", "employee_mpf", "transfer", "scheme", "pay_this",
             "bank", "account", "extra_note",
         ],
-        disabled=locked,
-        hide_index=True,
-        key=f"pt-grid-{info['key']}-{company}",
-    )
-    if _grid_dirty(frame, edited):
-        chip("未儲存", "todo")
-    if readonly or not st.button("儲存兼職薪金", type="primary", disabled=readonly):
+            disabled=locked,
+            hide_index=True,
+            key=f"pt-grid-{info['key']}-{company}",
+        )
+        submitted = st.form_submit_button("儲存兼職薪金", type="primary", disabled=readonly)
+    if readonly or not submitted:
         return
     payload = edited.to_dict("records")
     for row in payload:
@@ -210,17 +210,17 @@ def _salary_editor(info, readonly):
                 **({"width": "medium"} if pinned else {}),
             )
     st.caption("租金、水費和電費只扣內地勞工，請填實額。本地員工這三格會存成 0。交通津貼和健康津貼也填實額。")
-    edited = st.data_editor(
-        rows,
-        column_config=config,
-        column_order=[key for key in PAY_HEADINGS if key in rows.columns],
-        disabled=["employee_no", "slip_name", "problem"],
-        hide_index=True,
-        key=f"pay-grid-{info['key']}-{book}",
-    )
-    if _grid_dirty(rows, edited):
-        chip("未儲存", "todo")
-    if readonly or not st.button("儲存薪金", type="primary", disabled=readonly):
+    with st.form(f"pay-form-{info['key']}-{book}"):
+        edited = st.data_editor(
+            rows,
+            column_config=config,
+            column_order=[key for key in PAY_HEADINGS if key in rows.columns],
+            disabled=["employee_no", "slip_name", "problem"],
+            hide_index=True,
+            key=f"pay-grid-{info['key']}-{book}",
+        )
+        submitted = st.form_submit_button("儲存薪金", type="primary", disabled=readonly)
+    if readonly or not submitted:
         return
     try:
         apply_pay(edited.to_dict("records"), book=book, info=info)

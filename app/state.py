@@ -51,8 +51,44 @@ def month_choices(today=None):
     return remember(("month-choices", str(folder), today.isoformat()), folder, build)
 
 
+_PROGRESS = {}
+
+
+def _progress_stamp(info):
+    from pathlib import Path
+    from payroll.core.config import ROSTER_COPY_DIR, book_info
+    paths = [
+        info["daka"],
+        info["system"] / "daily_facts.xlsx",
+        info["system"] / "late_checked.txt",
+        info["folder"] / "payroll_draft.xlsx",
+    ]
+    if ROSTER_COPY_DIR:
+        paths.append(Path(ROSTER_COPY_DIR))
+    for book in ("bg", "md", "admin"):
+        paths.append(book_info(info, book)["slip_output"])
+    stamps = []
+    for path in paths:
+        try:
+            stat = Path(path).stat()
+            stamps.append((str(path), stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            stamps.append((str(path), 0, 0))
+    return tuple(stamps)
+
+
 def month_progress(info):
     """The six checks HR finishes before a month is paid."""
+    stamp = _progress_stamp(info)
+    hit = _PROGRESS.get(info["key"])
+    if hit and hit[0] == stamp:
+        return list(hit[1])
+    rows = _month_progress(info)
+    _PROGRESS[info["key"]] = (stamp, rows)
+    return list(rows)
+
+
+def _month_progress(info):
     from payroll.core.config import book_info
 
     daka_ready = info["daka"].exists()

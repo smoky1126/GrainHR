@@ -1,5 +1,6 @@
 import html
 import os
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -77,26 +78,63 @@ def _month_key(show):
         return "2026-10"
     return _choose_month()
 
-def _remember(info, draft):
+def _file_stamp(path):
+    try:
+        stat = Path(path).stat()
+        return (str(path), stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return (str(path), 0, 0)
+
+
+def _input_stamp(info):
+    """Times of every file the draft is built from, so a new punch rebuilds it."""
+    from payroll.core.config import STAFF_RECORD_DIR
+    from payroll.staff.staff import pay_table_path
+    paths = [
+        info.get("adjustments"),
+        info["system"] / "daily_facts.xlsx",
+        info.get("daka"),
+        pay_table_path(info.get("book", "bg")),
+    ]
+    folder = Path(STAFF_RECORD_DIR) if STAFF_RECORD_DIR else None
+    if folder and folder.exists():
+        paths.extend(sorted(folder.glob("Staff_info_*.xlsx")))
+    company = os.environ.get("PAYROLL_COMPANY", "")
+    if company:
+        paths.append(Path(company))
+    return tuple(_file_stamp(path) for path in paths if path)
+
+
+def _remember(info, draft, stamp=None):
     book = info.get("book", "bg")
-    stamp = info["adjustments"].stat().st_mtime if info["adjustments"].exists() else 0
+    if stamp is None:
+        stamp = _input_stamp(info)
     st.session_state.setdefault("drafts", {})
     st.session_state["drafts"][book] = draft
     st.session_state.setdefault("draft_stamps", {})
     st.session_state["draft_stamps"][book] = (info["key"], stamp)
+
+
+@st.cache_data(ttl=600, max_entries=18, show_spinner=False)
+def _cached_book_draft(book, month_key, stamp):
+    from payroll.core.config import book_info, parse_month
+    from payroll.pay.run import _draft_from_facts
+    del stamp
+    return _draft_from_facts(book_info(parse_month(month_key), book))
+
 
 def _draft(info):
     facts = info["system"] / "daily_facts.xlsx"
     if not facts.exists():
         return None
     book = info.get("book", "bg")
-    stamp = info["adjustments"].stat().st_mtime if info["adjustments"].exists() else 0
-    stamps = st.session_state.get("draft_stamps", {})
-    if stamps.get(book) == (info["key"], stamp) and book in st.session_state.get("drafts", {}):
+    stamp = _input_stamp(info)
+    saved = st.session_state.get("draft_stamps", {})
+    if saved.get(book) == (info["key"], stamp) and book in st.session_state.get("drafts", {}):
         return st.session_state["drafts"][book]
-    draft = _draft_from_facts(info)
+    draft = _cached_book_draft(book, info["key"], stamp)
     if draft is not None:
-        _remember(info, draft)
+        _remember(info, draft, stamp)
     return draft
 
 def _drafts(info):
@@ -230,7 +268,7 @@ def _confirm_takeover(month_key, owner):
     st.rerun()
 
 
-def _context(steps=False, edit=False):
+def _context(steps=False, edit=False, payroll=True):
     inject()
     show_logo()
     if DEMO:
@@ -256,8 +294,12 @@ def _context(steps=False, edit=False):
             unsafe_allow_html=True,
         )
     staff = load_staff()
-    table = ensure_pay_table()
-    draft = _drafts(info)
+    if payroll:
+        table = ensure_pay_table()
+        draft = _drafts(info)
+    else:
+        table = None
+        draft = None
     slips_ready = bool(st.session_state.get("slips_ready"))
     if steps:
         stepper(step_status(info, draft, staff, table, slips_ready=slips_ready))

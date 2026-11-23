@@ -10,7 +10,7 @@ from app.context import _context
 def page_guide():
     inject()
     show_logo()
-    _context()
+    _context(payroll=False)
     page_header("使用說明", "GrainHR", purpose="日常怎麼用，以及去哪裡找舊資料。")
     st.page_link("pages/today.py", label="今日出勤", icon=":material/today:")
     with st.container(border=True):

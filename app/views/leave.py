@@ -11,7 +11,7 @@ from payroll.staff.directory import GROUPS, staff_directory
 def page_leave():
     inject()
     show_logo()
-    info, _readonly, _draft, staff, _table = _context()
+    info, _readonly, _draft, staff, _table = _context(payroll=False)
     page_header("假期", _month_label(info["key"]), "年假和休假餘額。這頁只供查看。")
     try:
         rows = staff_directory(info, staff)

@@ -275,6 +275,24 @@ def _relative(when):
     return text, tone, exact
 
 
+_ROSTER_SCAN = {"folder": "", "at": 0.0, "when": None}
+
+
+def _newest_roster(folder):
+    """The newest roster file. The folder walk is reused for a minute."""
+    import time
+    now = time.time()
+    key = str(folder)
+    if _ROSTER_SCAN["folder"] == key and now - _ROSTER_SCAN["at"] < 60:
+        return _ROSTER_SCAN["when"]
+    newest = None
+    files = [path for path in folder.rglob("*") if path.is_file() and not path.name.startswith("~$")]
+    if files:
+        newest = datetime.fromtimestamp(max(path.stat().st_mtime for path in files))
+    _ROSTER_SCAN.update(folder=key, at=now, when=newest)
+    return newest
+
+
 def _freshness(updated, exported):
     from datetime import datetime
     from pathlib import Path
@@ -294,9 +312,7 @@ def _freshness(updated, exported):
     newest = None
     folder = ROSTER_COPY_DIR
     if folder and Path(folder).exists():
-        files = [path for path in Path(folder).rglob("*") if path.is_file() and not path.name.startswith("~$")]
-        if files:
-            newest = datetime.fromtimestamp(max(path.stat().st_mtime for path in files))
+        newest = _newest_roster(Path(folder))
     items.append(("更表", newest))
     staff_time = None
     record = STAFF_RECORD_DIR
@@ -343,6 +359,7 @@ def _month_progress():
         )
 
 
+@st.fragment
 def render():
     from app.components.clock import live_clock
 

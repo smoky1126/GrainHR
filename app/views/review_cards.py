@@ -237,7 +237,7 @@ def _problem_card(info, draft, row, book, readonly):
             changed = choice != stored
             if choice == "支薪" and paid_hours is not None and abs(paid_hours - (_number(row.ot_hours_paid) or detected)) > 0.001:
                 changed = True
-            if changed:
+            if changed and st.button("儲存加班選擇", key=f"ot-save-{book}-{staff_id}"):
                 save_one(booked, staff_id, {
                     "ot_choice": "Pay" if choice == "支薪" else "Exchange",
                     "ot_hours_paid": paid_hours if choice == "支薪" else "",

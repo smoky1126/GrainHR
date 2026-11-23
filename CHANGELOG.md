@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+
+- Pages that only show information no longer build the payroll draft. The draft is cached and rebuilt when a punch, roster fact, staff file, or adjustment changes.
+- Salary grids save from one button, so editing a cell does not rewrite the workbook. The whole-month attendance table is shown 100 rows at a time, and the late export is built when it is downloaded.
+- Repeated reads of punches, pay tables, and the month checklist wait until those files change.
+
 ## 1.3.1
 
 - Opening a page that only displays information no longer locks the month. A save is refused when someone else has taken over.

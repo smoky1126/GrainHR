@@ -62,6 +62,14 @@ def clear_reads():
     _reads.clear()
 
 
+def drop_reads(path):
+    """Forget cached reads of one workbook. Other files stay cached."""
+    target = str(Path(path).resolve())
+    for key in list(_reads):
+        if key[0] == target:
+            _reads.pop(key, None)
+
+
 _FORMULA = ("=", "+", "-", "@")
 
 
@@ -155,5 +163,5 @@ def save_excel(path, frame=None, sheets=None):
     frames = list(sheets.values()) if sheets is not None else [frame]
     if _frames_need_guard(*frames):
         guard_xlsx(path)
-    clear_reads()
+    drop_reads(path)
     return path

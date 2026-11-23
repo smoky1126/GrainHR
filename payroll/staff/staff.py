@@ -409,18 +409,35 @@ def _row_grey_counts(row):
     return counts
 
 
+_paid_cache = {"stamp": None, "numbers": frozenset()}
+
+
 def paid_numbers():
     """Employee numbers already on any payroll."""
-    numbers = set()
+    from payroll.core.excel_io import file_stamp
+    stamps = []
+    paths = []
     for book in ("bg", "md", "admin"):
         path = pay_table_path(book)
-        if not path.exists():
+        paths.append(path)
+        try:
+            stamps.append(file_stamp(path))
+        except OSError:
+            stamps.append(None)
+    stamp = tuple(stamps)
+    if stamp == _paid_cache["stamp"]:
+        return set(_paid_cache["numbers"])
+    numbers = set()
+    for path, found in zip(paths, stamps):
+        if found is None:
             continue
         table = pd.read_excel(path, dtype={"employee_no": str})
         if "employee_no" not in table.columns:
             continue
         numbers.update(_text(value) for value in table["employee_no"])
     numbers.discard("")
+    _paid_cache["stamp"] = stamp
+    _paid_cache["numbers"] = frozenset(numbers)
     return numbers
 
 
@@ -437,12 +454,29 @@ def _meta_text(meta, *names):
     return ""
 
 
+_meta_cache = {}
+
+
+def _meta_frame(path):
+    from payroll.core.excel_io import file_stamp
+    try:
+        stamp = file_stamp(path)
+    except OSError:
+        return None
+    found = _meta_cache.get(str(path))
+    if found and found[0] == stamp:
+        return found[1]
+    meta = pd.read_excel(path, sheet_name="meta")
+    _meta_cache[str(path)] = (stamp, meta)
+    return meta
+
+
 def read_refs(info):
     """Salary and allowance autopay numbers for this payroll."""
     path = info["adjustments"]
     if not path.exists():
         return "", ""
-    meta = pd.read_excel(path, sheet_name="meta")
+    meta = _meta_frame(path)
     return (
         _meta_text(meta, "salary_reference", "salary_ref"),
         _meta_text(meta, "allowance_reference", "allowance_ref"),
@@ -457,13 +491,14 @@ def set_refs(info, salary, allowance):
     with pd.ExcelWriter(info["adjustments"], engine="openpyxl") as writer:
         lines.to_excel(writer, sheet_name="lines", index=False)
         meta.to_excel(writer, sheet_name="meta", index=False)
+    _meta_cache.pop(str(info["adjustments"]), None)
 
 
 def read_batch(info):
     path = info["adjustments"]
     if not path.exists():
         return None
-    meta = pd.read_excel(path, sheet_name="meta")
+    meta = _meta_frame(path)
     if meta.empty or "batch" not in meta.columns:
         return None
     value = meta.iloc[0]["batch"]

@@ -45,7 +45,7 @@ def _people(staff):
 
 
 def page_names():
-    info, readonly, _draft, staff, _table = _context()
+    info, readonly, _draft, staff, _table = _context(payroll=False)
     page_header("名字配對", _month_label(info["key"]), purpose="把更表或打卡上的名字對到一位員工。")
     st.caption("更表或 DAKA 上的寫法對不上員工檔時，在這裡記成同一個人。別名存在公司設定，下次計算會用。")
     roster_names = _roster_names(info)

@@ -271,6 +271,17 @@ def _choose(key, options, default):
     return st.session_state[key]
 
 
+def _page_rows(frame, key):
+    size = 100
+    if len(frame) <= size:
+        return frame
+    pages = (len(frame) - 1) // size + 1
+    page = int(st.number_input("頁", min_value=1, max_value=pages, value=1, step=1, key=key))
+    start = (page - 1) * size
+    st.caption(f"第 {page} / {pages} 頁，每頁 {size} 行。")
+    return frame.iloc[start:start + size]
+
+
 def _day_table(frame):
     st.dataframe(
         _day_style(frame),
@@ -292,6 +303,7 @@ def _day_table(frame):
     )
 
 
+@st.fragment
 def _daily_record(info, status, staff, readonly):
     yesterday = date.today() - timedelta(days=1)
     with st.container(border=True):
@@ -365,7 +377,7 @@ def _daily_record(info, status, staff, readonly):
             st.caption("這段日期的遲到分鐘合計。")
     if whole and not shop_code and chosen == "全部":
         st.caption(f"整月全部員工，共 {len(shown)} 行。")
-    _day_table(shown)
+    _day_table(_page_rows(shown, "attendance-page"))
 
 
 def _pay_tables():
@@ -433,7 +445,7 @@ def _paint_bonus(frame):
     return frame.style.apply(paint, axis=1)
 
 
-def _export_late(shown, month_key):
+def _late_bytes(shown):
     from payroll.core.excel_io import safe_frame
     view = shown.drop(columns=["group", "roster_names"], errors="ignore").rename(columns=_LATE_LABELS)
     buffer = BytesIO()
@@ -450,11 +462,16 @@ def _export_late(shown, month_key):
             row[0].alignment = Alignment(wrap_text=True, vertical="top")
     packed = BytesIO()
     book.save(packed)
+    return packed.getvalue()
+
+
+def _export_late(shown, month_key):
     st.download_button(
         "下載遲到統計",
-        packed.getvalue(),
+        data=lambda: _late_bytes(shown),
         file_name=f"遲到統計_{month_key}.xlsx",
         key="late-export",
+        on_click="ignore",
     )
 
 

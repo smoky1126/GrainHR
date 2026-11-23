@@ -389,5 +389,5 @@ def render(info, readonly, staff, demo, month_label):
 def page_staff():
     from app.context import DEMO, _context, _month_label
 
-    info, readonly, _draft, people, _table = _context(edit=True)
+    info, readonly, _draft, people, _table = _context(edit=True, payroll=False)
     render(info, readonly, people, demo=DEMO, month_label=_month_label(info["key"]))

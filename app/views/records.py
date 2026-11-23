@@ -145,7 +145,7 @@ def page_records():
 
     inject()
     show_logo()
-    info, _readonly, _draft, _staff, _table = _context()
+    info, _readonly, _draft, _staff, _table = _context(payroll=False)
     issued = is_issued(info["key"])
     page_header(
         "月份紀錄",

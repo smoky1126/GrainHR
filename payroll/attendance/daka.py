@@ -157,7 +157,31 @@ def punch_counts(path):
     return {key: len(clocks) for key, clocks in punch_logs(path).items()}
 
 
+_daka_cache = {"key": None, "value": None}
+
+
 def load_daka(path):
+    """One punch record per person per date.
+
+    The parsed file is kept until its size or save time changes.
+    """
+    from pathlib import Path
+    target = Path(path)
+    try:
+        key = (str(target.resolve()), target.stat().st_mtime_ns, target.stat().st_size)
+    except OSError:
+        key = (str(target), 0, 0)
+    if _daka_cache["key"] == key and _daka_cache["value"] is not None:
+        found = dict(_daka_cache["value"])
+        found["__names__"] = set(found.get("__names__") or ())
+        return found
+    punches = _parse_daka(target)
+    _daka_cache["key"] = key
+    _daka_cache["value"] = punches
+    return punches
+
+
+def _parse_daka(path):
     """One punch record per person per date.
 
     Clock-in is the first 上班 column. Clock-out is the last 下班 column.
