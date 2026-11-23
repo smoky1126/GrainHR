@@ -270,7 +270,7 @@ def _default_run(args, timeout=40):
 
 
 def request_export():
-    """Ask for a fresh export through the shared drive. andrew checks for these every minute.
+    """Ask for a fresh export through the shared drive. The robot checks for these every minute.
 
     Returns the request time; an export at or after it answers the request.
     """
@@ -282,7 +282,7 @@ def request_export():
 
 
 def export_now(run=None):
-    """Ask andrew for a fresh export (about a minute), then pull it.
+    """Ask the robot for a fresh export (about a minute), then pull it.
 
     A PC off Tailscale gets OFFLINE after the connect timeout and keeps the shared-drive copy.
     """
@@ -302,9 +302,9 @@ def export_now(run=None):
 
 
 def pull_from_server(run=None):
-    """Copy new exports from andrew. A connection problem returns a message and does not raise.
+    """Copy new exports from the robot computer. A connection problem returns a message and does not raise.
 
-    Only PCs on Tailscale can reach andrew. The others read what those PCs filed on the shared drive.
+    Only PCs on the private network can reach the robot. The others read what those PCs filed on the shared drive.
     """
     run = run or _default_run
     folder = inbox_dir()

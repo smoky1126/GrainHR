@@ -5,17 +5,17 @@ Wants=grainhr-drive.service
 
 [Service]
 Type=simple
-User=andrew
-Group=andrew
-WorkingDirectory=/home/andrew/GrainHR
-Environment=HOME=/home/andrew
+User=app
+Group=app
+WorkingDirectory=/home/app/GrainHR
+Environment=HOME=/home/app
 Environment=GRAINHR_SERVER=1
 # GRAINHR_SERVER=1 trusts the Cloudflare Access sign-in.
 # GRAINHR_ACCESS_TEAM and GRAINHR_ACCESS_AUD override the built-in values.
 Environment=GRAINHR_TIMING=1
 Environment="PAYROLL_HOME=/srv/grainhr/hr/REPLACE/data"
 Environment="PAYROLL_COMPANY=/srv/grainhr/hr/REPLACE/company.toml"
-ExecStart=/home/andrew/GrainHR/.venv/bin/streamlit run app/main.py --server.headless true --server.address 127.0.0.1 --server.port 8080 --server.fileWatcherType none
+ExecStart=/home/app/GrainHR/.venv/bin/streamlit run app/main.py --server.headless true --server.address 127.0.0.1 --server.port 8080 --server.fileWatcherType none
 Restart=on-failure
 RestartSec=3
 

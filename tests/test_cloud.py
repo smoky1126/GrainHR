@@ -27,13 +27,13 @@ def test_paths_keep_the_folder_boundary():
     other = map_server_path(r"G:\Company files\HR System\GrainHR", root, mount)
     if other != r"G:\Company files\HR System\GrainHR":
         _fail(other)
-    sheets = map_server_path(r"G:\Other disk\Shop Admin\Roster", root, mount)
-    if sheets != r"G:\Other disk\Shop Admin\Roster":
+    sheets = map_server_path(r"G:\Other disk\Rosters\Sheets", root, mount)
+    if sheets != r"G:\Other disk\Rosters\Sheets":
         _fail(sheets)
 
 
 def test_hr_cannot_see_office_pay():
-    books = {"bg": "Shop", "md": "Pastry", "admin": "Office"}
+    books = {"bg": "Shop", "md": "Bakery B", "admin": "Office"}
     if "admin" in visible_books(books, "hr"):
         _fail("hr still has the office book")
     if set(visible_books(books, "admin")) != set(books):

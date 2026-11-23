@@ -1,16 +1,16 @@
 # GrainHR on Google Cloud
 
-HR opens `https://hr.<your-domain>` in a browser and signs in with a company Google account. The server has no public web port. Cloudflare Tunnel connects outward. The payroll files stay on the shared drive. The DAKA robot stays on andrew.
+HR opens `https://hr.<your-domain>` in a browser and signs in with a company Google account. The server has no public web port. Cloudflare Tunnel connects outward. The payroll files stay on the shared drive. The DAKA robot stays on a separate computer.
 
 Do the code steps on the PC first. The clicks below happen once.
 
 ## 1. Rotate the rclone secret
 
-The old Google client secret was pasted into a chat. In Google Cloud, open the GrainHR rclone client and create a new secret. Put the new secret in the rclone config on andrew and on the new server. Do not commit it.
+The old Google client secret was pasted into a chat. In Google Cloud, open the GrainHR rclone client and create a new secret. Put the new secret in the rclone config on the robot computer and on the new server. Do not commit it.
 
 ## 2. Create the server
 
-- Google Cloud, region `asia-east2` (Hong Kong), Ubuntu 24.04, machine type e2-medium.
+- Google Cloud, a region near the workplace, Ubuntu 24.04, machine type e2-medium.
 - No HTTP or HTTPS firewall rule. SSH only, from your own address.
 - SSH in and run `deploy/setup_vm.sh`.
 

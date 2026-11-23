@@ -27,11 +27,11 @@ def _staff(rows):
 
 def test_grace_rule_and_dates():
     days = _days([
-        {"Name": "甲", "Date": "2026-11-03", "Late": 12, "Chosen shop": "JD_Bread"},
-        {"Name": "甲", "Date": "2026-11-07", "Late": 4, "Chosen shop": "JD_Bread"},
-        {"Name": "甲", "Date": "2026-10-31", "Late": LATE_GRACE_MINUTES, "Chosen shop": "JD_Bread"},
-        {"Name": "乙", "Date": "2026-11-02", "Late": 0, "Status": "不在 DAKA", "Chosen shop": "JD_Bread"},
-        {"Name": "丙", "Date": "2026-11-04", "Late": LATE_GRACE_MINUTES, "Chosen shop": "WC_Retail"},
+        {"Name": "甲", "Date": "2026-11-03", "Late": 12, "Chosen shop": "S1_Make"},
+        {"Name": "甲", "Date": "2026-11-07", "Late": 4, "Chosen shop": "S1_Make"},
+        {"Name": "甲", "Date": "2026-10-31", "Late": LATE_GRACE_MINUTES, "Chosen shop": "S1_Make"},
+        {"Name": "乙", "Date": "2026-11-02", "Late": 0, "Status": "不在 DAKA", "Chosen shop": "S1_Make"},
+        {"Name": "丙", "Date": "2026-11-04", "Late": LATE_GRACE_MINUTES, "Chosen shop": "S2_Shop"},
     ])
     shown = late_summary(days, {})
     person = shown[shown["name"] == "甲"].iloc[0]
@@ -81,7 +81,7 @@ def test_late_day_shows_roster_clock_in_and_punch_count():
     path = folder / "daka.csv"
     path.write_text(
         "姓名,日期,上班,上班位置,下班,下班位置,上班,上班位置,下班,下班位置\n"
-        "甲,2026-11-03,09:12,灣仔,13:00,灣仔,14:00,灣仔,,\n",
+        "甲,2026-11-03,09:12,North,13:00,North,14:00,North,,\n",
         encoding="utf-8",
     )
     if punch_counts(path) != {("甲", "2026-11-03"): 3}:
@@ -89,7 +89,7 @@ def test_late_day_shows_roster_clock_in_and_punch_count():
     full = folder / "four.csv"
     full.write_text(
         "姓名,日期,上班,上班位置,下班,下班位置,上班,上班位置,下班,下班位置\n"
-        "甲,2026-11-04,09:12,灣仔,13:00,灣仔,14:05,灣仔,18:10,灣仔\n",
+        "甲,2026-11-04,09:12,North,13:00,North,14:05,North,18:10,North\n",
         encoding="utf-8",
     )
     from payroll.attendance.daka import punch_logs
@@ -143,7 +143,7 @@ def test_part_time_and_mainland_do_not_lose_a_bonus():
     ])
     links = {
         "兼職": {"employee_no": "RPT001", "group": "bg_pt", "name": "兼職"},
-        "甜品兼職": {"employee_no": "SPKPT001", "group": "md_pt", "name": "甜品兼職"},
+        "甜品兼職": {"employee_no": "B2001", "group": "md_pt", "name": "甜品兼職"},
         "內地": {"employee_no": "ESL001", "group": "bg_esl", "name": "內地"},
         "甜品內地": {"employee_no": "ESL002", "group": "md_esl", "name": "甜品內地"},
         "寫字樓": {"employee_no": "A001", "group": "admin", "name": "寫字樓"},
@@ -163,15 +163,15 @@ def test_part_time_and_mainland_do_not_lose_a_bonus():
 def test_two_shifts_and_missing_daka_use_the_scored_row():
     day = "2026-11-08"
     facts = pd.DataFrame([
-        {"shop": "JD_Bread", "name": "甲", "date": day, "roster": "09:00-13:00", "wrong_site": 0},
-        {"shop": "TW_Bread", "name": "甲", "date": day, "roster": "14:00-18:00", "wrong_site": 0},
-        {"shop": "WC_Retail", "name": "乙", "date": day, "roster": "09:00-18:00", "wrong_site": 0},
+        {"shop": "S1_Make", "name": "甲", "date": day, "roster": "09:00-13:00", "wrong_site": 0},
+        {"shop": "S3_Make", "name": "甲", "date": day, "roster": "14:00-18:00", "wrong_site": 0},
+        {"shop": "S2_Shop", "name": "乙", "date": day, "roster": "09:00-18:00", "wrong_site": 0},
     ])
     punches = {
         "__names__": {"甲"},
         ("甲", day): {
-            "in": "09:20", "out": "18:00", "place": "", "code": "JD",
-            "in_place": "", "out_place": "", "in_code": "JD", "out_code": "TW",
+            "in": "09:20", "out": "18:00", "place": "", "code": "S1",
+            "in_place": "", "out_place": "", "in_code": "S1", "out_code": "S3",
         },
     }
     summaries, evidence = merge_days(facts, punches)
@@ -189,32 +189,38 @@ def test_two_shifts_and_missing_daka_use_the_scored_row():
 
 
 def test_linking_order():
+    from payroll.core.settings import load
+    office_map = {
+        str(key): str(value)
+        for key, value in (load().get("office_names") or {"測試甲": "Ada Test"}).items()
+    }
+    zh, nick = next(iter(office_map.items()))
     staff = _staff([
-        {"employee_no": "A002", "name_zh": "陳家樂", "name_en": "CHAN KA LOK", "department": "Office - Administration",
+        {"employee_no": "A002", "name_zh": zh, "name_en": "CHAN ACCOUNT", "department": "Office - Administration",
          "employment": "全職", "position": "Accounting Officer", "active": True},
         {"employee_no": "A999", "name_zh": "另一人", "name_en": "", "department": "Office - Administration",
          "employment": "全職", "active": True},
         {"employee_no": "RPT001", "name_zh": "陳大文", "name_en": "", "roster_hint": "陳大文",
-         "department": "WC - Retail", "employment": "兼職", "position": "店員", "active": True},
-        {"employee_no": "B010", "name_zh": "麵包師", "department": "JD - Bread", "employment": "全職",
+         "department": "Shop - Retail", "employment": "兼職", "position": "店員", "active": True},
+        {"employee_no": "B010", "name_zh": "麵包師", "department": "Make - Bread", "employment": "全職",
          "position": "麵包師", "active": True},
     ])
     pay = pd.DataFrame([
-        {"employee_no": "A999", "roster_name": "James Chan"},
+        {"employee_no": "A999", "roster_name": nick},
         {"employee_no": "B010", "roster_name": "麵包師"},
         {"employee_no": "B010", "roster_name": "重複"},
     ])
     other = pd.DataFrame([{"employee_no": "A002", "roster_name": "重複"}])
     part_time = [staff[staff["employee_no"] == "RPT001"].iloc[0].to_dict()]
-    names = ["James Chan", "陳大文 (PT)", "麵包師", "重複", "路人", "阿明 (PT)"]
+    names = [nick, "陳大文 (PT)", "麵包師", "重複", "路人", "阿明 (PT)"]
     shops = {
-        "路人": ["WC_Retail", "JD_Retail", "JD_Bread"],
-        "阿明 (PT)": ["3F_Pastry"],
-        "James Chan": ["11F"],
+        "路人": ["S2_Shop", "S1_Shop", "S1_Make"],
+        "阿明 (PT)": ["K1_B2"],
+        nick: ["Office"],
     }
     linked = link_groups(names, staff, {"bg": pay, "md": other}, part_time, shops)
-    if linked["James Chan"]["employee_no"] != "A999":
-        raise SystemExit(f"the pay table should win over the office nickname: {linked['James Chan']}")
+    if linked[nick]["employee_no"] != "A999":
+        raise SystemExit(f"the pay table should win over the office nickname: {linked[nick]}")
     if linked["陳大文 (PT)"]["employee_no"] != "RPT001" or linked["陳大文 (PT)"]["group"] != "bg_pt":
         raise SystemExit(f"part-time name was not linked: {linked['陳大文 (PT)']}")
     if linked["麵包師"]["employee_no"] != "B010" or linked["麵包師"]["group"] != "bg_prod":
@@ -224,18 +230,18 @@ def test_linking_order():
     if linked["路人"]["employee_no"] or linked["路人"]["group"] != "bg_retail":
         raise SystemExit(f"an unknown name should follow the shop: {linked['路人']}")
     if linked["阿明 (PT)"]["group"] != "md_pt":
-        raise SystemExit(f"Pastry part-time should use the pastry part-time group: {linked['阿明 (PT)']}")
-    office = link_groups(["James Chan"], staff, {}, [], {"James Chan": ["11F"]})
-    if office["James Chan"]["employee_no"] != "A002" or office["James Chan"]["group"] != "admin":
-        raise SystemExit(f"without a pay table the office nickname should match: {office['James Chan']}")
-    if office["James Chan"]["name"] != "陳家樂":
-        raise SystemExit(f"the report should show the staff name: {office['James Chan']}")
+        raise SystemExit(f"the second company part-time group was not used: {linked['阿明 (PT)']}")
+    office = link_groups([nick], staff, {}, [], {nick: ["Office"]})
+    if office[nick]["employee_no"] != "A002" or office[nick]["group"] != "admin":
+        raise SystemExit(f"without a pay table the office nickname should match: {office[nick]}")
+    if office[nick]["name"] != zh:
+        raise SystemExit(f"the report should show the staff name: {office[nick]}")
     unknown = link_groups(["沒有店鋪"], staff, {}, [], {})
     if unknown["沒有店鋪"]["group"] or unknown["沒有店鋪"]["employee_no"]:
         raise SystemExit(f"no shop and no staff should stay unclassified: {unknown['沒有店鋪']}")
     summary = late_summary(
         _days([
-            {"Name": "James Chan", "Date": "2026-11-01", "Late": 8},
+            {"Name": nick, "Date": "2026-11-01", "Late": 8},
             {"Name": "路人", "Date": "2026-11-02", "Late": 3},
         ]),
         linked,
@@ -270,12 +276,12 @@ def test_same_person_on_two_roster_names_is_one_row():
 
 def test_shops_follow_the_roster_name():
     shops = shops_by_name(_days([
-        {"Name": "甲", "Chosen shop": "JD_Bread"},
-        {"Name": "甲", "Chosen shop": "JD_Bread"},
-        {"Name": "甲", "Chosen shop": "TW_Retail"},
-        {"Name": "", "Chosen shop": "WC_Bread"},
+        {"Name": "甲", "Chosen shop": "S1_Make"},
+        {"Name": "甲", "Chosen shop": "S1_Make"},
+        {"Name": "甲", "Chosen shop": "S3_Shop"},
+        {"Name": "", "Chosen shop": "S2_Make"},
     ]))
-    if shops != {"甲": ["JD_Bread", "TW_Retail"]}:
+    if shops != {"甲": ["S1_Make", "S3_Shop"]}:
         raise SystemExit(f"shops {shops}")
 
 

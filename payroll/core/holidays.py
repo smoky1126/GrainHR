@@ -1,18 +1,15 @@
-"""Official Hong Kong holiday dates, counted for the payroll month.
+"""Public holiday dates counted for the payroll month.
 
 The dates are not the same every year: lunar festivals and Sunday
-substitutes move. These lists are copied from the government pages
-below, checked on 19 Nov 2026. The payroll does not fetch them while
-it runs, so it still works without the internet.
+substitutes move. These lists were checked on 19 Nov 2026. The payroll
+does not fetch them while it runs, so it still works without the internet.
 
-Statutory holidays (勞工處), for the shop payrolls:
-https://www.labour.gov.hk/eng/news/holidays_list.htm
-December uses Christmas Day. Winter Solstice is the other official
-choice and is also in December, so the month count is the same.
+Statutory holidays are used for the shop payrolls. December uses
+Christmas Day. Winter Solstice is the other official choice and is also
+in December, so the month count is the same.
 
-General holidays (GovHK 公眾假期), for 寫字樓. Sundays are already
-the office weekend, so they are not in this list:
-https://www.gov.hk/en/about/abouthk/holiday/index.htm
+General holidays are used for the office. Sundays are already the office
+weekend, so they are not in this list.
 """
 from datetime import date
 

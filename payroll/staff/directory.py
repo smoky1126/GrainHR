@@ -112,17 +112,19 @@ def _pay_and_leave(info):
 
 def staff_group(department, employment, position, sheet=""):
     """Which staff list this person belongs to. Mainland workers are split by company."""
+    from payroll.core.settings import match_tokens
+
     dept = _text(department)
     job = _text(position)
     part_time = "兼職" in _text(employment)
-    ma_douce = "Pastry" in dept or dept.startswith("MD") or " MD" in f" {dept}"
+    second = any(token and token in dept for token in match_tokens())
     if _text(sheet) == "內地勞工":
-        return "md_esl" if ma_douce else "bg_esl"
+        return "md_esl" if second else "bg_esl"
     if part_time:
-        return "md_pt" if ma_douce else "bg_pt"
+        return "md_pt" if second else "bg_pt"
     if "Office" in dept or "Administration" in dept:
         return "admin"
-    if ma_douce:
+    if second:
         return "md_ft"
     if "Retail" in dept:
         return "bg_retail"

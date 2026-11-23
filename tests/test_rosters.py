@@ -46,16 +46,18 @@ def main():
         saved = copy_rosters(info, source=source, destination=destination)
         if len(saved) != len(ROSTER_SOURCES):
             raise SystemExit(f"expected {len(ROSTER_SOURCES)} rosters, copied {len(saved)}")
-        if not (destination / "JD_Bread" / "JD_Bread_roaster_2026_Oct.xlsx").exists():
+        _folder, pattern, shop = ROSTER_SOURCES[0]
+        file_name = pattern.format(year=2026, mon="Oct")
+        if not (destination / shop / f"{file_name}.xlsx").exists():
             raise SystemExit("a good roster was not copied")
 
         missing = root / "missing"
-        _fill(missing, skip="JD_Bread")
+        _fill(missing, skip=shop)
         try:
             copy_rosters(info, source=missing, destination=root / "missing_out")
         except RosterProblem as error:
             text = str(error)
-            if "JD_Bread" not in text or "JD_Bread_roaster_2026_Oct" not in text:
+            if shop not in text or file_name not in text:
                 raise SystemExit(f"missing file was not named:\n{error}")
             if (root / "missing_out").exists():
                 raise SystemExit("a failed copy should not write roster files")
@@ -63,7 +65,7 @@ def main():
             raise SystemExit("a missing roster should stop the copy")
 
         doubled = root / "doubled"
-        _fill(doubled, extra="JD_Bread")
+        _fill(doubled, extra=shop)
         try:
             copy_rosters(info, source=doubled, destination=root / "doubled_out")
         except RosterProblem as error:
@@ -73,7 +75,7 @@ def main():
             raise SystemExit("two roster files should stop the copy")
 
         wrong_sheet = root / "sheet"
-        _fill(wrong_sheet, bad_sheet="JD_Bread")
+        _fill(wrong_sheet, bad_sheet=shop)
         try:
             copy_rosters(info, source=wrong_sheet, destination=root / "sheet_out")
         except RosterProblem as error:

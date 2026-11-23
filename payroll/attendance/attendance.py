@@ -10,11 +10,10 @@ from pathlib import Path
 import pandas as pd
 import re, os
 
-from payroll.core.config import HOUR_STANDARD, SHOP_LIST, SKIPROWS
+from payroll.core.config import HOUR_STANDARD, SKIPROWS, shop_list
 
 file_path1 = ""
 month_sheet = ""
-shop_list = SHOP_LIST
 skiprow_num = SKIPROWS
 hour_st = HOUR_STANDARD
 location = ""
@@ -178,9 +177,9 @@ def time_verify(book, data2, shop_name, col_lists, facts=None):
     核对打卡时间和排班表的时间
     '''
     # 修改店名
-    for shop_list1 in shop_list:
-        if shop_name in shop_list1:
-            shop_name = shop_list1[1]
+    for label, code in shop_list():
+        if shop_name in (label, code):
+            shop_name = code
     day_list = list(data2.columns.values[1:15])      # 工作时间
     list_col = time_str(list(data2.columns.values))  # 转化列的时间格式
     data3_list = [list_col]                          # 第一行數据，是时间

@@ -101,23 +101,20 @@ def classify(roster):
 
 
 def shop_code(shop):
-    text = _text(shop)
-    if "Pastry" in text:
-        return "Pastry"
-    if text.startswith("11F"):
-        return "11/F Office"
-    if text.startswith("3F"):
-        return "SPK"
-    return text.split("_")[0]
+    from payroll.core.settings import code_for_shop
+
+    return code_for_shop(_text(shop))
 
 
 def _place_ok(punch_code, codes):
-    """Pastry clocks in at the same SPK building as the central kitchen."""
+    """A punch at a paired building still counts as the roster shop."""
+    from payroll.core.settings import shares_site
+
     if not punch_code:
         return True
     if punch_code in codes:
         return True
-    return punch_code in {"SPK", "Pastry"} and bool({"SPK", "Pastry"} & set(codes))
+    return any(shares_site(punch_code, code) for code in codes)
 
 
 def _arrival_late(roster, clock_in):

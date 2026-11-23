@@ -15,16 +15,12 @@ from payroll.attendance.daka import load_daka
 from payroll.core.names import chinese
 from payroll.attendance.rosters import _matches
 
-LOCATIONS = location_rows()
-PUNCH_PLACE = punch_places()
-
-
 def location_for(shop):
     """Retail and production at the same site are different cards."""
     found = []
     for part in str(shop or "").split("、"):
         part = part.strip()
-        for label, code in LOCATIONS:
+        for label, code in location_rows():
             if part == code or part.startswith(code + "_") or part.startswith(code):
                 if label not in found:
                     found.append(label)
@@ -36,7 +32,8 @@ def place_names(shop):
     if found:
         return found
     code = shop_code(shop)
-    label = PUNCH_PLACE.get(code) or PUNCH_PLACE.get(str(shop or "").strip())
+    places = punch_places()
+    label = places.get(code) or places.get(str(shop or "").strip())
     return [label] if label else []
 
 

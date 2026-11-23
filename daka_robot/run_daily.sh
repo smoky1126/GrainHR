@@ -3,7 +3,7 @@
 # Software rendering only (-gpu swiftshader_indirect). Nothing is left running.
 #
 # One-time login, from Windows, with scrcpy in the user profile (not the shared drive):
-#   ssh -L 5037:localhost:5037 andrew
+#   ssh -L 5037:localhost:5037 <robot-computer>
 #   scrcpy
 # Sign into Play, install DAKA, and log in once. The password is not stored.
 # Then fill steps.json from the screen labels. Do not use coordinates.
@@ -31,10 +31,18 @@ trap cleanup EXIT
 PYTHON="$ROOT/.venv/bin/python"
 "$PYTHON" "$ROOT/robot.py" || "$PYTHON" "$ROOT/robot.py"
 RESULT=$?
-# Upload this run's export into the GrainHR app folder. rclone remote "grainhr" is the HR shared drive.
+# Upload this run's export. The rclone path stays in inbox.path, not in this file.
 RCLONE="$HOME/bin/rclone"
-INBOX="grainhr:HR system (GrainHR)/GrainHR/data/daka_inbox"
-if [ -x "$RCLONE" ]; then
+INBOX_FILE="${DAKA_INBOX_FILE:-$HOME/daka-robot/inbox.path}"
+if [ -n "${DAKA_INBOX:-}" ]; then
+  INBOX="$DAKA_INBOX"
+elif [ -f "$INBOX_FILE" ]; then
+  INBOX="$(tr -d '\r\n' < "$INBOX_FILE")"
+else
+  echo "Write the rclone inbox path to $INBOX_FILE" >&2
+  INBOX=""
+fi
+if [ -n "$INBOX" ] && [ -x "$RCLONE" ]; then
   "$RCLONE" copy "$ROOT/outbox" "$INBOX" --include "*.csv" --max-age 2h || echo "上傳到共用雲端失敗。" >&2
   if [ -f "$ROOT/outbox/status.json" ]; then
     "$RCLONE" copyto "$ROOT/outbox/status.json" "$INBOX/_server.json" || true

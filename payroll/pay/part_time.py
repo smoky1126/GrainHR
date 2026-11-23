@@ -39,7 +39,7 @@ def pt_path(info):
 
 def pt_company(record):
     text = f"{_text(record.get('department'))} {_text(record.get('position'))}"
-    if any(token and token in text for token in match_tokens()) or re.search(r"(^|[^A-Za-z])MD([^A-Za-z]|$)", text):
+    if any(token and token in text for token in match_tokens()):
         return "md"
     return "bg"
 
@@ -231,7 +231,8 @@ def _mpf(salary, scheme, employee_due):
 
 def _shop_label(department, company):
     if company == "md":
-        return "SPK_MD"
+        from payroll.core.settings import second_shop
+        return second_shop() or _text(department).split("-")[0].strip()
     text = _text(department)
     if not text:
         return ""

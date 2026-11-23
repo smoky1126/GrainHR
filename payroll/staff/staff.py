@@ -156,7 +156,7 @@ def staff_options(path=None):
 
 
 def next_employee_no(staff, prefix):
-    """The next free number for A, B, R, P, RPT, SPKPT, or ESL."""
+    """The next free number for one staff-number prefix from company.toml."""
     prefix = _text(prefix).upper()
     used = []
     for value in staff["employee_no"]:

@@ -22,21 +22,20 @@ def english_tokens(text):
     return {token.lower() for token in re.findall(r"[A-Za-z]{2,}", text or "")}
 
 
-# Office roster uses English nicknames. Bosses are not in this map.
-_OFFICE = {
-    "陳家樂": "James Chan",
-    "楊宛婷": "Alice Yeung",
-    "李嘉俊": "Sam Lee",
-    "梁曉雯": "Carmen Leung",
-    "梁穎儀": "Milly Leung",
-    "童瑋琳": "Shirley Tung",
-}
+def _office_names():
+    """English roster names for office staff. The pairs live in company.toml."""
+    from payroll.core.settings import load
+
+    raw = load().get("office_names") or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): str(value) for key, value in raw.items() if str(key).strip() and str(value).strip()}
 
 
 def match_roster_name(slip_name, name_en, name_zh, roster_names):
     """Return the roster name, or '' when there is not exactly one candidate."""
     target = chinese(name_zh) or chinese(slip_name)
-    office = {chinese(key): value for key, value in _OFFICE.items()}
+    office = {chinese(key): value for key, value in _office_names().items()}
     if target in office:
         wanted = office[target].lower()
         for name in roster_names:

@@ -1,5 +1,6 @@
 """The daily board reads one roster cell and leaves late and overtime to the existing rules."""
 
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -11,7 +12,7 @@ from payroll.core.config import scratch_dir
 from payroll.attendance.today import load_day, location_for, missed, place_names
 
 
-def _punch(clock_in, clock_out, code="JD"):
+def _punch(clock_in, clock_out, code="S1"):
     return {
         "in": clock_in, "out": clock_out, "place": "", "code": code,
         "in_place": "", "out_place": "", "in_code": code, "out_code": code,
@@ -20,7 +21,7 @@ def _punch(clock_in, clock_out, code="JD"):
 
 def test_one_day():
     folder = scratch_dir("today-board")
-    path = folder / "JD_Retail_roaster_2026_Oct.xlsx"
+    path = folder / "S1_Shop_roaster_2026_Oct.xlsx"
     import pandas as pd
     frame = pd.DataFrame([
         ["Period", date(2026, 10, 1), None],
@@ -36,10 +37,10 @@ def test_one_day():
     day = date(2026, 10, 1)
     punches = {
         ("甲", "2026-10-01"): _punch("9:10", "18:40"),
-        ("丁", "2026-10-01"): _punch("10:00", "19:00", "WC"),
+        ("丁", "2026-10-01"): _punch("10:00", "19:00", "S5"),
         "__names__": {"甲", "乙", "丙", "丁"},
     }
-    rows, missing = load_day(day, punches=punches, files=[("JD_Retail", path, "10月")])
+    rows, missing = load_day(day, punches=punches, files=[("S1_Shop", path, "10月")])
     if missing:
         raise SystemExit(missing)
 
@@ -58,20 +59,38 @@ def test_one_day():
     if not missed(row("丙"), day):
         raise SystemExit(f"a rostered day with no punch should be missed: {row('丙')['Status']}")
     extra = row("丁")
-    if "無排班" not in str(extra["Status"]) or "灣仔" not in place_names(extra["Chosen shop"]):
-        raise SystemExit(f"an unrostered punch should sit on its shop card: {extra['Status']} {extra['Chosen shop']}")
-    if location_for("JD_Retail") != ["佐敦零售"] or location_for("JD_Bread") != ["佐敦生產"]:
-        raise SystemExit(f"retail and production were not split: {location_for('JD_Retail')} {location_for('JD_Bread')}")
+    labels = scratch_dir("today-labels") / "company.toml"
+    labels.write_text(
+        '[[locations]]\nlabel = "Shop 1 retail"\ncode = "S1_Shop"\n\n'
+        '[[locations]]\nlabel = "Shop 1 production"\ncode = "S1_Make"\n\n'
+        '[punch_places]\nS5 = "Shop 5"\n',
+        encoding="utf-8",
+    )
+    from payroll.core.settings import load
+    old_company = os.environ.get("PAYROLL_COMPANY")
+    os.environ["PAYROLL_COMPANY"] = str(labels)
+    load.cache_clear()
+    try:
+        if "無排班" not in str(extra["Status"]) or "Shop 5" not in " ".join(place_names(extra["Chosen shop"])):
+            raise SystemExit(f"an unrostered punch should sit on its shop card: {extra['Status']} {extra['Chosen shop']}")
+        if location_for("S1_Shop") != ["Shop 1 retail"] or location_for("S1_Make") != ["Shop 1 production"]:
+            raise SystemExit(f"retail and production were not split: {location_for('S1_Shop')} {location_for('S1_Make')}")
+    finally:
+        if old_company is None:
+            os.environ.pop("PAYROLL_COMPANY", None)
+        else:
+            os.environ["PAYROLL_COMPANY"] = old_company
+        load.cache_clear()
     variant = scratch_dir("today-variant")
     book = variant / "shop.xlsx"
     pd.DataFrame([
         [None, date(2026, 10, 1)],
         ["Name", "Thursday"],
-        ["梁廣鍚", "06:30-16:00"],
+        ["甲鍚", "06:30-16:00"],
     ]).to_excel(book, sheet_name="10月", index=False, header=False)
     variant_punches = {
-        ("梁廣錫", "2026-10-01"): _punch("6:24", "", "SPK"),
-        "__names__": {"梁廣錫"},
+        ("甲錫", "2026-10-01"): _punch("6:24", "", "K1"),
+        "__names__": {"甲錫"},
     }
     variant_rows, variant_missing = load_day(
         day, punches=variant_punches, files=[("3F_Bread", book, "10月")],
@@ -79,7 +98,7 @@ def test_one_day():
     if variant_missing or len(variant_rows) != 1:
         raise SystemExit(f"variant rows {len(variant_rows)} {variant_missing}")
     matched = variant_rows.iloc[0]
-    if str(matched["Name"]) != "梁廣鍚" or str(matched["DAKA in"]) != "6:24" or missed(matched, day):
+    if str(matched["Name"]) != "甲鍚" or str(matched["DAKA in"]) != "6:24" or missed(matched, day):
         raise SystemExit(f"variant was not linked: {matched['Name']} {matched['DAKA in']} {matched['Status']}")
     print("today board ok")
 

@@ -31,15 +31,11 @@ def scratch_dir(name):
     folder.mkdir(parents=True)
     return folder
 
-SHOP_LIST = [
-    ["佐敦", "JD"],
-    ["新蒲崗工場", "SPK"],
-    ["OFFICE", "11/F Office"],
-    ["太古", "TKS"],
-    ["荃灣", "TW"],
-    ["灣仔", "WC"],
-    ["西環", "HKU"],
-]
+def shop_list():
+    """Place name and punch code from company.toml. Nothing about a real shop is stored here."""
+    from payroll.core.settings import shops as shop_rows
+
+    return [[label, code] for label, code in shop_rows() if label and code]
 
 HOUR_STANDARD = 9.5
 SKIPROWS = 2

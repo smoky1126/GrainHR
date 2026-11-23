@@ -81,7 +81,10 @@ def _child_dirs(folder):
 
 
 def classify_slip_dirs(folders, token):
-    """Label slip folders. The second company is the MD folder inside the full-time folder."""
+    """Label slip folders. The second company's folder name comes from company.toml."""
+    from payroll.core.settings import second_folder
+
+    mark = second_folder()
     found = []
     seen = set()
     for path in folders:
@@ -93,7 +96,7 @@ def classify_slip_dirs(folders, token):
             label = "兼職"
         elif f"Admin ({token})" in name:
             label = "寫字樓"
-        elif name == "MD" and f"({token} FT)" in path.parent.name:
+        elif mark and name == mark and f"({token} FT)" in path.parent.name:
             label = "md"
         if not label:
             continue

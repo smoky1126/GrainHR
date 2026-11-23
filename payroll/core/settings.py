@@ -68,6 +68,14 @@ def match_tokens():
     return [str(token) for token in (load().get("match") or {}).get("second_company") or [] if str(token)]
 
 
+def second_shop():
+    return str((load().get("match") or {}).get("second_shop") or "")
+
+
+def second_folder():
+    return str((load().get("match") or {}).get("second_folder") or "")
+
+
 def allowance_title():
     return str((load().get("documents") or {}).get("allowance_title") or "Allowance Summary")
 
@@ -108,6 +116,69 @@ def shops():
 
 def punch_places():
     return dict(load().get("punch_places") or {})
+
+
+def shop_keywords():
+    """Longest place word first, and the shop code it means."""
+    rows = []
+    for label, code in shops():
+        if str(label or "").strip() and str(code or "").strip():
+            rows.append((str(label).strip(), str(code).strip()))
+    extra = load().get("punch_words") or {}
+    if isinstance(extra, dict):
+        for word, code in extra.items():
+            if str(word).strip() and str(code).strip():
+                rows.append((str(word).strip(), str(code).strip()))
+    rows.sort(key=lambda item: len(item[0]), reverse=True)
+    return tuple(rows)
+
+
+def code_for_shop(text):
+    """Punch code for a roster shop. The longest configured key wins."""
+    raw = str(text or "").strip()
+    if not raw or raw.lower() == "nan":
+        return ""
+    rules = []
+    mapping = load().get("shop_codes") or {}
+    if isinstance(mapping, dict):
+        for key, code in mapping.items():
+            if isinstance(code, str) and str(key).strip() and code.strip():
+                rules.append((str(key).strip(), code.strip()))
+    rules.sort(key=lambda item: len(item[0]), reverse=True)
+    for key, code in rules:
+        if key in raw:
+            return code
+    return raw.split("_")[0]
+
+
+def shares_site(left, right):
+    """True when two punch codes are the same building in company.toml."""
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    for group in (load().get("places") or {}).get("same_site") or []:
+        members = {str(item) for item in group}
+        if str(left) in members and str(right) in members:
+            return True
+    return False
+
+
+def shop_groups():
+    rows = []
+    for row in load().get("shop_groups") or []:
+        if not isinstance(row, dict):
+            continue
+        group = str(row.get("group") or "")
+        tokens = tuple(str(token) for token in row.get("tokens") or [] if str(token))
+        if group and tokens:
+            rows.append((group, tokens))
+    return tuple(rows)
+
+
+def timezone_name():
+    name = str((load().get("locale") or {}).get("timezone") or "").strip()
+    return name or "UTC"
 
 
 def roster_sources():

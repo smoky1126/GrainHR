@@ -40,8 +40,8 @@ def _fail(message):
 
 def test_labels_and_roles():
     load.cache_clear()
-    if shop_label("HKU_Retail") != "Shop 5 retail":
-        _fail(shop_label("HKU_Retail"))
+    if shop_label("S5_Shop") != "Shop 5 retail":
+        _fail(shop_label("S5_Shop"))
     if shop_label("not-a-shop") != "not-a-shop":
         _fail("unknown shop should stay unchanged")
     if group_label("bg_prod") != "Bakery A production":

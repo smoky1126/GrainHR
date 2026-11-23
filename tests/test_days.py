@@ -25,21 +25,21 @@ def _punch(name, date, clock_in="", clock_out="", code=""):
 def test_second_roster_shift_counts():
     date = "2026-10-03"
     facts = _facts([
-        {"shop": "JD_Bread", "name": "Ada", "date": date, "roster": "", "late_mins": 0,
+        {"shop": "S1_Make", "name": "Ada", "date": date, "roster": "", "late_mins": 0,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
-        {"shop": "TW_Bread", "name": "Ada", "date": date, "roster": "09:00-18:00", "late_mins": 0,
+        {"shop": "S3_Make", "name": "Ada", "date": date, "roster": "09:00-18:00", "late_mins": 0,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
     ])
     summaries, _ = merge_days(facts, _punch("Ada", date, "09:00", "18:00", "TW"))
     summary = summaries["Ada"]
-    if summary["roster_days"] != "TW_Bread 1" or summary["missing_days"]:
+    if summary["roster_days"] != "S3_Make 1" or summary["missing_days"]:
         raise SystemExit(f"second roster shift was not counted: {summary}")
 
 
 def test_sick_without_punch_is_leave():
     date = "2026-10-04"
     facts = _facts([
-        {"shop": "JD_Bread", "name": "Ada", "date": date, "roster": "病假", "late_mins": 0,
+        {"shop": "S1_Make", "name": "Ada", "date": date, "roster": "病假", "late_mins": 0,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
     ])
     summaries, days = merge_days(facts, _punch("Ada", date))
@@ -55,7 +55,7 @@ def test_sick_without_punch_is_leave():
 def test_rest_with_punch_is_day_off():
     date = "2026-10-05"
     facts = _facts([
-        {"shop": "JD_Bread", "name": "Ada", "date": date, "roster": "休假", "late_mins": 0,
+        {"shop": "S1_Make", "name": "Ada", "date": date, "roster": "休假", "late_mins": 0,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
     ])
     summaries, days = merge_days(facts, _punch("Ada", date, "09:00", "18:00", "JD"))
@@ -69,7 +69,7 @@ def test_rest_with_punch_is_day_off():
 def test_shift_without_punch_is_missing():
     date = "2026-10-06"
     facts = _facts([
-        {"shop": "JD_Bread", "name": "Ada", "date": date, "roster": "09:00-18:00", "late_mins": 0,
+        {"shop": "S1_Make", "name": "Ada", "date": date, "roster": "09:00-18:00", "late_mins": 0,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
     ])
     summaries, days = merge_days(facts, _punch("Ada", date))
@@ -85,16 +85,16 @@ def test_shift_without_punch_is_missing():
 def test_two_shifts_are_flagged():
     date = "2026-10-07"
     facts = _facts([
-        {"shop": "JD_Bread", "name": "Ada", "date": date, "roster": "09:00-18:00", "late_mins": 5,
+        {"shop": "S1_Make", "name": "Ada", "date": date, "roster": "09:00-18:00", "late_mins": 5,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
-        {"shop": "TW_Bread", "name": "Ada", "date": date, "roster": "10:00-19:00", "late_mins": 0,
+        {"shop": "S3_Make", "name": "Ada", "date": date, "roster": "10:00-19:00", "late_mins": 0,
          "early_mins": 0, "ot_hours": 1, "wrong_site": 0},
     ])
-    summaries, days = merge_days(facts, _punch("Ada", date, "10:00", "19:30", "TW"))
+    summaries, days = merge_days(facts, _punch("Ada", date, "10:00", "19:30", "S3"))
     summary = summaries["Ada"]
     if not summary["two_shift_dates"] or summary["ot_hours"] != 0.5 or summary["late_mins"]:
         raise SystemExit(f"two shifts were not resolved from DAKA: {summary}")
-    if days.iloc[0]["Chosen shop"] != "TW_Bread":
+    if days.iloc[0]["Chosen shop"] != "S3_Make":
         raise SystemExit(f"DAKA shop was not chosen: {days.iloc[0].to_dict()}")
     if not str(days.iloc[0]["Status"]).startswith("兩份更表同日有更"):
         raise SystemExit(f"two-shift status should be Chinese: {days.iloc[0]['Status']}")
@@ -103,7 +103,7 @@ def test_two_shifts_are_flagged():
 def test_rest_without_punch_says_rest():
     date = "2026-10-08"
     facts = _facts([
-        {"shop": "JD_Bread", "name": "Ada", "date": date, "roster": "休假", "late_mins": 0,
+        {"shop": "S1_Make", "name": "Ada", "date": date, "roster": "休假", "late_mins": 0,
          "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
     ])
     _summaries, days = merge_days(facts, _punch("Ada", date))
@@ -119,7 +119,7 @@ def test_late_early_and_overtime_columns():
         ("2026-10-12", "09:00-18:00", "09:04", "18:30"),
     ):
         rows.append({
-            "shop": "JD_Bread", "name": "Ada", "date": day, "roster": roster,
+            "shop": "S1_Make", "name": "Ada", "date": day, "roster": roster,
             "late_mins": 0, "early_mins": 0, "ot_hours": 0, "wrong_site": 0,
         })
     facts = _facts(rows)
@@ -144,7 +144,7 @@ def test_late_early_and_overtime_columns():
 def test_open_shift_counts_late_before_clock_out():
     date = "2026-11-23"
     facts = _facts([{
-        "shop": "JD_Bread", "name": "Ada", "date": date, "roster": "07:00-16:00",
+        "shop": "S1_Make", "name": "Ada", "date": date, "roster": "07:00-16:00",
         "late_mins": 0, "early_mins": 0, "ot_hours": 0, "wrong_site": 0,
     }])
     punches = {"__names__": {"Ada"}, ("Ada", date): {
@@ -192,12 +192,12 @@ def test_lunch_pair_is_not_clock_out():
 def test_split_shop_uses_morning_and_afternoon():
     date = "2026-10-18"
     facts = _facts([
-        {"shop": "WC_Retail", "name": "Ada", "date": date, "roster": "09:00-13:00", "wrong_site": 0},
-        {"shop": "JD_Retail", "name": "Ada", "date": date, "roster": "14:00-18:00", "wrong_site": 0},
+        {"shop": "S2_Shop", "name": "Ada", "date": date, "roster": "09:00-13:00", "wrong_site": 0},
+        {"shop": "S1_Shop", "name": "Ada", "date": date, "roster": "14:00-18:00", "wrong_site": 0},
     ])
     punch = {
-        "in": "9:12", "out": "17:40", "place": "1 WC", "code": "WC",
-        "in_place": "1 WC", "out_place": "2 JD", "in_code": "WC", "out_code": "JD",
+        "in": "9:12", "out": "17:40", "place": "1 S2", "code": "S2",
+        "in_place": "1 S2", "out_place": "2 S1", "in_code": "S2", "out_code": "S1",
     }
     punches = {"__names__": {"Ada"}, ( "Ada", date): punch}
     summary, days = merge_days(facts, punches)
@@ -208,10 +208,10 @@ def test_split_shop_uses_morning_and_afternoon():
         raise SystemExit(f"matched shops should be 轉店: {row['Status']}")
     if summary["Ada"]["wrong_days"] or summary["Ada"]["two_shift_dates"]:
         raise SystemExit(f"a matched move was treated as a problem: {summary['Ada']}")
-    if "WC" not in str(row["DAKA place"]) or "JD" not in str(row["DAKA place"]):
+    if "S2" not in str(row["DAKA place"]) or "S1" not in str(row["DAKA place"]):
         raise SystemExit(f"both locations should show: {row['DAKA place']}")
-    punch["out_code"] = "HKU"
-    punch["out_place"] = "9 HKU"
+    punch["out_code"] = "S9"
+    punch["out_place"] = "9 S9"
     summary, days = merge_days(facts, punches)
     row = days.iloc[0]
     if "轉店" in str(row["Status"]) or "18/10" not in summary["Ada"]["wrong_dates"]:
@@ -220,21 +220,21 @@ def test_split_shop_uses_morning_and_afternoon():
         raise SystemExit(f"late should still use the morning start: {row.to_dict()}")
 
 
-def test_pastry_is_separate_from_the_central_kitchen():
+def test_second_company_is_separate_from_the_central_kitchen():
     from payroll.attendance.days import shop_code
     date = "2026-10-02"
-    if shop_code("3F_Pastry") == shop_code("3F_Bread"):
-        raise SystemExit("pastry and the central kitchen share a shop code")
+    if shop_code("K1_B2") == shop_code("K1_Make"):
+        raise SystemExit("the second company and the kitchen share a shop code")
     facts = _facts([
-        {"shop": "3F_Pastry", "name": "Ada", "date": date, "roster": "09:00-18:00", "wrong_site": 0},
+        {"shop": "K1_B2", "name": "Ada", "date": date, "roster": "09:00-18:00", "wrong_site": 0},
     ])
     punches = {"__names__": {"Ada"}, ( "Ada", date): {
-        "in": "09:00", "out": "18:00", "place": "1 SPK", "code": "SPK",
-        "in_place": "1 SPK", "out_place": "1 SPK", "in_code": "SPK", "out_code": "SPK",
+        "in": "09:00", "out": "18:00", "place": "1 K1", "code": "K1",
+        "in_place": "1 K1", "out_place": "1 K1", "in_code": "K1", "out_code": "K1",
     }}
     summary, days = merge_days(facts, punches)
     if "異地" in str(days.iloc[0]["Status"]) or summary["Ada"]["wrong_days"]:
-        raise SystemExit(f"pastry punch at SPK was treated as the wrong shop: {days.iloc[0]['Status']}")
+        raise SystemExit(f"a paired building was treated as the wrong shop: {days.iloc[0]['Status']}")
 
 
 def main():
@@ -249,7 +249,7 @@ def main():
     test_overtime_pay()
     test_lunch_pair_is_not_clock_out()
     test_split_shop_uses_morning_and_afternoon()
-    test_pastry_is_separate_from_the_central_kitchen()
+    test_second_company_is_separate_from_the_central_kitchen()
     print("day checks ok")
     return 0
 

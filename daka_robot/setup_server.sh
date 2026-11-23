@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-time setup for the DAKA emulator on andrew.
+# One-time setup for the DAKA emulator on the robot computer.
 # Stop immediately when /dev/kvm is missing: a software-only emulator is too slow.
 set -euo pipefail
 if [ ! -e /dev/kvm ]; then

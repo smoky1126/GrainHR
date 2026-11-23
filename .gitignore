@@ -22,5 +22,8 @@ app/assets/
 *.csv
 *.docx
 daka_robot/steps.json
+daka_robot/inbox.path
+tests/test_books.py
+tests/test_october.py
 logs/
 .streamlit/secrets.toml

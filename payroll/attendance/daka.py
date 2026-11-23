@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from payroll.core.config import SHOP_LIST
+from payroll.core.settings import shop_keywords
 
 
 def _minutes(value):
@@ -30,14 +30,16 @@ def _place_code(place):
     text = "" if place is None else str(place)
     if text in {"", "nan", "None"}:
         return ""
-    for keyword, code in SHOP_LIST:
-        if keyword in text:
+    lowered = text.lower()
+    pairs = shop_keywords()
+    for word, code in pairs:
+        if word.lower() in lowered:
             return code
-    for code in ("SPK", "HKU", "TKS", "TW", "WC", "JD"):
-        if code in text.replace("-", " ").split():
+    tokens = set(text.replace("-", " ").replace("/", " ").split())
+    codes = sorted({code for _word, code in pairs}, key=len, reverse=True)
+    for code in codes:
+        if code in tokens:
             return code
-    if "OFFICE" in text.upper() or "11/F" in text:
-        return "11/F Office"
     return ""
 
 

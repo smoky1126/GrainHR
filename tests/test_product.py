@@ -71,12 +71,17 @@ def test_month_punches_uses_the_archive_when_the_month_has_no_copy():
         _fail("the month copy should be used when it exists")
 
 
-def test_slip_folders_include_ma_douce_without_a_deep_search():
+def test_slip_folders_include_the_second_company_without_a_deep_search():
     from payroll.core.history import classify_slip_dirs
+    from payroll.core.settings import load
 
+    company = HOME / "slip-company.toml"
+    company.write_text("[match]\nsecond_folder = \"B2\"\n", encoding="utf-8")
+    os.environ["PAYROLL_COMPANY"] = str(company)
+    load.cache_clear()
     root = HOME / "slips"
     full_time = root / "#241 (Sep FT)"
-    douce = full_time / "MD"
+    douce = full_time / "B2"
     part_time = root / "#242 (Sep PT)"
     office = root / "2026 Admin Payslip" / "#196_Admin (Sep)"
     for folder in (douce, part_time, office):
@@ -164,7 +169,7 @@ def test_settings_reload_when_the_file_changes():
 if __name__ == "__main__":
     test_lock_is_not_rewritten_within_ten_minutes()
     test_month_punches_uses_the_archive_when_the_month_has_no_copy()
-    test_slip_folders_include_ma_douce_without_a_deep_search()
+    test_slip_folders_include_the_second_company_without_a_deep_search()
     test_issued_summary_hides_office_rows_from_hr()
     test_logo_uses_the_file_beside_company_toml()
     test_a_broken_workbook_is_skipped()

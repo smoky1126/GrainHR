@@ -15,12 +15,6 @@ from payroll.pay.part_time import link_facts
 from payroll.staff.directory import GROUP_LABEL, staff_group
 
 _PT_MARK = re.compile(r"[\(（]\s*PT\s*[\)）]", re.I)
-_SHOP_GROUP = (
-    ("md_ft", ("Pastry",)),
-    ("admin", ("11F", "11/F", "Office")),
-    ("bg_retail", ("Retail",)),
-    ("bg_prod", ("Bread", "3F")),
-)
 _PART_TIME_GROUP = {"bg_prod": "bg_pt", "bg_retail": "bg_pt", "md_ft": "md_pt"}
 # Full-time production and retail earn the attendance bonus. Part-time, mainland, and office staff do not.
 _BONUS_GROUPS = {"bg_prod", "bg_retail", "md_ft"}
@@ -116,8 +110,10 @@ def shops_by_name(days):
 
 
 def _shop_group(shop):
+    from payroll.core.settings import shop_groups
+
     text = _text(shop)
-    for group, tokens in _SHOP_GROUP:
+    for group, tokens in shop_groups():
         if any(token in text for token in tokens):
             return group
     return ""

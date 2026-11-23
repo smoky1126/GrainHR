@@ -12,7 +12,9 @@ bg = "Bakery A part-time"
 md = "Bakery B part-time"
 
 [match]
-second_company = ["Pastry", "Bakery B"]
+second_company = ["Bakery B"]
+second_shop = "B2"
+second_folder = "B2"
 
 [documents]
 allowance_title = "Bakery A Allowance Summary"
@@ -50,7 +52,7 @@ prefix = "P"
 [[groups]]
 key = "md_pt"
 label = "Bakery B part-time"
-prefix = "SPKPT"
+prefix = "B2PT"
 
 [[groups]]
 key = "md_esl"
@@ -59,62 +61,62 @@ prefix = "ESL"
 
 [[locations]]
 label = "Shop 1 production"
-code = "JD_Bread"
-file_token = "JD_Bread"
+code = "S1_Make"
+file_token = "S1_Make"
 
 [[locations]]
 label = "Shop 1 retail"
-code = "JD_Retail"
-file_token = "JD_Retail"
+code = "S1_Shop"
+file_token = "S1_Shop"
 
 [[locations]]
 label = "Shop 2 production"
-code = "WC_Bread"
-file_token = "WC_Bread"
+code = "S2_Make"
+file_token = "S2_Make"
 
 [[locations]]
 label = "Shop 2 retail"
-code = "WC_Retail"
-file_token = "WC_Retail"
+code = "S2_Shop"
+file_token = "S2_Shop"
 
 [[locations]]
 label = "Shop 3 production"
-code = "TW_Bread"
-file_token = "TW_Bread"
+code = "S3_Make"
+file_token = "S3_Make"
 
 [[locations]]
 label = "Shop 3 retail"
-code = "TW_Retail"
-file_token = "TW_Retail"
+code = "S3_Shop"
+file_token = "S3_Shop"
 
 [[locations]]
 label = "Shop 4 production"
-code = "TKS_Bread"
-file_token = "TKS_Bread"
+code = "S4_Make"
+file_token = "S4_Make"
 
 [[locations]]
 label = "Shop 4 retail"
-code = "TKS_Retail"
-file_token = "TKS_Retail"
+code = "S4_Shop"
+file_token = "S4_Shop"
 
 [[locations]]
 label = "Shop 5 retail"
-code = "HKU_Retail"
-file_token = "HKU_Retail"
+code = "S5_Shop"
+file_token = "S5_Shop"
 
 [[locations]]
 label = "Central production"
-code = "3F_Bread"
-file_token = "3F_BG"
+code = "K1_Make"
+file_token = "K1"
 
 [[locations]]
 label = "Bakery B"
-code = "3F_Pastry"
-file_token = "MD_"
+code = "B2_Make"
+file_token = "B2"
 
 [[locations]]
 label = "Office"
-code = "11F"
+code = "Office"
 file_token = "Office"
 
 [[shops]]
@@ -123,67 +125,97 @@ code = ""
 
 [[shops]]
 label = "Shop 1"
-code = "JD"
+code = "S1"
 
 [[shops]]
 label = "Shop 2"
-code = "WC"
+code = "S2"
 
 [[shops]]
 label = "Shop 3"
-code = "TW"
+code = "S3"
 
 [[shops]]
 label = "Shop 4"
-code = "TKS"
+code = "S4"
 
 [[shops]]
 label = "Shop 5"
-code = "HKU"
+code = "S5"
 
 [[shops]]
 label = "Central kitchen"
-code = "SPK"
+code = "K1"
 
 [[shops]]
-label = "Bakery B pastry"
-code = "Pastry"
+label = "Bakery B"
+code = "B2"
 
 [[shops]]
 label = "Office"
-code = "11F"
+code = "Office"
 
 [punch_places]
-JD = "Shop 1"
-WC = "Shop 2"
-TW = "Shop 3"
-TKS = "Shop 4"
-HKU = "Shop 5"
-SPK = "Central"
-"3F" = "Central"
-Pastry = "Bakery B"
-"11/F Office" = "Office"
-"11F" = "Office"
+S1 = "Shop 1"
+S2 = "Shop 2"
+S3 = "Shop 3"
+S4 = "Shop 4"
+S5 = "Shop 5"
+K1 = "Central"
+B2 = "Bakery B"
 Office = "Office"
+
+[punch_words]
+OFFICE = "Office"
+
+[shop_codes]
+B2 = "B2"
+K1 = "K1"
+Office = "Office"
+
+[places]
+same_site = [["K1", "B2"]]
+
+[[shop_groups]]
+group = "md_ft"
+tokens = ["B2"]
+
+[[shop_groups]]
+group = "admin"
+tokens = ["Office"]
+
+[[shop_groups]]
+group = "bg_retail"
+tokens = ["Shop"]
+
+[[shop_groups]]
+group = "bg_prod"
+tokens = ["Make"]
 
 [[roster_sources]]
 folder = "Central kitchen"
-pattern = "3F_BG_roaster_{year}_{mon}"
-code = "3F_Bread"
+pattern = "K1_roaster_{year}_{mon}"
+code = "K1_Make"
 
 [[roster_sources]]
-folder = "Bakery B pastry"
-pattern = "MD_roaster_{year}_{mon}"
-code = "3F_Pastry"
+folder = "Bakery B"
+pattern = "B2_roaster_{year}_{mon}"
+code = "B2_Make"
 
 [[roster_sources]]
 folder = "Office"
-pattern = "Office roaster_{year}_{mon}"
-code = "11F"
+pattern = "Office_roaster_{year}_{mon}"
+code = "Office"
 
 [rosters]
-bread = ["JD", "TKS", "TW", "WC"]
-retail = ["HKU", "JD", "TKS", "TW", "WC"]
+bread = ["S1", "S2", "S3", "S4"]
+retail = ["S5", "S1", "S2", "S3", "S4"]
+
+[locale]
+timezone = "UTC"
+
+[office_names]
+"測試甲" = "Ada Test"
 
 [history]
 issued_through = ""

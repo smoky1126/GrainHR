@@ -3,6 +3,6 @@ Description=Export DAKA attendance and then stop the emulator
 
 [Service]
 Type=oneshot
-Environment=TZ=Asia/Hong_Kong
+# Set Environment=TZ in the installed unit to the workplace timezone.
 ExecStart=%h/daka-robot/run_daily.sh
 TimeoutStartSec=20min

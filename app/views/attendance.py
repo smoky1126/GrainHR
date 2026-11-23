@@ -100,21 +100,22 @@ def _days_for(info, roster_name):
 
 
 def _row_shop(row, code):
+    from payroll.core.settings import code_for_shop, shares_site
+
     roster = " ".join(str(row.get(column) or "") for column in ("Chosen shop", "Rosters"))
     places = " ".join(
         str(row.get(column) or "")
         for column in ("DAKA in place", "DAKA out place", "DAKA place")
     )
-    text = f"{roster} {places}"
-    if code == "Pastry":
-        return "Pastry" in roster
-    if code == "11F":
-        return "11F" in text or "11/F" in text or "Office" in text
-    if code == "SPK":
-        if "Pastry" in roster:
-            return False
-        return "3F" in roster or "SPK" in roster or "SPK" in places
-    return f"{code}_" in text or f" {code}" in f" {text}" or text.startswith(code)
+    blob = f"{roster} {places}"
+    if not code:
+        return False
+    row_code = code_for_shop(blob)
+    if row_code == code:
+        return True
+    if shares_site(code, row_code):
+        return False
+    return code in blob
 
 
 def _month_starts(start, end):

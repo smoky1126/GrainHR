@@ -36,9 +36,9 @@ def test_split_merge_and_paid_month():
         inbox.mkdir()
         _csv(
             inbox, "span.csv",
-            "甲,2026-10-25,09:00,灣仔,18:00,灣仔,,,,\n"
-            "乙,2026-10-26,10:00,佐敦,19:00,佐敦,,,,\n"
-            "甲,2026-11-03,09:05,灣仔,18:00,灣仔,,,,\n",
+            "甲,2026-10-25,09:00,North,18:00,North,,,,\n"
+            "乙,2026-10-26,10:00,South,19:00,South,,,,\n"
+            "甲,2026-11-03,09:05,North,18:00,North,,,,\n",
         )
         file_inbox(inbox)
         october = parse_month("2026-10")["daka"]
@@ -53,14 +53,14 @@ def test_split_merge_and_paid_month():
         punches = load_daka(october)
         if punches[("甲", "2026-10-25")]["in"] != "9:00":
             raise SystemExit(f"load_daka {punches.get(('甲', '2026-10-25'))}")
-        _csv(inbox, "again.csv", "甲,2026-10-25,09:30,灣仔,18:10,灣仔,,,,\n")
+        _csv(inbox, "again.csv", "甲,2026-10-25,09:30,North,18:10,North,,,,\n")
         file_inbox(inbox)
         again = october.read_text(encoding="utf-8-sig")
         if "09:30" not in again or "乙" not in again or again.splitlines()[0] != HEADER.strip():
             raise SystemExit("merge did not replace one row and keep the other")
         paid = parse_month("2026-10")
         (paid["output"] / "payslips.docx").write_bytes(b"paid")
-        _csv(inbox, "late.csv", "甲,2026-10-27,09:00,灣仔,18:00,灣仔,,,,\n丙,2026-11-04,09:00,灣仔,18:00,灣仔,,,,\n")
+        _csv(inbox, "late.csv", "甲,2026-10-27,09:00,North,18:00,North,,,,\n丙,2026-11-04,09:00,North,18:00,North,,,,\n")
         filed = file_inbox(inbox)
         if "2026-10" not in filed["skipped"] or "2026-10-27" in october.read_text(encoding="utf-8-sig"):
             raise SystemExit(f"paid month was not skipped {filed}")
@@ -110,10 +110,10 @@ def test_old_exports_are_skipped():
     try:
         inbox = home / "daka_inbox"
         inbox.mkdir()
-        _csv(inbox, "daka_share_20261121_090000.csv", "甲,2026-11-03,09:00,灣仔,18:00,灣仔,,,,\n")
-        _csv(inbox, "daka_share_20261121_170000.csv", "乙,2026-11-04,09:00,灣仔,18:00,灣仔,,,,\n")
-        _csv(inbox, "daka_share_20261121_170500.csv", "丙,2026-11-05,09:00,灣仔,18:00,灣仔,,,,\n")
-        _csv(inbox, "phone.csv", "丁,2026-11-06,09:00,灣仔,18:00,灣仔,,,,\n")
+        _csv(inbox, "daka_share_20261121_090000.csv", "甲,2026-11-03,09:00,North,18:00,North,,,,\n")
+        _csv(inbox, "daka_share_20261121_170000.csv", "乙,2026-11-04,09:00,North,18:00,North,,,,\n")
+        _csv(inbox, "daka_share_20261121_170500.csv", "丙,2026-11-05,09:00,North,18:00,North,,,,\n")
+        _csv(inbox, "phone.csv", "丁,2026-11-06,09:00,North,18:00,North,,,,\n")
         file_inbox(inbox)
         text = parse_month("2026-11")["daka"].read_text(encoding="utf-8-sig")
         if "2026-11-03" in text:

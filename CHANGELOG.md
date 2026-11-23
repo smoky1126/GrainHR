@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4
+
+- Shop names, folder paths, office nicknames, and the server account stay in company.toml. The public program only reads them.
+
 ## 1.2.3
 
 - Today's attendance counts someone as late as soon as they clock in, without waiting for the clock-out.

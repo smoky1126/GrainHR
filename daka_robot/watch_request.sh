@@ -3,7 +3,15 @@
 # This runs every minute, removes the requests, and starts one export. run_daily.sh uploads the result.
 set -u
 RCLONE="$HOME/bin/rclone"
-INBOX="grainhr:HR system (GrainHR)/GrainHR/data/daka_inbox"
+INBOX_FILE="${DAKA_INBOX_FILE:-$HOME/daka-robot/inbox.path}"
+if [ -n "${DAKA_INBOX:-}" ]; then
+  INBOX="$DAKA_INBOX"
+elif [ -f "$INBOX_FILE" ]; then
+  INBOX="$(tr -d '\r\n' < "$INBOX_FILE")"
+else
+  echo "Write the rclone inbox path to $INBOX_FILE" >&2
+  exit 1
+fi
 exec 8>/tmp/daka-watch.lock
 flock -n 8 || exit 0
 found=$("$RCLONE" lsf "$INBOX" --files-only --include "_request_*.txt" --max-depth 1 2>/dev/null)

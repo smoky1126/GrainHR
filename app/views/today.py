@@ -10,8 +10,9 @@ from app.components.theme import inject, show_logo
 from payroll.core.config import ROSTER_SOURCES
 from payroll.daka.daka_inbox import read_status
 from payroll.attendance.today import (
-    LOCATIONS, expected, for_board, google_sheets_present, load_day, location_for, missed, roster_files,
+    expected, for_board, google_sheets_present, load_day, location_for, missed, roster_files,
 )
+from payroll.core.settings import locations as location_rows
 
 def _banner():
     import os
@@ -241,9 +242,12 @@ def _greeting():
     from zoneinfo import ZoneInfo
 
     from app.lock import _user
-    from payroll.core.settings import display_name
+    from payroll.core.settings import display_name, timezone_name
 
-    hour = datetime.now(ZoneInfo("Asia/Hong_Kong")).hour
+    try:
+        hour = datetime.now(ZoneInfo(timezone_name())).hour
+    except Exception:
+        hour = datetime.now().hour
     hello = "早晨" if hour < 12 else "午安" if hour < 18 else "晚安"
     return f"{hello}，{display_name(_user())}"
 
@@ -412,7 +416,7 @@ def render():
     elif none_found:
         st.info("更表副本還沒有，不能判斷誰缺勤。")
     places = []
-    for label, _codes in LOCATIONS:
+    for label, _codes in location_rows():
         people = _rows(frame, label)
         absent_files = [] if none_found else [name for name in missing if _file_place(name) == label]
         if not len(people) and not absent_files:

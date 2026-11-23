@@ -1,46 +1,54 @@
 /**
- * 把店鋪更表複製成 Excel，薪酬系統就可以從 Google Drive 讀取。
+ * Copy each shop roster to Excel so GrainHR can read it from Drive.
  *
- * 店鋪繼續用 Google 試算表。這個指令碼把 Excel 副本存到
- * 共用雲端硬碟 HR/HR system (GrainHR)/GrainHR/data/roster_inbox。薪酬系統只讀這個資料夾。
- * 執行腳本的帳戶要是 HR 的成員，而且要有編輯權限。
+ * Folder names are not in this file. In the Apps Script project settings,
+ * add a script property named GRAINHR_COPY. Its value is JSON:
+ * {
+ *   "drive": "Shared drive name",
+ *   "folders": ["parent folder", "app folder"],
+ *   "inbox": "roster_inbox",
+ *   "rosterRoot": ["Roster parent", "Roster"],
+ *   "sources": [["folder", "file_{year}_{mon}", "shop code"]],
+ *   "bread": ["S1"],
+ *   "retail": ["S1"]
+ * }
+ * Copy that JSON from the private company file. Do not commit it.
  *
- * 只需設定一次：
- * 1. 用可以編輯 Shop Admin 的帳戶打開 https://script.google.com 。
- * 2. 新增專案，貼上這個檔案，儲存。
- * 3. 在 copyRosters 按「執行」，然後允許。
- * 4. 觸發條件（時鐘圖示）：copyRosters，時間驅動，每小時。
- *
- * 想立即更新，打開專案再按「執行」。
- * 資料夾和檔案名稱要同 payroll/config.py 的 ROSTER_SOURCES 一致。
+ * The account that runs the script needs edit access to the roster sheets.
+ * Trigger: copyRosters, time-driven, every hour.
  */
 
 var MONTH_TOKEN = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 var XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 var SHEET_MIME = "application/vnd.google-apps.spreadsheet";
 
-var ROSTER_SOURCES = [
-  ["BG 新蒲崗工場", "3F_BG_roaster_{year}_{mon}", "3F_Bread"],
-  ["MD Pastry", "MD_roaster_{year}_{mon}", "3F_Pastry"],
-  ["Office", "Office BG roaster_{year}_{mon}", "11F"],
-];
+function copyConfig() {
+  var raw = PropertiesService.getScriptProperties().getProperty("GRAINHR_COPY");
+  if (!raw) {
+    throw new Error("Set the script property GRAINHR_COPY. This file has no folder names.");
+  }
+  return JSON.parse(raw);
+}
 
-(function addShops() {
-  ["JD", "TKS", "TW", "WC"].forEach(function (shop) {
-    ROSTER_SOURCES.push(["Bread/" + shop, shop + "_Bread_roaster_{year}_{mon}", shop + "_Bread"]);
+function rosterSources(config) {
+  var sources = (config.sources || []).slice();
+  (config.bread || []).forEach(function (shop) {
+    sources.push(["Bread/" + shop, shop + "_Bread_roaster_{year}_{mon}", shop + "_Bread"]);
   });
-  ["HKU", "JD", "TKS", "TW", "WC"].forEach(function (shop) {
-    ROSTER_SOURCES.push(["Retail/" + shop, shop + "_Retail_roaster_{year}_{mon}", shop + "_Retail"]);
+  (config.retail || []).forEach(function (shop) {
+    sources.push(["Retail/" + shop, shop + "_Retail_roaster_{year}_{mon}", shop + "_Retail"]);
   });
-})();
+  return sources;
+}
 
 function copyRosters() {
-  var root = rosterRoot();
-  var copyRoot = hrCopyRoot();
+  var config = copyConfig();
+  var root = rosterRoot(config);
+  var copyRoot = hrCopyRoot(config);
   var lines = ["已複製 " + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")];
   monthsToCopy().forEach(function (when) {
     var token = MONTH_TOKEN[when.month];
-    ROSTER_SOURCES.forEach(function (source) {
+    rosterSources(config).forEach(function (source) {
       var folderPath = source[0];
       var fileName = source[1].replace("{year}", String(when.year)).replace("{mon}", token);
       var shop = source[2];
@@ -132,21 +140,21 @@ function writeCopy(folder, downloadName, blob) {
   folder.createFile(blob);
 }
 
-function hrCopyRoot() {
-  var match = sharedDriveRoot("HR");
+function hrCopyRoot(config) {
+  var match = sharedDriveRoot(config.drive);
   if (!match) {
-    throw new Error("找不到共用雲端硬碟 HR。在 Apps Script 左側「服務」加 Drive API，然後再執行。");
+    throw new Error("找不到共用雲端硬碟。在 Apps Script 左側「服務」加 Drive API，然後再執行。");
   }
-  var parent = folderNamed(match, "HR system (GrainHR)", false);
-  if (!parent) {
-    throw new Error("找不到 HR system (GrainHR)。");
-  }
-  var grain = folderNamed(parent, "GrainHR", false);
-  if (!grain) {
-    throw new Error("找不到 GrainHR。");
-  }
-  var data = folderNamed(grain, "data", true);
-  return folderNamed(data, "roster_inbox", true);
+  var current = match;
+  (config.folders || []).forEach(function (name) {
+    var next = folderNamed(current, name, false);
+    if (!next) {
+      throw new Error("找不到資料夾 " + name);
+    }
+    current = next;
+  });
+  var data = folderNamed(current, "data", true);
+  return folderNamed(data, config.inbox || "roster_inbox", true);
 }
 
 function sharedDriveRoot(name) {
@@ -167,15 +175,28 @@ function sharedDriveRoot(name) {
   return null;
 }
 
-function rosterRoot() {
-  var admins = DriveApp.getFoldersByName("Shop Admin");
-  while (admins.hasNext()) {
-    var rosters = admins.next().getFoldersByName("Roster");
-    if (rosters.hasNext()) {
-      return rosters.next();
+function rosterRoot(config) {
+  var names = config.rosterRoot || [];
+  if (!names.length) {
+    throw new Error("GRAINHR_COPY 沒有 rosterRoot。");
+  }
+  var parents = DriveApp.getFoldersByName(names[0]);
+  while (parents.hasNext()) {
+    var current = parents.next();
+    var found = true;
+    for (var index = 1; index < names.length; index++) {
+      var children = current.getFoldersByName(names[index]);
+      if (!children.hasNext()) {
+        found = false;
+        break;
+      }
+      current = children.next();
+    }
+    if (found) {
+      return current;
     }
   }
-  throw new Error("這個帳戶打不開 Shop Admin/Roster。");
+  throw new Error("這個帳戶打不開更表資料夾。");
 }
 
 function walkFolders(parent, relative) {
