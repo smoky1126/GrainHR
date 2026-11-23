@@ -284,6 +284,41 @@ def _page_rows(frame, key):
     return frame.iloc[start:start + size]
 
 
+def _late_people(shown, limit=15):
+    """People who were actually late, longest first. A day with nobody late returns nothing."""
+    if shown is None or not len(shown) or "Late" not in shown.columns or "Name" not in shown.columns:
+        return None
+    rows = shown.copy()
+    rows["分鐘"] = pd.to_numeric(rows["Late"], errors="coerce").fillna(0)
+    rows = rows[rows["分鐘"] > 0]
+    if not len(rows):
+        return None
+    rows["姓名"] = rows["Name"].map(_text)
+    rows = rows[rows["姓名"].ne("")]
+    if not len(rows):
+        return None
+    summary = rows.groupby("姓名", as_index=False).agg(分鐘=("分鐘", "sum"), 天數=("分鐘", "size"))
+    return summary.sort_values(["分鐘", "姓名"], ascending=[False, True]).head(limit)
+
+
+def _late_chart(shown):
+    people = _late_people(shown)
+    if people is None:
+        return
+    from app.components.charts import horizontal_bars
+    st.altair_chart(
+        horizontal_bars(people, "姓名", "分鐘", title="誰遲到"),
+        width="stretch",
+        alt="這段日期裡遲到的人，按遲到分鐘由多到少",
+    )
+    extra = ""
+    if len(shown) and "Name" in shown.columns:
+        late_names = shown.loc[pd.to_numeric(shown["Late"], errors="coerce").fillna(0) > 0, "Name"]
+        if late_names.nunique() > len(people):
+            extra = f" 只顯示遲到最多的 {len(people)} 人。"
+    st.caption("每人的遲到分鐘。沒有遲到的人不在圖上。" + extra)
+
+
 def _day_table(frame):
     st.dataframe(
         _day_style(frame),
@@ -365,18 +400,7 @@ def _daily_record(info, status, staff, readonly):
     if not len(shown):
         _empty("沒有符合的出勤", "試下改日期、員工或店鋪。")
         return
-    if "Late" in shown.columns and "Date" in shown.columns:
-        from app.components.charts import bars
-        late_rows = shown.copy()
-        late_rows["遲到分鐘"] = pd.to_numeric(late_rows["Late"], errors="coerce").fillna(0)
-        by_day = late_rows.groupby(late_rows["Date"].astype(str), as_index=False)["遲到分鐘"].sum()
-        if len(by_day):
-            st.altair_chart(
-                bars(by_day, "Date", "遲到分鐘", title="每日遲到分鐘"),
-                width="stretch",
-                alt="這段日期每日遲到分鐘合計",
-            )
-            st.caption("這段日期的遲到分鐘合計。")
+    _late_chart(shown)
     if whole and not shop_code and chosen == "全部":
         st.caption(f"整月全部員工，共 {len(shown)} 行。")
     _day_table(_page_rows(shown, "attendance-page"))

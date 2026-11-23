@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.3
+
+- The attendance chart names who was late and for how many minutes. A day with nobody late has no chart.
+
 ## 1.6.2
 
 - Copying a roster from the shared drive no longer crashes when the drive rejects extra file attributes. If a copy still fails, the attendance page shows a message instead of an error number.

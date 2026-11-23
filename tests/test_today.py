@@ -103,7 +103,22 @@ def test_one_day():
     print("today board ok")
 
 
-def test_newest_roster_reads_the_file_time():
+def test_late_chart_names_the_people():
+    import pandas as pd
+    from app.views.attendance import _late_people
+    shown = pd.DataFrame([
+        {"Name": "甲", "Late": 0},
+        {"Name": "乙", "Late": 12},
+        {"Name": "乙", "Late": 8},
+        {"Name": "丙", "Late": 40},
+    ])
+    people = _late_people(shown)
+    if list(people["姓名"]) != ["丙", "乙"]:
+        raise SystemExit(people.to_dict("records"))
+    if int(people.iloc[1]["分鐘"]) != 20:
+        raise SystemExit(people.to_dict("records"))
+    if _late_people(pd.DataFrame([{"Name": "甲", "Late": 0}])) is not None:
+        raise SystemExit("a day with no late arrivals should not draw a chart")
     from app.views.today import _newest_roster
     folder = scratch_dir("newest-roster")
     (folder / "roster.xlsx").write_bytes(b"x")
@@ -115,4 +130,5 @@ def test_newest_roster_reads_the_file_time():
 if __name__ == "__main__":
     test_one_day()
     test_newest_roster_reads_the_file_time()
+    test_late_chart_names_the_people()
     print("roster time ok")

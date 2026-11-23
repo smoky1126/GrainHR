@@ -41,3 +41,15 @@ def bars(frame, x, y, color=None, title=""):
         encoding["color"] = alt.Color(color, type="nominal", scale=alt.Scale(range=SERIES))
     spec = alt.Chart(frame).mark_bar(cornerRadiusEnd=4).encode(**encoding).properties(height=200, title=title)
     return chart(spec)
+
+
+def horizontal_bars(frame, label, value, title=""):
+    """One bar per person. The longest bar is at the top."""
+    import altair as alt
+
+    spec = alt.Chart(frame).mark_bar(cornerRadiusEnd=4, color="#C0392B").encode(
+        y=alt.Y(label, type="nominal", sort=alt.EncodingSortField(field=value, order="descending"), title=None),
+        x=alt.X(value, type="quantitative", title="分鐘"),
+        tooltip=[label, alt.Tooltip(value, format=".0f"), "天數"],
+    ).properties(height=max(120, 36 * len(frame)), title=title)
+    return chart(spec)
