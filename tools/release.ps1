@@ -25,7 +25,7 @@ if (Test-Path $company) {
 $tests = @(
     "test_days.py", "test_holidays.py", "test_rosters.py", "test_today.py",
     "test_daka_inbox.py", "test_directory.py", "test_lateness.py",
-    "test_product.py", "test_cloud.py", "test_improvements.py",
+    "test_product.py", "test_cloud.py", "test_access_token.py", "test_improvements.py",
     "test_part_time.py", "test_staff_write.py"
 )
 foreach ($test in $tests) {

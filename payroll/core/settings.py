@@ -248,7 +248,7 @@ def role_for(username):
 
 
 def actor():
-    """Google email on the server, otherwise the Windows user name."""
+    """The website email, otherwise the Windows user name."""
     try:
         from app.auth import current_user
         who = current_user()

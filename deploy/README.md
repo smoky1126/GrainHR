@@ -33,9 +33,11 @@ linux_root = '/srv/grainhr/hr'
 
 The original roster Google sheets are not read on Linux. The server uses `data/roster_inbox`.
 
-## 4. Google sign-in
+## 4. Website sign-in
 
-In the same Google Cloud project, create an OAuth client:
+The website sits behind Cloudflare Access. People sign in there with the company Google account, and GrainHR trusts that sign-in instead of showing its own login button. The check is on when `GRAINHR_SERVER=1`. `GRAINHR_ACCESS_TEAM` and `GRAINHR_ACCESS_AUD` override the team and audience tag built into the server copy.
+
+A copy that is not behind Access can still use its own Google button. Create an OAuth client and do not commit the secrets file:
 
 - Type: Web application
 - User type: Internal, so only company Google accounts can sign in
@@ -72,7 +74,7 @@ name = "Assistant"
 role = "hr"
 ```
 
-An email that is not listed sees 沒有權限. On a PC, with no `secrets.toml`, GrainHR still uses the Windows user name.
+An email that is not listed sees 沒有權限. The website reads the email from the Cloudflare sign-in. On a PC, with no `secrets.toml` and with Access turned off, GrainHR still uses the Windows user name.
 
 ## 7. Drive folders
 

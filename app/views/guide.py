@@ -14,6 +14,9 @@ def page_guide():
     page_header("使用說明", "GrainHR", purpose="日常怎麼用，以及去哪裡找舊資料。")
     st.page_link("pages/today.py", label="今日出勤", icon=":material/today:")
     with st.container(border=True):
+        st.markdown("**登入**")
+        st.markdown("打開網站後，用公司 Google 帳戶登入一次。登出在左邊選單。")
+    with st.container(border=True):
         st.markdown("**每天**")
         st.markdown(
             "打開「今日出勤」，看誰應到、誰已打卡。"

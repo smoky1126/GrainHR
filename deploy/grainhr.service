@@ -10,6 +10,8 @@ Group=andrew
 WorkingDirectory=/home/andrew/GrainHR
 Environment=HOME=/home/andrew
 Environment=GRAINHR_SERVER=1
+# GRAINHR_SERVER=1 trusts the Cloudflare Access sign-in.
+# GRAINHR_ACCESS_TEAM and GRAINHR_ACCESS_AUD override the built-in values.
 Environment=GRAINHR_TIMING=1
 Environment="PAYROLL_HOME=/srv/grainhr/hr/REPLACE/data"
 Environment="PAYROLL_COMPANY=/srv/grainhr/hr/REPLACE/company.toml"

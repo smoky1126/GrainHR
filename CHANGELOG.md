@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+
+- The website trusts the Cloudflare Google sign-in, so people are not asked to sign in a second time.
+
 ## 1.2.1
 
 - A saved attendance file that is not a real workbook is skipped, and that month is built again.
