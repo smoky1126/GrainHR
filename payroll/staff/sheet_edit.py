@@ -34,6 +34,15 @@ def _set_cell(inner, ref, value):
     return inner + cell
 
 
+def _row_number(row):
+    """The row index. A read-only sheet uses EmptyCell for a blank column A."""
+    for cell in row:
+        number = getattr(cell, "row", None)
+        if number:
+            return number
+    return None
+
+
 def _sheet_map(path, sheet_name):
     book = load_workbook(path, read_only=True, data_only=False)
     try:
@@ -43,27 +52,32 @@ def _sheet_map(path, sheet_name):
         people = []
         last = 1
         for row in sheet.iter_rows():
-            last = row[0].row
+            row_number = _row_number(row)
+            if not row_number:
+                continue
+            last = row_number
             if header_row is None:
                 names = {}
                 for cell in row:
+                    column = getattr(cell, "column", None)
                     label = str(cell.value or "").strip().rstrip("*")
-                    if label:
-                        names[label] = cell.column
+                    if column and label:
+                        names[label] = column
                 if any(name.startswith("員工編號") for name in names):
-                    header_row = row[0].row
+                    header_row = row_number
                     columns = names
                 continue
             number = name = ""
             number_col = columns.get("員工編號")
             name_col = columns.get("中文姓名")
             for cell in row:
-                if cell.column == number_col:
+                column = getattr(cell, "column", None)
+                if column == number_col:
                     number = str(cell.value or "").strip()
-                if cell.column == name_col:
+                if column == name_col:
                     name = str(cell.value or "").strip()
             if number:
-                people.append((row[0].row, number, name))
+                people.append((row_number, number, name))
         return header_row, columns, people, last
     finally:
         book.close()

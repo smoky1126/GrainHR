@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.6
+
+- Marking someone as resigned works when the staff sheet's first column is blank.
+
 ## 1.6.5
 
 - The daily attendance page no longer draws a late chart. Lateness stays on 遲到統計.

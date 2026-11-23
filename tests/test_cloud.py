@@ -94,9 +94,33 @@ def test_staff_edit_keeps_dropdowns_and_other_cells():
     after.close()
 
 
+def test_a_blank_first_column_can_still_be_edited():
+    folder = ROOT / "_tmp" / "cloud-sheet-blank"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "staff.xlsx"
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "BG & MD"
+    sheet["B5"] = "員工編號"
+    sheet["C5"] = "中文姓名"
+    sheet["D5"] = "僱傭狀況"
+    sheet["E5"] = "離職日期"
+    sheet["B16"] = "B094"
+    sheet["C16"] = "甲"
+    sheet["D16"] = "在職"
+    book.save(path)
+    book.close()
+    edit_staff_sheet(path, "BG & MD", "B094", "甲", {"僱傭狀況": "已離職", "離職日期": "2026-11-21"}, "resign")
+    after = load_workbook(path)
+    if after["BG & MD"]["D16"].value != "已離職" or after["BG & MD"]["E16"].value != "2026-11-21":
+        _fail((after["BG & MD"]["D16"].value, after["BG & MD"]["E16"].value))
+    after.close()
+
+
 if __name__ == "__main__":
     test_paths_keep_the_folder_boundary()
     test_hr_cannot_see_office_pay()
     test_unknown_role_is_hr_and_viewer_is_not_a_role()
     test_staff_edit_keeps_dropdowns_and_other_cells()
+    test_a_blank_first_column_can_still_be_edited()
     print("cloud ok")
