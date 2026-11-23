@@ -96,6 +96,8 @@ def write_report(info):
     path = info["output"] / "payroll_draft.xlsx"
     path.parent.mkdir(parents=True, exist_ok=True)
     book.save(path)
+    from payroll.core.excel_io import guard_xlsx
+    guard_xlsx(path)
     return path
 
 

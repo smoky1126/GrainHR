@@ -11,12 +11,26 @@ from urllib.parse import urlsplit
 import streamlit as st
 
 
-def auth_enabled():
-    """True only when this copy has a secrets.toml [auth] section."""
+def classify_secrets(loader):
+    """on when [auth] exists, off when there is no secrets file, broken otherwise."""
+    from streamlit.errors import StreamlitSecretNotFoundError
     try:
-        return "auth" in st.secrets
+        return "on" if loader() else "off"
+    except StreamlitSecretNotFoundError as error:
+        if getattr(error, "error_id", "") == "no-secrets-found":
+            return "off"
+        return "broken"
     except Exception:
-        return False
+        return "broken"
+
+
+def secrets_state():
+    return classify_secrets(lambda: "auth" in st.secrets)
+
+
+def auth_enabled():
+    """True only when this copy has a readable secrets.toml [auth] section."""
+    return secrets_state() == "on"
 
 
 def current_user():
@@ -38,6 +52,9 @@ def allow_sign_in():
 
     if access_required():
         return _allow_access()
+    if secrets_state() == "broken":
+        st.error("登入設定無法讀取，已停止開放。請通知管理員。")
+        return False
     if not auth_enabled():
         return True
     if not getattr(st.user, "is_logged_in", False):
@@ -67,9 +84,9 @@ def _allow_access():
 
 
 def _allow_known_user(who, streamlit_logout):
-    from payroll.core.settings import _user_row
+    from payroll.core.settings import _user_row, role_for
 
-    if not _user_row(who):
+    if not _user_row(who) or role_for(who) == "none":
         st.error(f"沒有權限。{who} 不在公司名單裡。")
         st.caption("請通知管理員把這個電郵加入名單。")
         if streamlit_logout is None:

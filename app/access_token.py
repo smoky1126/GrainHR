@@ -15,7 +15,7 @@ _TEAM = "quiet-butterfly-e2f4.cloudflareaccess.com"
 _AUD = "073f7d972830c3d82c7ac62477dab074fb255f287bfe736546547324a4eb9078"
 _SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
 _LOCK = threading.Lock()
-_KEYS = {"url": "", "at": 0.0, "keys": {}}
+_KEYS = {"url": "", "at": 0.0, "keys": {}, "forced": 0.0}
 _WARNED = {"certs": False}
 
 
@@ -56,7 +56,7 @@ def access_required():
 
 def clear_key_cache():
     with _LOCK:
-        _KEYS.update(url="", at=0.0, keys={})
+        _KEYS.update(url="", at=0.0, keys={}, forced=0.0)
         _WARNED["certs"] = False
 
 
@@ -181,7 +181,9 @@ def _keys_for(url, fetch, now, force):
         fresh = same and _KEYS["keys"] and now - _KEYS["at"] < 3600
         if fresh and not force:
             return dict(_KEYS["keys"])
-        if same and now - _KEYS["at"] < 30 and (not force or not _KEYS["keys"]):
+        if same and now - _KEYS["at"] < 30 and not force:
+            return dict(_KEYS["keys"])
+        if force and same and _KEYS["keys"] and now - _KEYS.get("forced", 0.0) < 30:
             return dict(_KEYS["keys"])
     payload = None
     try:
@@ -193,7 +195,10 @@ def _keys_for(url, fetch, now, force):
     parsed = _parse_keys(payload) if isinstance(payload, dict) else {}
     with _LOCK:
         if parsed:
-            _KEYS.update(url=url, at=now, keys=parsed)
+            update = {"url": url, "at": now, "keys": parsed}
+            if force:
+                update["forced"] = now
+            _KEYS.update(update)
             return dict(parsed)
         if _KEYS["url"] == url and _KEYS["keys"]:
             _KEYS["at"] = now

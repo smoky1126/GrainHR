@@ -202,6 +202,8 @@ def fill_admin(info, draft):
         _apply_identity(sheet, slip, row, info)
         _write_allowances(sheet, slip, row)
     book.save(output)
+    from payroll.core.excel_io import guard_xlsx
+    guard_xlsx(output)
     return output
 
 
@@ -236,6 +238,8 @@ def _copy_person(path, start, end):
             )
     source_book.close()
     book.save(path)
+    from payroll.core.excel_io import guard_xlsx
+    guard_xlsx(path)
 
 
 def write_person_slip(info, draft, staff_id):
@@ -245,7 +249,7 @@ def write_person_slip(info, draft, staff_id):
     if person.empty:
         raise SystemExit(f"找不到 {staff_id}")
     name = _text(person.iloc[0].get("slip_name")).split()[0] or staff_id
-    safe = re.sub(r'[<>:"/\\|?*]', "", name).strip() or staff_id
+    safe = re.sub(r"[<>:\"/\\|?*']", "", name).strip() or staff_id
     from payroll.staff.staff import read_batch
     batch = read_batch(info) or str(staff_id).split("-")[0]
     suffix = str(staff_id).split("-")[-1]
@@ -267,11 +271,12 @@ def write_person_slip(info, draft, staff_id):
         if _soffice_pdf(target, pdf):
             return pdf
         return target
+    from payroll.documents.slips import ps_literal
     script = (
         "$excel = New-Object -ComObject Excel.Application; "
         "$excel.Visible = $false; $excel.DisplayAlerts = $false; "
-        f"$book = $excel.Workbooks.Open('{target}'); "
-        f"$book.ExportAsFixedFormat(0, '{pdf}'); "
+        f"$book = $excel.Workbooks.Open({ps_literal(target)}); "
+        f"$book.ExportAsFixedFormat(0, {ps_literal(pdf)}); "
         "$book.Close($false); $excel.Quit()"
     )
     try:

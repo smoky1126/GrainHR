@@ -485,6 +485,7 @@ def apply_pay(rows, book="bg"):
     index_by_no = {employee_no: index for index, employee_no in table["employee_no"].items()}
     problems = []
     additions = []
+    audit = []
     for row in rows:
         name = row["slip_name"] or row["employee_no"]
         existing = row["employee_no"] in index_by_no
@@ -581,7 +582,10 @@ def apply_pay(rows, book="bg"):
             continue
         if existing:
             index = index_by_no[row["employee_no"]]
+            staff_id = _cell_text(table.at[index, "staff_id"]) or row["employee_no"]
             for key, value in updated.items():
+                old = table.at[index, key] if key in table.columns else ""
+                audit.append((staff_id, key, old, value))
                 table.at[index, key] = value
         else:
             additions.append({
@@ -590,6 +594,8 @@ def apply_pay(rows, book="bg"):
                 "slip_name": row["slip_name"],
                 **updated,
             })
+            for key, value in updated.items():
+                audit.append((row["employee_no"], key, "", value))
     if problems:
         raise SystemExit("薪金資料：\n" + "\n".join(problems))
     if additions:
@@ -598,6 +604,11 @@ def apply_pay(rows, book="bg"):
     path = pay_table_path(book)
     path.parent.mkdir(parents=True, exist_ok=True)
     table.to_excel(path, index=False)
+    grouped = {}
+    for staff_id, key, old, new in audit:
+        grouped.setdefault(staff_id, []).append((key, old, new))
+    for staff_id, pairs in grouped.items():
+        log_changes("", staff_id, pairs)
 
 
 def _yes_stored(value):
@@ -645,6 +656,33 @@ def _cell_text(value):
     if text.endswith(".0") and text[:-2].lstrip("-").isdigit():
         text = text[:-2]
     return "" if text.lower() == "nan" else text
+
+
+def log_changes(month, staff_id, pairs):
+    """Record who changed a pay field. pairs is (field, old, new)."""
+    from datetime import datetime
+
+    from payroll.core.settings import actor
+    if not pairs:
+        return
+    when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    who = actor()
+    rows = []
+    for field, old, new in pairs:
+        old_text = _cell_text(old)
+        new_text = _cell_text(new)
+        if old_text == new_text:
+            continue
+        rows.append({
+            "time": when,
+            "user": who,
+            "month": month or "",
+            "staff_id": staff_id,
+            "field": field,
+            "old": old_text,
+            "new": new_text,
+        })
+    _record_audit({"key": month or ""}, rows)
 
 
 def _record_audit(info, rows):

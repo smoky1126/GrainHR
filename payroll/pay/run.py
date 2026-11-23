@@ -170,11 +170,23 @@ def _one_slip(booked, draft):
     return document
 
 
+def allowed_books(books, role=None):
+    """On the website, office slips are made only for someone who may see them."""
+    chosen = ("bg", "md", "admin") if not books else tuple(books)
+    if os.environ.get("GRAINHR_SERVER") != "1":
+        return chosen
+    from payroll.core.access import can_see_pay
+    if role is None:
+        from payroll.core.settings import actor, role_for
+        role = role_for(actor())
+    return tuple(book for book in chosen if can_see_pay(book, role))
+
+
 def run_slips(info, draft=None, books=None):
     from payroll.core.config import book_info
     caller = info.get("book", "bg")
     first = None
-    chosen = ("bg", "md", "admin") if not books else tuple(books)
+    chosen = allowed_books(books)
     for book in chosen:
         if not pay_table_path(book).exists():
             continue

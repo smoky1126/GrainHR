@@ -676,8 +676,10 @@ def add_new_joiner(info, employee_no, name, salary, scheme, roster_name, book="b
         "allowance_section": "",
     }
     existing = table.index[table["employee_no"] == employee_no]
+    old_salary = ""
     if len(existing):
         index = existing[0]
+        old_salary = table.at[index, "basic_salary"]
         staff_id = _text(table.at[index, "staff_id"]) or next_staff_id(table)
         table.at[index, "staff_id"] = staff_id
         for key, value in fields.items():
@@ -693,6 +695,9 @@ def add_new_joiner(info, employee_no, name, salary, scheme, roster_name, book="b
     path = pay_table_path(book)
     path.parent.mkdir(parents=True, exist_ok=True)
     table.to_excel(path, index=False)
+    from payroll.pay.review import log_changes
+    month = info.get("key", "") if isinstance(info, dict) else ""
+    log_changes(month, staff_id, [("basic_salary", old_salary, salary), ("slip_name", "", name)])
     if info is not None:
         ensure_adjustments(info, table)
         apply_review(info, [{"staff_id": staff_id, "slip_name": name}])

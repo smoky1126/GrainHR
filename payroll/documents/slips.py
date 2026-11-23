@@ -520,7 +520,7 @@ def write_person_slip(info, draft, staff_id):
     if person.empty:
         raise SystemExit(f"找不到 {staff_id}")
     name = _text(person.iloc[0].get("slip_name")).split()[0] or staff_id
-    safe = re.sub(r'[<>:"/\\|?*]', "", name).strip() or staff_id
+    safe = re.sub(r"[<>:\"/\\|?*']", "", name).strip() or staff_id
     from payroll.staff.staff import read_batch
     batch = read_batch(info) or staff_id.split("-")[0]
     suffix = staff_id.split("-")[-1]
@@ -537,6 +537,11 @@ def write_person_slip(info, draft, staff_id):
     if _to_pdf(target, pdf):
         return pdf
     return target
+
+
+def ps_literal(path):
+    """A PowerShell single-quoted path. A quote in the name cannot break out."""
+    return "'" + str(path).replace("'", "''") + "'"
 
 
 def _soffice_pdf(source, target):
@@ -563,8 +568,8 @@ def _to_pdf(source, target):
     script = (
         "$word = New-Object -ComObject Word.Application; "
         "$word.Visible = $false; "
-        f"$doc = $word.Documents.Open('{source}'); "
-        f"$doc.SaveAs([ref]'{target}', [ref]17); "
+        f"$doc = $word.Documents.Open({ps_literal(source)}); "
+        f"$doc.SaveAs([ref]{ps_literal(target)}, [ref]17); "
         "$doc.Close(); $word.Quit()"
     )
     try:
@@ -642,4 +647,6 @@ def write_allowance_summary(info, month_title, draft):
         row_number += 2
     path = info["output"] / "allowance_summary.xlsx"
     book.save(path)
+    from payroll.core.excel_io import guard_xlsx
+    guard_xlsx(path)
     return path

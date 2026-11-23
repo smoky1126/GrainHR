@@ -315,6 +315,8 @@ def role_for(username):
     if row.get("role"):
         role = str(row["role"])
         return "hr" if role == "viewer" else role
+    if os.environ.get("GRAINHR_SERVER") == "1" and not row:
+        return "none"
     return "hr" if load().get("private") else "admin"
 
 

@@ -49,24 +49,31 @@ def _download(path, key):
     )
 
 
-def _zip_button(folder, key):
-    target = Path(folder)
+def zip_named(paths):
+    """Pack these files only. A sibling in the same folder stays out."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as packed:
+        for item in paths:
+            path = Path(item)
+            if path.is_file() and not path.name.startswith("~$"):
+                packed.write(path, path.name)
+    return buffer.getvalue()
+
+
+def _zip_button(paths, key, name):
+    chosen = list(paths)
 
     def read():
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as packed:
-            for item in _files(target):
-                packed.write(item, item.name)
-        return buffer.getvalue()
+        return zip_named(chosen)
 
     st.download_button(
         "下載全部",
         data=read,
-        file_name=f"{target.name}.zip",
+        file_name=f"{name}.zip",
         key=key,
         on_click="ignore",
         icon=":material/folder_zip:",
-        help="按下後才把這個資料夾打包。",
+        help="按下後才把畫面上這幾份檔案打包。",
     )
 
 
@@ -102,7 +109,7 @@ def _file_card(title, paths, key):
                     for path in pdfs:
                         _download(path, f"{key}-pdf-{path.name}")
         if len(paths) > 1:
-            _zip_button(paths[0].parent, f"{key}-zip")
+            _zip_button(paths, f"{key}-zip", title)
 
 
 def _audit(role):

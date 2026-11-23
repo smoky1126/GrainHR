@@ -62,6 +62,66 @@ def clear_reads():
     _reads.clear()
 
 
+_FORMULA = ("=", "+", "-", "@")
+
+
+def safe_cell(value):
+    """A leading apostrophe keeps '=...' as text instead of an Excel formula."""
+    if isinstance(value, str) and value[:1] in _FORMULA:
+        return "'" + value
+    return value
+
+
+def _text_column(series):
+    if series.dtype == object or pd.api.types.is_string_dtype(series):
+        return True
+    return False
+
+
+def safe_frame(frame):
+    if frame is None:
+        return frame
+    out = frame.copy()
+    for column in list(out.columns):
+        series = out[column]
+        if not _text_column(series):
+            continue
+        out[column] = series.map(lambda value: safe_cell(value) if isinstance(value, str) else value).astype(object)
+    return out
+
+
+def guard_xlsx(path):
+    """Force formula-like text cells to stay text, including files not written by pandas."""
+    from openpyxl import load_workbook
+    book = load_workbook(path)
+    changed = False
+    for sheet in book.worksheets:
+        for row in sheet.iter_rows():
+            for cell in row:
+                value = cell.value
+                if isinstance(value, str) and value[:1] in _FORMULA:
+                    cell.data_type = "s"
+                    cell.quotePrefix = True
+                    changed = True
+    if changed:
+        book.save(path)
+    return path
+
+
+def _frames_need_guard(*frames):
+    for frame in frames:
+        if frame is None or not hasattr(frame, "columns"):
+            continue
+        for column in frame.columns:
+            series = frame[column]
+            if not _text_column(series):
+                continue
+            for value in series:
+                if isinstance(value, str) and value[:1] in _FORMULA:
+                    return True
+    return False
+
+
 def _file_busy(error):
     if isinstance(error, PermissionError):
         return True
@@ -92,5 +152,8 @@ def save_excel(path, frame=None, sheets=None):
         if _file_busy(error):
             raise SystemExit(f"請先關閉 {path.name}，然後再試。") from error
         raise
+    frames = list(sheets.values()) if sheets is not None else [frame]
+    if _frames_need_guard(*frames):
+        guard_xlsx(path)
     clear_reads()
     return path

@@ -434,9 +434,10 @@ def _paint_bonus(frame):
 
 
 def _export_late(shown, month_key):
+    from payroll.core.excel_io import safe_frame
     view = shown.drop(columns=["group", "roster_names"], errors="ignore").rename(columns=_LATE_LABELS)
     buffer = BytesIO()
-    view.to_excel(buffer, index=False)
+    safe_frame(view).to_excel(buffer, index=False)
     from openpyxl import load_workbook
     from openpyxl.styles import Alignment
     book = load_workbook(buffer)

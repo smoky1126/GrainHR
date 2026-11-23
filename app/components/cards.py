@@ -1,12 +1,17 @@
+from html import escape
+
 import streamlit as st
 
 from app.components.chips import _chip_html
 
+def _safe(value):
+    return escape(str(value or ""))
+
 def page_header(title, month, subtitle="", purpose=""):
     line = purpose or subtitle
-    sub = f'<p class="pay-sub">{line}</p>' if line else ""
+    sub = f'<p class="pay-sub">{_safe(line)}</p>' if line else ""
     st.markdown(
-        f'<div class="pay-head"><h1>{title}</h1><span class="pay-pill">{month}</span></div>{sub}',
+        f'<div class="pay-head"><h1>{_safe(title)}</h1><span class="pay-pill">{_safe(month)}</span></div>{sub}',
         unsafe_allow_html=True,
     )
 
@@ -29,11 +34,12 @@ def first_tip(key, text):
         st.rerun()
 
 def kpi(label, value, note="", tone="info"):
+    kind = tone if tone in {"ok", "todo", "block", "info", "muted", "warn", "bad"} else "info"
     st.markdown(
-        f'<div class="pay-kpi pay-kpi-{tone}">'
-        f'<div class="pay-kpi-label">{label}</div>'
-        f'<div class="pay-kpi-value">{value}</div>'
-        f'<div class="pay-kpi-note">{note}</div>'
+        f'<div class="pay-kpi pay-kpi-{kind}">'
+        f'<div class="pay-kpi-label">{_safe(label)}</div>'
+        f'<div class="pay-kpi-value">{_safe(value)}</div>'
+        f'<div class="pay-kpi-note">{_safe(note)}</div>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -42,10 +48,10 @@ def section(title, state, detail):
     words = {"done": "完成", "todo": "未做", "wait": "等候"}
     tones = {"done": "ok", "todo": "todo", "wait": "muted"}
     st.markdown(
-        f'<div class="pay-section"><h3>{title}</h3>{_chip_html(words.get(state, state), tones.get(state, "muted"))}</div>'
-        f'<p class="pay-detail">{detail}</p>',
+        f'<div class="pay-section"><h3>{_safe(title)}</h3>{_chip_html(words.get(state, state), tones.get(state, "muted"))}</div>'
+        f'<p class="pay-detail">{_safe(detail)}</p>',
         unsafe_allow_html=True,
     )
 
 def callout(text):
-    st.markdown(f'<div class="pay-callout">{text}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="pay-callout">{_safe(text)}</div>', unsafe_allow_html=True)

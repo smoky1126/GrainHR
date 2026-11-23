@@ -1,5 +1,6 @@
 """The first screen: one day, one card per shop."""
 
+import html
 from datetime import date, timedelta
 
 import pandas as pd
@@ -309,10 +310,11 @@ def _freshness(updated, exported):
         text, tone, exact = _relative(when)
         kind = tone if tone in {"ok", "warn", "bad", "muted"} else "muted"
         chips.append(
-            f'<span class="gh-badge gh-badge-{kind}" title="{exact}">{label} · {text}</span>'
+            f'<span class="gh-badge gh-badge-{kind}" title="{html.escape(str(exact or ""), quote=True)}">'
+            f'{html.escape(str(label))} · {html.escape(str(text))}</span>'
         )
     if exported:
-        chips.append(f'<span class="gh-badge gh-badge-muted">匯出 · {exported}</span>')
+        chips.append(f'<span class="gh-badge gh-badge-muted">匯出 · {html.escape(str(exported))}</span>')
     st.markdown(f'<div class="gh-strip">{"".join(chips)}</div>', unsafe_allow_html=True)
 
 

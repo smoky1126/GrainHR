@@ -110,7 +110,8 @@ def step_problems(info, status, draft, readonly):
                     with st.expander(f"已批准（{len(done_rows)}）", expanded=view == "已批准"):
                         for _, row in done_rows.iterrows():
                             st.markdown(
-                                f"**{_text(row.slip_name)}** " + '<span class="pay-chip pay-chip-ok">已批准</span>',
+                                f"<strong>{html.escape(_text(row.slip_name))}</strong> "
+                                '<span class="pay-chip pay-chip-ok">已批准</span>',
                                 unsafe_allow_html=True,
                             )
     return draft

@@ -251,14 +251,15 @@ def _context(steps=False):
     slips_ready = bool(st.session_state.get("slips_ready"))
     if steps:
         stepper(step_status(info, draft, staff, table, slips_ready=slips_ready))
+    from html import escape
     if can_edit:
         st.sidebar.markdown(
-            f'<span class="pay-chip pay-chip-ok">你正在處理 {_month_label(info["key"])}</span>',
+            f'<span class="pay-chip pay-chip-ok">你正在處理 {escape(_month_label(info["key"]))}</span>',
             unsafe_allow_html=True,
         )
     else:
         st.sidebar.markdown(
-            f'<span class="pay-chip pay-chip-block">{owner} 正在使用</span>',
+            f'<span class="pay-chip pay-chip-block">{escape(str(owner or ""))} 正在使用</span>',
             unsafe_allow_html=True,
         )
         if st.sidebar.button("接手", help="另一位同事正在處理這個月時，才需要接手。"):
@@ -267,7 +268,8 @@ def _context(steps=False):
     from payroll.core.settings import app_version, display_name
     roles = {"admin": "管理員", "hr": "HR 同事"}
     st.sidebar.markdown(
-        f'<div class="gh-footer">GrainHR v{app_version()}<br>{display_name(who)} · {roles.get(role, "HR 同事")}</div>',
+        f'<div class="gh-footer">GrainHR v{escape(str(app_version()))}<br>'
+        f'{escape(str(display_name(who)))} · {escape(roles.get(role, "HR 同事"))}</div>',
         unsafe_allow_html=True,
     )
     with st.sidebar.expander("進階"):

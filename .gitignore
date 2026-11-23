@@ -27,3 +27,8 @@ tests/test_books.py
 tests/test_october.py
 logs/
 .streamlit/secrets.toml
+rclone.conf
+*.pdf
+.env
+*.json
+!daka_robot/steps.example.json

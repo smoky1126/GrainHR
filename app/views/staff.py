@@ -285,8 +285,9 @@ def _export(rows):
         "annual_entitled", "annual_taken", "annual", "rest",
         "phone", "bank_name",
     ) if column in frame.columns and column not in secret]
+    from payroll.core.excel_io import safe_frame
     buffer = BytesIO()
-    frame[keep].to_excel(buffer, index=False)
+    safe_frame(frame[keep]).to_excel(buffer, index=False)
     st.download_button("下載員工總表", buffer.getvalue(), file_name="員工總表.xlsx", key="staff-export")
 
 

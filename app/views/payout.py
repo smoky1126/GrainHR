@@ -62,7 +62,7 @@ def _confirm_make_all(month_key, books, pay_text):
                     st.session_state.get(f"salref-{book}", ""),
                     st.session_state.get(f"allref-{book}", ""),
                 )
-            run_slips(info, None)
+            run_slips(info, None, books=books)
     except SystemExit as error:
         st.error(str(error))
         return

@@ -151,6 +151,23 @@ def test_an_unknown_key_is_fetched_again():
         _fail(calls["n"])
 
 
+def test_unknown_keys_are_not_fetched_again_immediately():
+    calls = {"n": 0}
+
+    def fetch(url):
+        calls["n"] += 1
+        return _certs()(url)
+
+    clear_key_cache()
+    email_from_token(_token(), team=TEAM, aud=AUD, now=NOW, fetch=_certs())
+    unknown = _token(header={"alg": "RS256", "kid": "missing-key"})
+    email_from_token(unknown, team=TEAM, aud=AUD, now=NOW + 1, fetch=fetch)
+    email_from_token(unknown, team=TEAM, aud=AUD, now=NOW + 2, fetch=fetch)
+    email_from_token(unknown, team=TEAM, aud=AUD, now=NOW + 3, fetch=fetch)
+    if calls["n"] != 1:
+        _fail(f"forced key fetches: {calls['n']}")
+
+
 def test_access_stays_off_on_a_pc():
     saved = {name: os.environ.get(name) for name in (
         "GRAINHR_SERVER", "GRAINHR_ACCESS_TEAM", "GRAINHR_ACCESS_AUD",
@@ -185,5 +202,6 @@ if __name__ == "__main__":
     test_header_beats_the_cookie()
     test_the_wrong_audience_key_or_time_is_rejected()
     test_an_unknown_key_is_fetched_again()
+    test_unknown_keys_are_not_fetched_again_immediately()
     test_access_stays_off_on_a_pc()
     print("access token ok")

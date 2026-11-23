@@ -140,6 +140,7 @@ def _write_pt(info, lines, meta):
 def save_pt_lines(info, records):
     lines, meta = load_pt(info)
     stored = {_text(row.get("employee_no")): row for row in lines.to_dict("records")}
+    changes = {}
     for record in records:
         number = _text(record.get("employee_no"))
         if not number:
@@ -148,7 +149,8 @@ def save_pt_lines(info, records):
         if scheme not in {"mpf", "none"}:
             scheme = "mpf"
         pay_this = _text(record.get("pay_this"))
-        stored[number] = {
+        previous = stored.get(number) or {}
+        updated = {
             "employee_no": number,
             "rate": _num(record.get("rate"), 60),
             "scheme": scheme,
@@ -158,7 +160,16 @@ def save_pt_lines(info, records):
             "account": _text(record.get("account")),
             "pay_this": "N" if pay_this in {"N", "否"} else "Y",
         }
+        stored[number] = updated
+        changes[number] = [
+            (field, previous.get(field, ""), updated[field])
+            for field in ("rate", "scheme", "extra_hours", "extra_note", "bank", "account", "pay_this")
+        ]
     _write_pt(info, pd.DataFrame(list(stored.values()), columns=PT_COLUMNS), meta)
+    from payroll.pay.review import log_changes
+    month = info.get("key", "") if isinstance(info, dict) else ""
+    for number, pairs in changes.items():
+        log_changes(month, number, pairs)
 
 
 def pt_reference(info, company):
@@ -170,9 +181,14 @@ def pt_reference(info, company):
 def set_pt_reference(info, company, value):
     lines, meta = load_pt(info)
     column = f"{company}_reference"
+    old = _text(meta.iloc[0].get(column)) if column in meta.columns and len(meta) else ""
+    new = _text(value)
     meta[column] = meta[column].astype(object)
-    meta.loc[0, column] = _text(value)
+    meta.loc[0, column] = new
     _write_pt(info, lines, meta)
+    from payroll.pay.review import log_changes
+    month = info.get("key", "") if isinstance(info, dict) else ""
+    log_changes(month, company, [(column, old, new)])
 
 
 def _num(value, default):

@@ -1,3 +1,5 @@
+from html import escape
+
 import streamlit as st
 
 from app.components.format import hk
@@ -5,7 +7,7 @@ from payroll.core.money import LATE_GRACE_MINUTES
 
 def _chip_html(text, tone):
     safe = "ok" if tone == "ok" else tone if tone in {"todo", "block", "info", "muted"} else "muted"
-    return f'<span class="pay-chip pay-chip-{safe}">{text}</span>'
+    return f'<span class="pay-chip pay-chip-{safe}">{escape(str(text or ""))}</span>'
 
 def chip(text, tone="info"):
     st.markdown(_chip_html(text, tone), unsafe_allow_html=True)
@@ -29,7 +31,7 @@ def stepper(status):
     for name, key in steps:
         state = status.get(key, "wait")
         items.append(
-            f'<li class="pay-step-{state}"><span>{marks.get(state, "·")}</span>{name}</li>'
+            f'<li class="pay-step-{state}"><span>{escape(marks.get(state, "·"))}</span>{escape(name)}</li>'
         )
     st.sidebar.markdown(f'<ol class="pay-steps">{"".join(items)}</ol>', unsafe_allow_html=True)
     words = {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+- HR staff can no longer download office pay in the "download all" zip, or rebuild office payslips.
+- Names and other text shown as HTML are escaped. Excel exports keep text that starts with = as text.
+- A broken login file stops the app instead of leaving it open. On the server, a person who is not on the list is never an admin.
+- Salary, part-time rate, and new-joiner changes record who made them.
+
 ## 1.2.4
 
 - Shop names, folder paths, office nicknames, and the server account stay in company.toml. The public program only reads them.
