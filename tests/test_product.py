@@ -38,6 +38,34 @@ def test_lock_is_not_rewritten_within_ten_minutes():
         _fail("a stamp older than 10 minutes should be refreshed")
 
 
+def test_someone_else_cannot_save_over_a_fresh_lock():
+    from app.lock import claim, ensure_owner, release
+    info = {"system": HOME / "two"}
+    os.environ["USERNAME"] = "first"
+    os.environ["USER"] = "first"
+    can_edit, owner = claim(info)
+    if not can_edit or owner != "first":
+        _fail((can_edit, owner))
+    os.environ["USERNAME"] = "second"
+    os.environ["USER"] = "second"
+    can_edit, owner = claim(info)
+    if can_edit or owner != "first":
+        _fail((can_edit, owner))
+    try:
+        ensure_owner(info)
+    except SystemExit as error:
+        if "已接手" not in str(error):
+            _fail(error)
+    else:
+        _fail("the second person was allowed to save")
+    release(info, user="second")
+    if not (info["system"] / "使用中.txt").exists():
+        _fail("the second person removed the first person's lock")
+    release(info, user="first")
+    if (info["system"] / "使用中.txt").exists():
+        _fail("the owner could not release the lock")
+
+
 def test_month_punches_uses_the_archive_when_the_month_has_no_copy():
     archive = HOME / "archive"
     data = archive / "Time_in_data"
@@ -168,6 +196,7 @@ def test_settings_reload_when_the_file_changes():
 
 if __name__ == "__main__":
     test_lock_is_not_rewritten_within_ten_minutes()
+    test_someone_else_cannot_save_over_a_fresh_lock()
     test_month_punches_uses_the_archive_when_the_month_has_no_copy()
     test_slip_folders_include_the_second_company_without_a_deep_search()
     test_issued_summary_hides_office_rows_from_hr()

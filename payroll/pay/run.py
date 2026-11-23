@@ -183,6 +183,8 @@ def allowed_books(books, role=None):
 
 
 def run_slips(info, draft=None, books=None):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     from payroll.core.config import book_info
     caller = info.get("book", "bg")
     first = None

@@ -183,7 +183,7 @@ def _row_value(row, column):
 
 
 @st.dialog("新增員工")
-def _add_dialog(group, staff):
+def _add_dialog(group, staff, info=None):
     options = staff_options()
     sheet = _sheet_for(group)
     suggested = next_employee_no(staff, _PREFIX.get(group, "A"))
@@ -195,13 +195,13 @@ def _add_dialog(group, staff):
             st.error("請填員工編號和中文姓名。")
             return
         try:
-            _save(lambda: add_staff(sheet, number, name, fields))
+            _save(lambda: add_staff(sheet, number, name, fields, info=info))
         except SystemExit as error:
             st.error(str(error))
 
 
 @st.dialog("修改資料")
-def _edit_dialog(row, staff):
+def _edit_dialog(row, staff, info=None):
     options = staff_options()
     fields = _collect(options, row["group"], row, "edit", hide_bank=not _office_open(row.get("group")))
     original = {_name: _original(row, _name) for _name, _kind in _field_map(row["group"])}
@@ -210,7 +210,9 @@ def _edit_dialog(row, staff):
         if not changed:
             st.rerun()
         try:
-            _save(lambda: edit_staff(row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"], changed))
+            _save(lambda: edit_staff(
+                row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"], changed, info=info,
+            ))
         except SystemExit as error:
             st.error(str(error))
 
@@ -246,12 +248,15 @@ def _collect(options, group, row, prefix, hide_bank=False):
 
 
 @st.dialog("離職")
-def _resign_dialog(row):
+def _resign_dialog(row, info=None):
+    st.write(f"將 {row['name_zh']} 標成離職。確定後不能在這裡復原。")
     picked = st.date_input("離職日期", value=date.today(), format="YYYY-MM-DD")
-    if st.button("確定離職", type="primary"):
+    sure = st.checkbox("我確定這位同事離職")
+    if st.button("確定離職", type="primary", disabled=not sure):
         try:
             _save(lambda: resign_staff(
-                row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"], picked.isoformat(),
+                row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"],
+                picked.isoformat(), info=info,
             ))
         except SystemExit as error:
             st.error(str(error))
@@ -260,14 +265,22 @@ def _resign_dialog(row):
 @st.dialog("調整薪金")
 def _salary_dialog(row, info):
     label = "新時薪" if row["pay_basis"] == "時薪" else "新月薪"
-    amount = st.number_input(label, min_value=0.0, step=1.0, format="%.2f")
+    try:
+        current = float(row.get("salary") or 0)
+    except (TypeError, ValueError):
+        current = 0.0
+    st.caption(f"目前是 {current:.2f}")
+    amount = st.number_input(
+        label, min_value=0.01, max_value=10000000.0, value=max(current, 0.01), step=1.0, format="%.2f",
+    )
+    st.write(f"由 {current:.2f} 改為 {amount:.2f}")
     if st.button("確定", type="primary"):
         try:
             with st.spinner("正在寫入薪金…"):
                 if row["pay_basis"] == "時薪":
                     set_hourly_rate(info, row["employee_no"], amount)
                 else:
-                    set_monthly_salary(row["book_key"], row["employee_no"], amount)
+                    set_monthly_salary(row["book_key"], row["employee_no"], amount, info=info)
             st.session_state.pop("draft", None)
             st.toast("已更新薪金。")
             st.rerun()
@@ -364,11 +377,11 @@ def render(info, readonly, staff, demo, month_label):
         person = shown[labels_people.index(choice)] if choice in labels_people else shown[0]
         action = _profile(person, info, locked)
     if add_clicked:
-        _add_dialog(group_key, staff)
+        _add_dialog(group_key, staff, info)
     elif person is not None and action == "edit":
-        _edit_dialog(person, staff)
+        _edit_dialog(person, staff, info)
     elif person is not None and action == "resign":
-        _resign_dialog(person)
+        _resign_dialog(person, info)
     elif person is not None and action == "salary":
         _salary_dialog(person, info)
 
@@ -376,5 +389,5 @@ def render(info, readonly, staff, demo, month_label):
 def page_staff():
     from app.context import DEMO, _context, _month_label
 
-    info, readonly, _draft, people, _table = _context()
+    info, readonly, _draft, people, _table = _context(edit=True)
     render(info, readonly, people, demo=DEMO, month_label=_month_label(info["key"]))

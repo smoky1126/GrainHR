@@ -38,7 +38,7 @@ from app.views.review_cards import step_problems
 def page_review():
     from app.components.cards import empty_state
     from payroll.core.history import is_issued
-    info, readonly, draft, staff, table = _context(steps=True)
+    info, readonly, draft, staff, table = _context(steps=True, edit=True)
     page_header("審核", _month_label(info["key"]), purpose="核對遲到、加班和例外。批准後才能出糧。")
     if is_issued(info["key"]):
         empty_state("這個月已出糧", "已發出的糧單不會再審核。", "前往月份紀錄", "pages/records.py")

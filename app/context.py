@@ -220,7 +220,17 @@ def _blocked(draft, book):
     approved = group["approved"].astype(str).str.strip().str.upper().isin(["Y", "是"])
     return group[group["pay_this"].astype(bool) & needs & ~approved]
 
-def _context(steps=False):
+@st.dialog("接手這個月")
+def _confirm_takeover(month_key, owner):
+    st.write(f"{owner} 正在處理這個月。接手後，對方未儲存的畫面不能再儲存。")
+    if not st.button("確定接手", type="primary"):
+        return
+    from payroll.core.config import parse_month
+    claim(parse_month(month_key), take_over=True)
+    st.rerun()
+
+
+def _context(steps=False, edit=False):
     inject()
     show_logo()
     if DEMO:
@@ -235,11 +245,11 @@ def _context(steps=False):
     who = _user()
     role = role_for(who)
     issued = is_issued(info["key"])
-    if issued:
-        can_edit, owner = False, ""
+    if issued or not edit:
+        can_edit, owner = not issued, ""
     else:
         can_edit, owner = claim(info)
-    readonly = issued or not can_edit
+    readonly = issued or (edit and not can_edit)
     if issued:
         st.markdown(
             '<div class="payroll-banner">這個月已經出糧，糧單、更表和出勤只供查看，不會再計算。</div>',
@@ -252,19 +262,18 @@ def _context(steps=False):
     if steps:
         stepper(step_status(info, draft, staff, table, slips_ready=slips_ready))
     from html import escape
-    if can_edit:
+    if edit and can_edit and not issued:
         st.sidebar.markdown(
             f'<span class="pay-chip pay-chip-ok">你正在處理 {escape(_month_label(info["key"]))}</span>',
             unsafe_allow_html=True,
         )
-    else:
+    elif edit and not can_edit:
         st.sidebar.markdown(
             f'<span class="pay-chip pay-chip-block">{escape(str(owner or ""))} 正在使用</span>',
             unsafe_allow_html=True,
         )
         if st.sidebar.button("接手", help="另一位同事正在處理這個月時，才需要接手。"):
-            claim(info, take_over=True)
-            st.rerun()
+            _confirm_takeover(info["key"], owner)
     from payroll.core.settings import app_version, display_name
     roles = {"admin": "管理員", "hr": "HR 同事"}
     st.sidebar.markdown(
@@ -272,28 +281,29 @@ def _context(steps=False):
         f'{escape(str(display_name(who)))} · {escape(roles.get(role, "HR 同事"))}</div>',
         unsafe_allow_html=True,
     )
-    with st.sidebar.expander("進階"):
-        if st.button("立即同步 DAKA", disabled=readonly or DEMO, help="向打卡伺服器要最新的打卡，大約一分鐘。"):
-            _pull_daka(force=True)
-            st.rerun()
-        if st.button("重新檢查", disabled=readonly, help="用現有打卡和更表再核對一次出勤。"):
-            try:
-                run_check(info, open_workbook=False, fetch=not DEMO)
-            except PermissionError:
-                st.error("請先關閉 Excel 中的考勤核對表，然後再按重新檢查。")
-            except SystemExit as error:
-                st.error(str(error))
-            else:
-                st.session_state.pop("draft", None)
-                st.session_state["dirty"] = True
+    if edit:
+        with st.sidebar.expander("進階"):
+            if st.button("立即同步 DAKA", disabled=readonly or DEMO, help="向打卡伺服器要最新的打卡，大約一分鐘。"):
+                _pull_daka(force=True)
                 st.rerun()
-        if DEMO and st.button("重設示範"):
-            from payroll.setup.demo import build_demo
-            try:
-                build_demo(force=True)
-            except OSError as error:
-                st.error(f"未能重設：{error}")
-            else:
-                st.session_state.clear()
-                st.rerun()
+            if st.button("重新檢查", disabled=readonly, help="用現有打卡和更表再核對一次出勤。"):
+                try:
+                    run_check(info, open_workbook=False, fetch=not DEMO)
+                except PermissionError:
+                    st.error("請先關閉 Excel 中的考勤核對表，然後再按重新檢查。")
+                except SystemExit as error:
+                    st.error(str(error))
+                else:
+                    st.session_state.pop("draft", None)
+                    st.session_state["dirty"] = True
+                    st.rerun()
+            if DEMO and st.button("重設示範"):
+                from payroll.setup.demo import build_demo
+                try:
+                    build_demo(force=True)
+                except OSError as error:
+                    st.error(f"未能重設：{error}")
+                else:
+                    st.session_state.clear()
+                    st.rerun()
     return info, readonly, draft, staff, table

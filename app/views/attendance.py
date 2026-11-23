@@ -601,7 +601,7 @@ def _late_report(info, staff):
 
 def page_attendance():
     _pull_daka()
-    info, readonly, draft, staff, _table = _context(steps=True)
+    info, readonly, draft, staff, _table = _context(steps=True, edit=True)
     status = step_status(info, draft, staff, _table)
     page_header("出勤紀錄", _month_label(info["key"]), purpose="核對打卡、更表、遲到和加班。已出糧的月份只供查看。")
     daily, late = st.tabs(["每日紀錄", "遲到統計"], on_change="rerun", key="attendance-tabs")

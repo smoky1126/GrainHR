@@ -101,6 +101,8 @@ def _allow_known_user(who, streamlit_logout):
         if streamlit_logout is None:
             _logout_link("登出")
         elif st.button("登出", key="grainhr-logout"):
+            from app.lock import release_all
+            release_all()
             streamlit_logout()
     return True
 
@@ -121,4 +123,7 @@ def logout_url():
 def _logout_link(label):
     # The native link button opens a new tab, which would leave this tab signed in.
     url = escape(logout_url(), quote=True)
-    st.html(f'<a href="{url}">{escape(label)}</a>')
+    if st.button(label, key=f"grainhr-out-{label}"):
+        from app.lock import release_all
+        release_all()
+        st.html(f'<meta http-equiv="refresh" content="0;url={url}">')

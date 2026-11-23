@@ -138,6 +138,8 @@ def _write_pt(info, lines, meta):
 
 
 def save_pt_lines(info, records):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     lines, meta = load_pt(info)
     stored = {_text(row.get("employee_no")): row for row in lines.to_dict("records")}
     changes = {}
@@ -179,6 +181,8 @@ def pt_reference(info, company):
 
 
 def set_pt_reference(info, company, value):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     lines, meta = load_pt(info)
     column = f"{company}_reference"
     old = _text(meta.iloc[0].get(column)) if column in meta.columns and len(meta) else ""

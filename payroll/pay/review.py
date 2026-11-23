@@ -477,7 +477,9 @@ def _allowance_desc(desc, transport, health):
     return ""
 
 
-def apply_pay(rows, book="bg"):
+def apply_pay(rows, book="bg", info=None):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     from payroll.staff.staff import PAY_COLUMNS, ensure_pay_table, pay_table_path
     table = ensure_pay_table(book=book)
     table["employee_no"] = table["employee_no"].map(lambda value: "" if _blank(value) else str(value).strip())
@@ -700,6 +702,8 @@ def _record_audit(info, rows):
 
 def apply_review(info, edits):
     """Save review edits. A staff id with no line yet gets one, so a new joiner can be approved."""
+    from app.lock import ensure_owner
+    ensure_owner(info)
     from datetime import datetime
 
     from payroll.core.excel_io import save_excel

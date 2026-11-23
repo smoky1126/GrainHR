@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+- Opening a page that only displays information no longer locks the month. A save is refused when someone else has taken over.
+- Taking over, making one payslip, and marking someone as resigned ask for confirmation. Salary amounts have a minimum and a maximum, and the salary change shows the old and new figures.
+- The part-time transaction number is stored when its save button is pressed. Logging out releases the month lock.
+
 ## 1.3.0
 
 - HR staff can no longer download office pay in the "download all" zip, or rebuild office payslips.

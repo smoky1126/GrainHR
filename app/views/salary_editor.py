@@ -82,9 +82,13 @@ def _pt_editor(info, readonly):
             "employee_no": st.column_config.TextColumn("員工編號", disabled=True, pinned=True),
             "name": st.column_config.TextColumn("姓名", disabled=True, pinned=True),
             "hours": st.column_config.NumberColumn("更表時數", disabled=True, format="%.2f"),
-            "extra_hours": st.column_config.NumberColumn("其他時數", disabled=readonly, format="%.2f"),
+            "extra_hours": st.column_config.NumberColumn(
+                "其他時數", disabled=readonly, format="%.2f", min_value=-400, max_value=400,
+            ),
             "extra_note": st.column_config.TextColumn("備註", disabled=readonly),
-            "rate": st.column_config.NumberColumn("時薪", disabled=readonly, format="%.2f"),
+            "rate": st.column_config.NumberColumn(
+                "時薪", disabled=readonly, format="%.2f", min_value=0, max_value=10000,
+            ),
             "salary": st.column_config.NumberColumn("薪金", disabled=True, format="accounting"),
             "employer_mpf": st.column_config.NumberColumn("僱主強積金", disabled=True, format="accounting"),
             "employee_mpf": st.column_config.NumberColumn("僱員強積金", disabled=True, format="accounting"),
@@ -194,9 +198,12 @@ def _salary_editor(info, readonly):
         elif key in _MONEY_COLUMNS:
             config[key] = st.column_config.NumberColumn(
                 label, disabled=locked, format="accounting", pinned=pinned, help=help_text,
+                min_value=0, max_value=10000000,
             )
         elif key in numbers:
-            config[key] = st.column_config.NumberColumn(label, disabled=locked, pinned=pinned, help=help_text)
+            config[key] = st.column_config.NumberColumn(
+                label, disabled=locked, pinned=pinned, help=help_text, min_value=0, max_value=31,
+            )
         else:
             config[key] = st.column_config.TextColumn(
                 label, disabled=locked, pinned=pinned, help=help_text,
@@ -216,7 +223,7 @@ def _salary_editor(info, readonly):
     if readonly or not st.button("儲存薪金", type="primary", disabled=readonly):
         return
     try:
-        apply_pay(edited.to_dict("records"), book=book)
+        apply_pay(edited.to_dict("records"), book=book, info=info)
     except SystemExit as error:
         st.error(str(error))
         return

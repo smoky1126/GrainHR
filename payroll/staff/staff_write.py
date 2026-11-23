@@ -256,16 +256,22 @@ def _apply(action, sheet, employee_no, name_zh, fields, path=None):
     return after
 
 
-def add_staff(sheet, employee_no, name_zh, fields, path=None):
+def add_staff(sheet, employee_no, name_zh, fields, path=None, info=None):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     return _apply("add", sheet, employee_no, name_zh, fields, path)
 
 
-def edit_staff(sheet, employee_no, name_zh, fields, path=None):
+def edit_staff(sheet, employee_no, name_zh, fields, path=None, info=None):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     changed = {key: value for key, value in fields.items() if key not in {"員工編號", "中文姓名"}}
     return _apply("edit", sheet, employee_no, name_zh, changed, path)
 
 
-def resign_staff(sheet, employee_no, name_zh, leave_date, path=None):
+def resign_staff(sheet, employee_no, name_zh, leave_date, path=None, info=None):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     return _apply("resign", sheet, employee_no, name_zh, {
         "僱傭狀況": "已離職",
         "離職日期": _text(leave_date),
@@ -298,7 +304,9 @@ def _salary_log(employee_no, old, new, kind, user=None):
     save_excel(path, row)
 
 
-def set_monthly_salary(book, employee_no, amount):
+def set_monthly_salary(book, employee_no, amount, info=None):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     path = pay_table_path(book)
     if not path.exists():
         raise SystemExit("這個人不在薪金表。")
@@ -322,6 +330,8 @@ def set_monthly_salary(book, employee_no, amount):
 
 
 def set_hourly_rate(info, employee_no, rate):
+    from app.lock import ensure_owner
+    ensure_owner(info)
     from payroll.pay.part_time import load_pt, save_pt_lines
     try:
         rate = float(rate)

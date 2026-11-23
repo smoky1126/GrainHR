@@ -72,6 +72,57 @@ def _confirm_make_all(month_key, books, pay_text):
     st.toast("糧單已製作")
     st.rerun()
 
+
+@st.dialog("製作這份糧單")
+def _confirm_make_one(month_key, book, label, pay_text, present):
+    st.write(f"將製作{label}糧單。已有的糧單會被覆蓋。出糧日期是 {pay_text}。")
+    if not st.button("確定製作", type="primary", key=f"yes-slip-{book}"):
+        return
+    info = parse_month(month_key)
+    try:
+        with st.spinner("正在製作糧單，請稍候"):
+            for other in present:
+                apply_pay_date(book_info(info, other), pay_text)
+            booked = book_info(info, book)
+            set_batch(booked, int(st.session_state[f"batch-{book}"]))
+            set_refs(
+                booked,
+                st.session_state.get(f"salref-{book}", ""),
+                st.session_state.get(f"allref-{book}", ""),
+            )
+            run_slips(info, None, books=[book])
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    st.session_state["slips_ready"] = True
+    st.session_state["dirty"] = False
+    st.session_state.pop("drafts", None)
+    st.toast(f"{label}糧單已製作")
+    st.rerun()
+
+
+@st.dialog("製作個人糧單")
+def _confirm_person(month_key, book, staff_id, name):
+    st.write(f"將製作 {name} 的糧單。已有的個人糧單會被覆蓋。")
+    if not st.button("確定製作", type="primary", key="yes-person"):
+        return
+    info = parse_month(month_key)
+    draft = _drafts(info)
+    booked = book_info(info, book or "bg")
+    one = draft[(draft["staff_id"].astype(str) == staff_id) & (draft["book"].astype(str) == book)] if draft is not None and "book" in draft.columns else draft
+    try:
+        if book == "admin":
+            from payroll.documents.slips_admin import write_person_slip
+        else:
+            from payroll.documents.slips import write_person_slip
+        with st.spinner("正在製作個人糧單，請稍候"):
+            path = write_person_slip(booked, one if one is not None and len(one) else draft, staff_id)
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    st.toast(f"已製作 {path.name}")
+    st.download_button("下載這份糧單", path.read_bytes(), file_name=path.name, key="one-slip")
+
 def step_pay(info, status, draft, readonly):
     if status["pay"] == "wait":
         _mark("4. 出糧", "wait", "請先完成「新同事」。")
@@ -128,22 +179,7 @@ def step_pay(info, status, draft, readonly):
                     names = "、".join(_text(name) for name in blocked["slip_name"].head(8))
                     st.caption(f"還有 {waiting} 人未批准（{names}），未能製作這份糧單。")
                 if not readonly and st.button(f"製作{label}糧單", disabled=waiting > 0):
-                    try:
-                        pay_text = format_pay_date(picked)
-                        with st.spinner("正在製作糧單，請稍候"):
-                            for other in present:
-                                apply_pay_date(book_info(info, other), pay_text)
-                            set_batch(booked, int(st.session_state[f"batch-{book}"]))
-                            set_refs(booked, salary, st.session_state.get(f"allref-{book}", ""))
-                            run_slips(info, None, books=[book])
-                    except SystemExit as error:
-                        st.error(str(error))
-                    else:
-                        st.session_state["slips_ready"] = True
-                        st.session_state["dirty"] = False
-                        st.session_state.pop("drafts", None)
-                        st.toast(f"{label}糧單已製作")
-                        st.rerun()
+                    _confirm_make_one(info["key"], book, label, format_pay_date(picked), tuple(present))
                 slips = booked["slip_output"]
                 if slips.exists():
                     st.download_button(f"下載{label}糧單", slips.read_bytes(), file_name=slips.name, key=f"down-{book}")
@@ -164,20 +200,7 @@ def step_pay(info, status, draft, readonly):
             chosen = st.selectbox("個人糧單", labels)
             if st.button("製作這個人的糧單"):
                 index = labels.index(chosen)
-                booked = book_info(info, books_for[index] or "bg")
-                one = draft[(draft["staff_id"].astype(str) == ids[index]) & (draft["book"].astype(str) == books_for[index])]
-                try:
-                    if books_for[index] == "admin":
-                        from payroll.documents.slips_admin import write_person_slip
-                    else:
-                        from payroll.documents.slips import write_person_slip
-                    with st.spinner("正在製作個人糧單，請稍候"):
-                        path = write_person_slip(booked, one if len(one) else draft, ids[index])
-                except SystemExit as error:
-                    st.error(str(error))
-                else:
-                    st.toast(f"已製作 {path.name}")
-                    st.download_button("下載這份糧單", path.read_bytes(), file_name=path.name, key="one-slip")
+                _confirm_person(info["key"], books_for[index] or "bg", ids[index], labels[index])
     from app.access import see_pay
     report = info["output"] / "payroll_draft.xlsx"
     if see_pay("admin") and not readonly and st.button("匯出 Excel 報告"):
@@ -217,13 +240,14 @@ def _pt_payout(info, readonly):
                 typed = st.text_input(
                     f"{label}交易編號", value=stored, disabled=readonly, key=f"ptref-{info['key']}-{company}",
                 )
-                if not readonly and _text(typed) != stored:
+                if not readonly and st.button(f"儲存{label}交易編號", key=f"save-ptref-{company}"):
                     try:
                         set_pt_reference(info, company, typed)
                     except SystemExit as error:
                         st.error(str(error))
                     else:
-                        stored = _text(typed)
+                        st.toast("交易編號已儲存")
+                        st.rerun()
                 if not stored:
                     st.warning(f"{label}未填交易編號。總表上的交易編號會是空白。")
                 data = summary_book(info, company, rows, stored)
@@ -237,7 +261,7 @@ def _pt_payout(info, readonly):
 def page_payout():
     from app.components.cards import empty_state, first_tip
     from payroll.core.history import is_issued
-    info, readonly, draft, staff, table = _context(steps=True)
+    info, readonly, draft, staff, table = _context(steps=True, edit=True)
     page_header("出糧", _month_label(info["key"]), purpose="選出糧日期，然後製作糧單。")
     if is_issued(info["key"]):
         empty_state("這個月已出糧", "糧單已經發出，可以在月份紀錄下載。", "前往月份紀錄", "pages/records.py")

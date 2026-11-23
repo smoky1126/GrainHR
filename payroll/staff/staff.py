@@ -645,6 +645,8 @@ def add_new_joiner(info, employee_no, name, salary, scheme, roster_name, book="b
     from payroll.core.labels import SCHEME_STORED, store
     from payroll.pay.review import apply_review
 
+    from app.lock import ensure_owner
+    ensure_owner(info)
     table = ensure_pay_table(book=book)
     table["employee_no"] = table["employee_no"].map(_text)
     table["staff_id"] = table["staff_id"].map(_text)
