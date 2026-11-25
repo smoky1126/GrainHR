@@ -194,27 +194,35 @@ def half_hour_units(clock_in, clock_out):
     return ((end - start + 15) // 30) / 2
 
 
-def pair_hours(clocks):
-    """Hours for each 上班 followed by a 下班. A lunch break is its own pair and is not added."""
-    amounts = []
-    pending = None
-    for kind, clock in clocks:
-        if kind == "上班":
-            pending = clock
-        elif kind == "下班" and pending is not None:
-            amount = half_hour_units(pending, clock)
-            if amount:
-                amounts.append(amount)
-            pending = None
-    return amounts
+def scheduled_hours(roster_cell, overtime=0, early_minutes=0):
+    """Roster length, plus overtime, minus early leave. An early clock-in does not add time.
 
-
-def hours_text(amounts):
-    if not amounts:
+    Overtime is already in half hours. Early leave is in minutes and is taken off
+    in the same half-hour steps shown as 已補.
+    """
+    total = 0.0
+    found = False
+    for match in SHIFT.finditer(_text(roster_cell)):
+        start, end = [part.strip() for part in match.group(0).split("-")]
+        amount = half_hour_units(start, end)
+        if amount:
+            total += amount
+            found = True
+    if not found:
         return ""
-    if len(amounts) == 1:
-        return _hour_label(amounts[0])
-    return " + ".join(_hour_label(amount) for amount in amounts) + " = " + _hour_label(sum(amounts))
+    try:
+        extra = float(overtime or 0)
+    except (TypeError, ValueError):
+        extra = 0.0
+    try:
+        early = int(float(early_minutes or 0))
+    except (TypeError, ValueError):
+        early = 0
+    deduct = ((early + 29) // 30) * 0.5 if early > 0 else 0
+    worked = total + extra - deduct
+    if worked <= 0:
+        return ""
+    return _hour_label(worked)
 
 
 def _minutes(value):

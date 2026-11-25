@@ -237,20 +237,18 @@ def test_second_company_is_separate_from_the_central_kitchen():
         raise SystemExit(f"a paired building was treated as the wrong shop: {days.iloc[0]['Status']}")
 
 
-def test_worked_hours_use_half_hour_steps():
-    from payroll.attendance.days import half_hour_units, hours_text, pair_hours
+def test_worked_hours_follow_the_roster():
+    from payroll.attendance.days import half_hour_units, scheduled_hours
     if half_hour_units("7:00", "16:30") != 9.5:
         raise SystemExit(half_hour_units("7:00", "16:30"))
-    if half_hour_units("07:07", "16:30") != 9.5:
-        raise SystemExit(half_hour_units("07:07", "16:30"))
-    parts = pair_hours([
-        ("上班", "7:07"), ("下班", "12:26"),
-        ("上班", "13:22"), ("下班", "16:30"),
-    ])
-    if parts != [5.5, 3.0] or hours_text(parts) != "5.5 + 3 = 8.5":
-        raise SystemExit((parts, hours_text(parts)))
-    if hours_text([9.5]) != "9.5":
-        raise SystemExit(hours_text([9.5]))
+    if scheduled_hours("09:00-17:00", 0, 0) != "8":
+        raise SystemExit(scheduled_hours("09:00-17:00", 0, 0))
+    if scheduled_hours("07:00-16:30", 0, 0) != "9.5":
+        raise SystemExit(scheduled_hours("07:00-16:30", 0, 0))
+    if scheduled_hours("09:00-17:00", 0.5, 0) != "8.5":
+        raise SystemExit("overtime should be added")
+    if scheduled_hours("09:00-17:00", 0, 20) != "7.5":
+        raise SystemExit(scheduled_hours("09:00-17:00", 0, 20))
 
 
 def main():
@@ -266,7 +264,7 @@ def main():
     test_lunch_pair_is_not_clock_out()
     test_split_shop_uses_morning_and_afternoon()
     test_second_company_is_separate_from_the_central_kitchen()
-    test_worked_hours_use_half_hour_steps()
+    test_worked_hours_follow_the_roster()
     print("day checks ok")
     return 0
 

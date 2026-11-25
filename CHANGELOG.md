@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.11
+
+- Worked hours follow the roster. Clocking in early does not add time. Overtime is added and early leave is taken off.
+
 ## 1.6.10
 
 - Daily attendance shows the hours of each clock-in and clock-out, in steps of 0.5. 7:00–16:30 is 9.5. A lunch break is not counted.
