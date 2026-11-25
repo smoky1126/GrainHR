@@ -225,6 +225,20 @@ def scheduled_hours(roster_cell, overtime=0, early_minutes=0):
     return _hour_label(worked)
 
 
+def day_hours(roster_cell, overtime=0, early_minutes=0, clock_in="", clock_out="", status=""):
+    """Roster length plus overtime minus early leave.
+
+    A rest day has no roster length. A punch on that day is counted from the
+    clock-in to the clock-out.
+    """
+    if "休息日有打卡" in _text(status):
+        amount = half_hour_units(clock_in, clock_out)
+        return _hour_label(amount) if amount else ""
+    if "缺卡" in _text(status) or not _text(clock_in) or not _text(clock_out):
+        return ""
+    return scheduled_hours(roster_cell, overtime, early_minutes)
+
+
 def _minutes(value):
     text = _text(value).replace("：", ":")
     found = re.search(r"(\d{1,2}):(\d{2})", text)

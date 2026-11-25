@@ -275,15 +275,15 @@ def _choose(key, options, default):
 
 def _with_hours(shown):
     """工時 is the roster length, plus overtime, minus early leave."""
-    from payroll.attendance.days import scheduled_hours
+    from payroll.attendance.days import day_hours
 
     labels = []
     for _, row in shown.iterrows():
         status = _text(row.get("Status"))
-        if "缺卡" in status or not _text(row.get("DAKA in")) or not _text(row.get("DAKA out")):
-            labels.append("")
-            continue
-        labels.append(scheduled_hours(row.get("Roster cell"), row.get("OT"), row.get("Early")))
+        labels.append(day_hours(
+            row.get("Roster cell"), row.get("OT"), row.get("Early"),
+            row.get("DAKA in"), row.get("DAKA out"), status,
+        ))
     stamped = shown.copy()
     stamped["工時"] = labels
     return stamped
@@ -316,7 +316,7 @@ def _day_table(frame):
             "下班": st.column_config.TextColumn("下班", width="small"),
             "工時": st.column_config.TextColumn(
                 "工時", width="medium",
-                help="更表時數加加班，減早退。早到不算開工。7:00–16:30 的更是 9.5。",
+                help="平常是更表時數加加班，減早退。休息日有打卡則按上班到下班計算。",
             ),
             "遲到": st.column_config.NumberColumn("遲到", width="small"),
             "早退": st.column_config.NumberColumn("早退", width="small"),

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.12
+
+- A rest day with a punch now shows the hours from clock-in to clock-out.
+
 ## 1.6.11
 
 - Worked hours follow the roster. Clocking in early does not add time. Overtime is added and early leave is taken off.

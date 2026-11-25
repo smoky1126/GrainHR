@@ -249,6 +249,9 @@ def test_worked_hours_follow_the_roster():
         raise SystemExit("overtime should be added")
     if scheduled_hours("09:00-17:00", 0, 20) != "7.5":
         raise SystemExit(scheduled_hours("09:00-17:00", 0, 20))
+    from payroll.attendance.days import day_hours
+    if day_hours("休息", 0, 0, "8:36", "17:03", "休息日有打卡") != "8.5":
+        raise SystemExit(day_hours("休息", 0, 0, "8:36", "17:03", "休息日有打卡"))
 
 
 def main():
