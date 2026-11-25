@@ -187,7 +187,15 @@ def test_future_shifts_are_counted_before_the_last_day():
         raise SystemExit(summary)
 
 
-def test_a_note_about_the_last_day_does_not_block_early_pay():
+def test_early_pay_does_not_wait_for_the_month_review():
+    from payroll.pay.early import early_hold
+    note = "本月離職：只計 1/11–19/11 基本薪金（19 天）。"
+    if early_hold({"review": note, "approved": ""}):
+        raise SystemExit(early_hold({"review": note, "approved": ""}))
+    if "勤工獎" not in early_hold({"review": "10月 $300 已累積，未發放。請選擇發放或不發放。", "approved": "Y"}):
+        raise SystemExit("bonus choice was ignored")
+    if "缺勤" not in early_hold({"review": "", "absence_pending": "11/5", "approved": "Y"}):
+        raise SystemExit("an open absence was ignored")
     note = "本月離職：只計 1/11–21/11 基本薪金；未到最後工作日的更表，先按更表計算，不當作缺卡。"
     if needs_approval({"review": note, "approved": ""}, prior=True):
         raise SystemExit(needs_approval({"review": note, "approved": ""}, prior=True))
@@ -214,7 +222,7 @@ def main():
     test_record_is_kept_and_a_second_pay_is_refused()
     test_recorded_part_time_is_left_out_of_the_summary()
     test_future_shifts_are_counted_before_the_last_day()
-    test_a_note_about_the_last_day_does_not_block_early_pay()
+    test_early_pay_does_not_wait_for_the_month_review()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

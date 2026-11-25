@@ -8,7 +8,7 @@ import streamlit as st
 from app.components.format import hk
 from payroll.core.config import parse_month
 from payroll.core.labels import BOOKS
-from payroll.pay.early import issue_early, latest_early, month_leavers, needs_approval, open_people, quote_early
+from payroll.pay.early import early_hold, issue_early, latest_early, month_leavers, open_people, quote_early
 from payroll.pay.part_time import PT_BOOKS, build_pt, clip_days
 from payroll.staff.staff import _text, load_staff
 
@@ -116,13 +116,15 @@ def _card(info, draft, person, record, part_rows, readonly):
             elif not bool(row.get("pay_this")):
                 reason = "這個人本月不發薪。"
             else:
-                prior = hasattr(left, "year") and left >= date.today()
-                if not prior:
-                    reason = needs_approval(row)
+                reason = early_hold(row)
                 amount = row.get("net")
         amount_text = hk(amount)
         if amount_text:
             st.write(f"預計過數 {amount_text}")
+        if person["kind"] == "full" and row is not None:
+            note = _text(row.get("review"))
+            if note and note.lower() != "nan":
+                st.caption(note)
         if hasattr(left, "year") and left >= date.today():
             st.caption("最後工作日之前可以先出。還沒打卡的日子按更表計算，不當作缺卡。")
         if reason:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.16
+
+- Early pay for one person no longer waits for the month review page. That page stays locked until new staff are finished.
+
 ## 1.6.15
 
 - Opening a month no longer crashes while checking who was already paid early.

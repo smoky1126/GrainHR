@@ -103,6 +103,20 @@ def leaving_this_month(record, info):
 _PRIOR_NOTES = ("本月離職", "本月入職", "未到最後工作日的更表")
 
 
+def early_hold(row):
+    """Amount problems for one early slip. Confirming the slip covers the rest.
+
+    The month review page stays locked until new staff are finished, so this
+    person cannot be approved there yet.
+    """
+    review = _text(row.get("review"))
+    if "請選擇發放或不發放" in review:
+        return "請先選擇勤工獎發放或不發放。"
+    if _text(row.get("absence_pending")):
+        return "請先確認缺勤。"
+    return ""
+
+
 def needs_approval(row, prior=False):
     """The same gate as a normal slip: approve this person before paying them.
 
@@ -270,7 +284,7 @@ def quote_early(info, employee_no, last_day, book=None, kind=None):
         _booked, _draft, row = _full_calculation(info, person)
         net = row.get("net")
         period = _text(row.get("period"))
-        reason = needs_approval(row, prior=prior)
+        reason = early_hold(row)
     try:
         amount = float(net)
     except (TypeError, ValueError):
@@ -414,8 +428,7 @@ def _safe_name(name, fallback):
 
 def _issue_full(info, person, pay_date):
     booked, draft, row = _full_calculation(info, person)
-    prior = person["leave_date"] >= date.today()
-    reason = needs_approval(row, prior=prior)
+    reason = early_hold(row)
     if reason:
         raise SystemExit(reason)
     staff_id = _text(row.get("staff_id"))
