@@ -573,6 +573,8 @@ def _build_draft(info, facts, book):
             line_by_id[staff_id] = row
     duplicate_ids = set(staff.loc[employed, "employee_no"].value_counts().loc[lambda counts: counts > 1].index)
     days = info["days"]
+    from payroll.pay.early import EARLY_NOTE, early_keys, include_in_month_pay
+    paid_ids, paid_numbers = early_keys(info)
     rows = []
     matched_names = set()
 
@@ -741,6 +743,8 @@ def _build_draft(info, facts, book):
             if note and not any("勤工獎" in flag for flag in flags):
                 flags.append(note)
         suggestion = "" if left or manual_case else suggest_ot(detected)
+        if _text(staff_id) in paid_ids or (employee_no and employee_no in paid_numbers):
+            flags.append(EARLY_NOTE)
         rows.append({
             "book": book,
             "period": "" if left else _period_text(info, window),
@@ -824,7 +828,7 @@ def _build_draft(info, facts, book):
             "roster_rest_dates": detected["rest_dates"],
             "review": "；".join(dict.fromkeys(flags)),
             "approved": "" if left else _text(adj.approved),
-            "pay_this": not left,
+            "pay_this": include_in_month_pay(not left, staff_id, employee_no, paid_ids, paid_numbers),
             "show_on_review": True,
             "show_not_on_slip": False,
         })

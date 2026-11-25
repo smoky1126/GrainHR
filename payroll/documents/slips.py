@@ -241,6 +241,9 @@ def autopay_line(text, pay_date, reference):
 
 
 def _saved_pay_date(info):
+    override = _text(info.get("pay_date_override")) if isinstance(info, dict) else ""
+    if override:
+        return override
     path = info["adjustments"]
     if not path.exists():
         return ""

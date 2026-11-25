@@ -96,6 +96,9 @@ def _input_stamp(info):
         info.get("daka"),
         pay_table_path(info.get("book", "bg")),
     ]
+    system = info.get("system")
+    if system:
+        paths.append(Path(system) / "early_paid.xlsx")
     folder = Path(STAFF_RECORD_DIR) if STAFF_RECORD_DIR else None
     if folder and folder.exists():
         paths.extend(sorted(folder.glob("Staff_info_*.xlsx")))

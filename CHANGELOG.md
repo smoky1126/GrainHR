@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.13
+
+- Someone who resigns during the month can be paid on the payout page before the rest of the month. The month-end slips skip that person.
+
 ## 1.6.12
 
 - A rest day with a punch now shows the hours from clock-in to clock-out.

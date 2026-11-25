@@ -140,6 +140,9 @@ def _write_days(sheet, row, col, days):
 
 def _pay_date(info):
     import pandas as pd
+    override = _text(info.get("pay_date_override")) if isinstance(info, dict) else ""
+    if override:
+        return override
     path = info["adjustments"]
     if not path.exists():
         return ""

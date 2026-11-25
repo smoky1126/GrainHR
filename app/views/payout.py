@@ -274,4 +274,6 @@ def page_payout():
     slips_ready = bool(st.session_state.get("slips_ready"))
     status = step_status(info, draft, staff, table, slips_ready=slips_ready)
     step_pay(info, status, draft, readonly)
+    from app.views.early_pay import early_section
+    early_section(info, draft, readonly)
     _pt_payout(info, readonly)

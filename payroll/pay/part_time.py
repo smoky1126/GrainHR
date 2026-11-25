@@ -249,6 +249,38 @@ def _mpf(salary, scheme, employee_due):
     return employer, excel_money(capped * Decimal(str(MPF_RATE)))
 
 
+def clip_days(row, last_day, person, info):
+    """Drop hours after the leave date and recompute pay.
+
+    Employee MPF's 60-day check uses the leave date, not the month end.
+    """
+    limit = last_day.day if hasattr(last_day, "day") else int(last_day)
+    days = {}
+    for day, amount in (row.get("days") or {}).items():
+        if int(day) <= limit:
+            days[int(day)] = amount
+    hours = sum((Decimal(str(amount)) for amount in days.values()), Decimal("0"))
+    extra = Decimal(str(row.get("extra_hours") or 0))
+    total = hours + extra
+    if total < 0:
+        total = Decimal("0")
+    rate = Decimal(str(row.get("rate") or 0))
+    salary = excel_money(total * rate)
+    through = dict(info)
+    through["days"] = limit
+    employer, employee = _mpf(salary, row.get("scheme") or "mpf", _employee_due(person.get("join_date"), through))
+    transfer = excel_money(Decimal(str(salary)) - Decimal(str(employee)))
+    updated = dict(row)
+    updated["days"] = days
+    updated["hours"] = float(hours)
+    updated["total_hours"] = float(total)
+    updated["salary"] = salary
+    updated["employer_mpf"] = employer
+    updated["employee_mpf"] = employee
+    updated["transfer"] = transfer
+    return updated
+
+
 def _shop_label(department, company):
     if company == "md":
         from payroll.core.settings import second_shop
@@ -268,6 +300,8 @@ def build_pt(info, staff, facts=None, lines=None):
     people = staff[employed_in(staff, info) & staff["part_time"]].to_dict("records")
     fact_names = [] if facts is None or facts.empty or "name" not in facts.columns else facts["name"].astype(str).unique()
     linked = link_facts(people, fact_names)
+    from payroll.pay.early import early_employee_nos
+    paid_early = early_employee_nos(info)
     rows = []
     for person in people:
         number = _text(person.get("employee_no"))
@@ -278,7 +312,7 @@ def build_pt(info, staff, facts=None, lines=None):
             scheme = "mpf"
         rate = Decimal(str(_num(stored.get("rate"), 60)))
         extra = Decimal(str(_num(stored.get("extra_hours"), 0)))
-        pay = _text(stored.get("pay_this")) != "N"
+        pay = _text(stored.get("pay_this")) != "N" and number not in paid_early
         days = _hours_by_day(facts, linked.get(number, []), info["year"], info["month"])
         hours = sum(days.values(), Decimal("0"))
         total_hours = hours + extra
