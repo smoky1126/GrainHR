@@ -100,9 +100,19 @@ def leaving_this_month(record, info):
     return _text(record.get("status")) == "已離職"
 
 
-def needs_approval(row):
-    """The same gate as a normal slip: approve this person before paying them."""
+_PRIOR_NOTES = ("本月離職", "本月入職", "未到最後工作日的更表")
+
+
+def needs_approval(row, prior=False):
+    """The same gate as a normal slip: approve this person before paying them.
+
+    A calculation made before the last day always carries a short note. That
+    note alone does not block the slip. Real problems still do.
+    """
     review = _text(row.get("review"))
+    if prior and review:
+        kept = [part for part in review.split("；") if part and not part.startswith(_PRIOR_NOTES)]
+        review = "；".join(kept)
     if "請選擇發放或不發放" in review:
         return "請先在審核選擇勤工獎發放或不發放。"
     if _text(row.get("absence_pending")):
@@ -115,6 +125,168 @@ def needs_approval(row):
     if suggest and suggest.lower() != "nan" and (not saved or saved.lower() == "nan") and not approved:
         return "請先在審核批准這個人。"
     return ""
+
+
+def _current_record(staff, employee_no, info):
+    from payroll.staff.staff import employed_window
+    rows = staff[staff["employee_no"].map(_text) == employee_no]
+    for _, record in rows.iterrows():
+        if _text(record.get("status")) == "已離職":
+            continue
+        if employed_window(record, info) is not None:
+            return record
+    return None
+
+
+def open_people(info):
+    """Employed people who can be calculated before the resignation is written."""
+    from payroll.core.excel_io import read_table
+    from payroll.pay.run import allowed_books
+    from payroll.staff.staff import load_staff, pay_table_path
+
+    staff = load_staff()
+    resigned = {person["employee_no"] for person in month_leavers(info)}
+    paid = early_employee_nos(info)
+    found = []
+    seen = set()
+    for book in allowed_books(("bg", "md", "admin")):
+        table = read_table(pay_table_path(book))
+        if table is None or "employee_no" not in getattr(table, "columns", []):
+            continue
+        for _, person in table.iterrows():
+            number = _text(person.get("employee_no"))
+            if not number or number in seen or number in resigned or number in paid:
+                continue
+            record = _current_record(staff, number, info)
+            if record is None:
+                continue
+            seen.add(number)
+            found.append({
+                "kind": "full",
+                "book": book,
+                "employee_no": number,
+                "staff_id": _text(person.get("staff_id")),
+                "name": _text(person.get("slip_name")) or _text(record.get("name_zh")) or number,
+                "leave_date": None,
+                "join_date": _as_date(record.get("join_date")),
+            })
+    from payroll.pay.part_time import pt_company
+    if "part_time" in staff.columns:
+        for _, record in staff.iterrows():
+            if not bool(record.get("part_time")):
+                continue
+            number = _text(record.get("employee_no"))
+            if not number or number in seen or number in resigned or number in paid:
+                continue
+            if _current_record(staff, number, info) is None:
+                continue
+            seen.add(number)
+            found.append({
+                "kind": "part",
+                "book": pt_company(record),
+                "employee_no": number,
+                "staff_id": "",
+                "name": _text(record.get("name_zh")) or _text(record.get("name_en")) or number,
+                "leave_date": None,
+                "join_date": _as_date(record.get("join_date")),
+            })
+    found.sort(key=lambda person: person["name"])
+    return found
+
+
+def _resolve(info, employee_no, book, kind, last_day):
+    person = None
+    try:
+        person = _find(info, employee_no, book, kind)
+    except SystemExit:
+        person = None
+    if person is None:
+        matches = [
+            item for item in open_people(info)
+            if item["employee_no"] == _text(employee_no)
+            and (not book or item["book"] == book)
+            and (not kind or item["kind"] == kind)
+        ]
+        person = matches[0] if matches else None
+    if person is None:
+        raise SystemExit("這個人不是這個月可以出糧的同事，或不在你可出的糧單。")
+    person = dict(person)
+    if last_day is not None:
+        person["leave_date"] = last_day
+    if person.get("leave_date") is None:
+        raise SystemExit("請選最後工作日。")
+    return person
+
+
+def _full_calculation(info, person):
+    from payroll.core.config import book_info
+    from payroll.pay.run import _draft_from_facts
+
+    booked = book_info(info, person["book"])
+    booked["leave_until"] = {person["employee_no"]: person["leave_date"]}
+    draft = _draft_from_facts(booked)
+    if draft is None or len(draft) == 0:
+        raise SystemExit("請先核對出勤，才能計算這個人的薪金。")
+    hit = draft[draft["employee_no"].map(_text) == person["employee_no"]]
+    staff_id = _text(person.get("staff_id"))
+    if staff_id and "staff_id" in hit.columns:
+        narrowed = hit[hit["staff_id"].map(_text) == staff_id]
+        if len(narrowed):
+            hit = narrowed
+    if hit.empty:
+        raise SystemExit("這個人不在本月糧單。")
+    row = hit.iloc[0]
+    if not bool(row.get("pay_this")):
+        raise SystemExit("這個人本月不發薪。")
+    return booked, draft, row
+
+
+def _part_calculation(info, person):
+    from payroll.pay.part_time import build_pt, clip_days
+    from payroll.staff.staff import load_staff
+
+    rows = build_pt(info, load_staff())
+    row = next((item for item in rows if item["employee_no"] == person["employee_no"]), None)
+    if row is None:
+        raise SystemExit("這個人不在本月兼職糧單。")
+    if row["pay_this"] != "Y":
+        raise SystemExit("這個人本月不發薪。")
+    clipped = clip_days(row, person["leave_date"], row, info)
+    if float(clipped["total_hours"]) <= 0:
+        raise SystemExit("這個人到離職日沒有工時。請先核對出勤。")
+    return clipped, row
+
+
+def quote_early(info, employee_no, last_day, book=None, kind=None):
+    """The amount for a last day, including roster days that have not been punched yet."""
+    person = _resolve(info, employee_no, book, kind, last_day)
+    prior = person["leave_date"] >= date.today()
+    if person["kind"] == "part":
+        clipped, _row = _part_calculation(info, person)
+        net = clipped["transfer"]
+        period = ""
+        reason = ""
+    else:
+        _booked, _draft, row = _full_calculation(info, person)
+        net = row.get("net")
+        period = _text(row.get("period"))
+        reason = needs_approval(row, prior=prior)
+    try:
+        amount = float(net)
+    except (TypeError, ValueError):
+        amount = 0.0
+    return {
+        "key": info.get("key", ""),
+        "employee_no": person["employee_no"],
+        "book": person["book"],
+        "kind": person["kind"],
+        "name": person["name"],
+        "last": person["leave_date"].isoformat(),
+        "net": amount,
+        "period": period,
+        "reason": reason,
+        "prior": prior,
+    }
 
 
 def _match_leaver(staff, employee_no, info):
@@ -241,25 +413,9 @@ def _safe_name(name, fallback):
 
 
 def _issue_full(info, person, pay_date):
-    from payroll.core.config import book_info
-    from payroll.pay.run import _draft_from_facts
-
-    booked = book_info(info, person["book"])
-    draft = _draft_from_facts(booked)
-    if draft is None or len(draft) == 0:
-        raise SystemExit("請先核對出勤，才能計算這個人的薪金。")
-    hit = draft[draft["employee_no"].map(_text) == person["employee_no"]]
-    staff_id = _text(person.get("staff_id"))
-    if staff_id and "staff_id" in hit.columns:
-        narrowed = hit[hit["staff_id"].map(_text) == staff_id]
-        if len(narrowed):
-            hit = narrowed
-    if hit.empty:
-        raise SystemExit("這個人不在本月糧單。")
-    row = hit.iloc[0]
-    if not bool(row.get("pay_this")):
-        raise SystemExit("這個人本月不發薪。")
-    reason = needs_approval(row)
+    booked, draft, row = _full_calculation(info, person)
+    prior = person["leave_date"] >= date.today()
+    reason = needs_approval(row, prior=prior)
     if reason:
         raise SystemExit(reason)
     staff_id = _text(row.get("staff_id"))
@@ -275,18 +431,9 @@ def _issue_full(info, person, pay_date):
 
 
 def _issue_part(info, person):
-    from payroll.pay.part_time import build_pt, clip_days, pt_reference, summary_book
-    from payroll.staff.staff import load_staff
+    from payroll.pay.part_time import pt_reference, summary_book
 
-    rows = build_pt(info, load_staff())
-    row = next((item for item in rows if item["employee_no"] == person["employee_no"]), None)
-    if row is None:
-        raise SystemExit("這個人不在本月兼職糧單。")
-    if row["pay_this"] != "Y":
-        raise SystemExit("這個人本月不發薪。")
-    clipped = clip_days(row, person["leave_date"], row, info)
-    if float(clipped["total_hours"]) <= 0:
-        raise SystemExit("這個人到離職日沒有工時。請先核對出勤。")
+    clipped, row = _part_calculation(info, person)
     data = summary_book(info, person["book"], [clipped], pt_reference(info, person["book"]))
     folder = Path(info["output"]) / "個別"
     folder.mkdir(parents=True, exist_ok=True)
@@ -309,8 +456,12 @@ def _mark_part_unpaid(info, row):
     }])
 
 
-def issue_early(info, employee_no, pay_date, book=None, kind=None):
-    """Make one leaver's slip now and record it so month-end skips them."""
+def issue_early(info, employee_no, pay_date, book=None, kind=None, last_day=None):
+    """Make one person's slip now and record it so month-end skips them.
+
+    last_day can be today or later. Shifts up to that day that have not been
+    punched yet are counted from the roster.
+    """
     from app.lock import ensure_owner
     from payroll.core.history import is_issued
     from payroll.pay.review import log_changes
@@ -320,7 +471,7 @@ def issue_early(info, employee_no, pay_date, book=None, kind=None):
         raise SystemExit("這個月已經出糧，不能再提前發薪。")
     if pay_date is None:
         raise SystemExit("請選出糧日期。")
-    person = _find(info, employee_no, book, kind)
+    person = _resolve(info, employee_no, book, kind, last_day)
     if _already(info, person):
         raise SystemExit("已經提前出糧，不會再發一次。")
     part_row = None

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.14
+
+- Early pay can be calculated a few days before the last working day. Shifts that have not been punched yet are counted from the roster.
+
 ## 1.6.13
 
 - Someone who resigns during the month can be paid on the payout page before the rest of the month. The month-end slips skip that person.

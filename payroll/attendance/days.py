@@ -2,6 +2,7 @@
 
 import re
 from collections import Counter
+from datetime import date
 
 import pandas as pd
 
@@ -272,8 +273,21 @@ def _split_metrics(morning, afternoon, clock_in, clock_out):
     return late, early, overtime, left_very_early
 
 
-def merge_days(facts, punches):
-    """Return a summary per roster name, and one evidence row per person per date."""
+def _open_shift(iso, name, assume_until):
+    """A roster day that has not finished, so early pay can count the shift."""
+    if not assume_until or name not in assume_until:
+        return False
+    last = assume_until[name]
+    last_iso = last.isoformat() if hasattr(last, "isoformat") else str(last)[:10]
+    return date.today().isoformat() <= str(iso)[:10] <= last_iso
+
+
+def merge_days(facts, punches, assume_until=None):
+    """Return a summary per roster name, and one evidence row per person per date.
+
+    assume_until maps a roster name to a last working day. From today through
+    that day, a shift with no complete punch counts as worked.
+    """
     if facts is None or len(facts) == 0:
         return {}, pd.DataFrame()
     from payroll.attendance.daka import daka_names, punch_for
@@ -347,7 +361,11 @@ def merge_days(facts, punches):
             roster_cell = f"{_text(morning.get('roster'))} / {_text(afternoon.get('roster'))}"
         late = early = overtime = 0
         leave_kind = ""
-        if name not in names_in_daka:
+        if _open_shift(date, name, assume_until) and kind == "shift" and not (has_in and has_out):
+            person["worked"] += 1
+            person["worked_shops"][chosen_shop] += 1
+            status = "先按更表"
+        elif name not in names_in_daka:
             status = STATUS["not in DAKA"]
             person["not_in_daka"] = True
         elif kind == "shift" and has_in and has_out:

@@ -158,6 +158,52 @@ def test_recorded_part_time_is_left_out_of_the_summary():
             raise SystemExit(rows)
 
 
+def test_future_shifts_are_counted_before_the_last_day():
+    from datetime import timedelta
+    from payroll.attendance.days import merge_days
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    tomorrow = today + timedelta(days=1)
+
+    def row(day):
+        return {
+            "shop": "S1", "name": "Ada", "date": day.isoformat(),
+            "roster": "09:00-17:00", "wrong_site": 0,
+        }
+
+    facts = pd.DataFrame([row(yesterday), row(today), row(tomorrow)])
+    punches = {"__names__": {"Ada"}}
+    summaries, _rows = merge_days(facts, punches, assume_until={"Ada": tomorrow})
+    summary = summaries["Ada"]
+    if summary["missing_days"] != 1 or summary["days_worked"] != 2:
+        raise SystemExit(summary)
+    punched = {"__names__": {"Ada"}, ( "Ada", today.isoformat()): {
+        "in": "09:00", "out": "17:00", "place": "", "code": "",
+        "in_place": "", "out_place": "", "in_code": "", "out_code": "",
+    }}
+    summaries, _rows = merge_days(facts, punched, assume_until={"Ada": tomorrow})
+    summary = summaries["Ada"]
+    if summary["days_worked"] != 2 or summary["missing_days"] != 1:
+        raise SystemExit(summary)
+
+
+def test_a_note_about_the_last_day_does_not_block_early_pay():
+    note = "本月離職：只計 1/11–21/11 基本薪金；未到最後工作日的更表，先按更表計算，不當作缺卡。"
+    if needs_approval({"review": note, "approved": ""}, prior=True):
+        raise SystemExit(needs_approval({"review": note, "approved": ""}, prior=True))
+    if not needs_approval({"review": "缺卡 1/11", "approved": ""}, prior=True):
+        raise SystemExit("a real missing punch was ignored")
+
+
+def test_chosen_last_day_ends_the_pay_window():
+    from payroll.pay.payroll import _window_until
+    info = {"year": 2026, "month": 11, "days": 30}
+    record = {"join_date": date(2020, 1, 1), "leave_date": None, "status": "在職"}
+    window = _window_until(record, info, date(2026, 11, 21))
+    if window != (date(2026, 11, 1), date(2026, 11, 21)):
+        raise SystemExit(window)
+
+
 def main():
     test_leave_date_must_fall_in_this_month()
     test_approval_blocks_early_pay()
@@ -167,6 +213,9 @@ def main():
     test_employee_mpf_uses_the_leave_date()
     test_record_is_kept_and_a_second_pay_is_refused()
     test_recorded_part_time_is_left_out_of_the_summary()
+    test_future_shifts_are_counted_before_the_last_day()
+    test_a_note_about_the_last_day_does_not_block_early_pay()
+    test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0
 

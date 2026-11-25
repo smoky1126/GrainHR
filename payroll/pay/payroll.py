@@ -286,6 +286,38 @@ def _index_staff(staff, employed):
     return by_number
 
 
+def _planned_last(info, employee_no):
+    raw = (info.get("leave_until") or {}).get(employee_no)
+    if raw is None:
+        return None
+    from payroll.staff.staff import _as_date
+    return _as_date(raw)
+
+
+def _window_until(record, info, last):
+    """Employment window ending on a chosen last day, including a future last day."""
+    start, end = _month_bounds(info)
+    if last is None or last < start or last > end:
+        return None
+    from payroll.staff.staff import _as_date
+    joined = _as_date(record.get("join_date")) if record is not None else None
+    if joined is not None and joined > last:
+        return None
+    first = start if joined is None or joined < start else joined
+    if first > last:
+        return None
+    return first, last
+
+
+def _employment_window(record, info, employee_no):
+    planned = _planned_last(info, employee_no)
+    if planned is not None and record is not None:
+        return _window_until(record, info, planned)
+    if record is not None:
+        return employed_window(record, info)
+    return None
+
+
 def _month_bounds(info):
     return date(info["year"], info["month"], 1), date(info["year"], info["month"], info["days"])
 
@@ -294,12 +326,12 @@ def _partial(window, info):
     return window is not None and window != _month_bounds(info)
 
 
-def _partial_note(record, window):
+def _partial_note(record, window, planned=False):
     first, last = window
     counted = (last - first).days + 1
     from payroll.staff.staff import _as_date
     left = _as_date(record.get("leave_date")) if record is not None else None
-    title = "本月離職" if left is not None and left <= last else "本月入職"
+    title = "本月離職" if planned or (left is not None and left <= last) else "本月入職"
     return (
         f"{title}：只計 {first.day}/{first.month}\u2013{last.day}/{last.month} 基本薪金"
         f"（{counted} 天）。年假補償、代通知金等請在「其他調整」輸入。"
@@ -557,15 +589,20 @@ def _build_draft(info, facts, book):
     employed = employed_in(staff, info)
     by_number = _index_staff(staff, employed)
     windows = {}
+    assume = {}
     for _, person in pay_table.iterrows():
-        record = by_number.get(_text(person.employee_no))
+        number = _text(person.employee_no)
+        record = by_number.get(number)
         roster_name = _text(person.roster_name)
-        window = employed_window(record, info) if record is not None else None
+        window = _employment_window(record, info, number)
         if roster_name and _partial(window, info):
             windows[roster_name] = window
+        planned = _planned_last(info, number)
+        if roster_name and planned is not None and planned >= date.today():
+            assume[roster_name] = planned
     facts = _clip_facts(facts, windows)
     punches = load_daka(info["daka"]) if info["daka"].exists() else {"__names__": set()}
-    summaries, day_rows = merge_days(facts, punches)
+    summaries, day_rows = merge_days(facts, punches, assume_until=assume or None)
     line_by_id = {}
     for _, row in lines.iterrows():
         staff_id = _text(row.staff_id)
@@ -582,8 +619,11 @@ def _build_draft(info, facts, book):
         staff_id = _text(person.staff_id)
         employee_no = _text(person.employee_no)
         record = by_number.get(employee_no)
-        window = employed_window(record, info) if record is not None else _month_bounds(info)
+        window = _employment_window(record, info, employee_no)
+        if window is None and record is None:
+            window = _month_bounds(info)
         left = record is not None and window is None
+        planned = _planned_last(info, employee_no)
         missing_record = record is None
         adj = line_by_id.get(staff_id)
         if adj is None:
@@ -714,7 +754,9 @@ def _build_draft(info, facts, book):
         elif not roster_name:
             flags.append(NO_ROSTER_NAME)
         if partial:
-            flags.append(_partial_note(record, window))
+            flags.append(_partial_note(record, window, planned=planned is not None))
+        if planned is not None and planned >= date.today() and not left:
+            flags.append("未到最後工作日的更表，先按更表計算，不當作缺卡。")
         if fewer_rest:
             flags.append("上月有病假，本月休假少一天")
         if pending_absence:
