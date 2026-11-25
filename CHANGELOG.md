@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.15
+
+- Opening a month no longer crashes while checking who was already paid early.
+
 ## 1.6.14
 
 - Early pay can be calculated a few days before the last working day. Shifts that have not been punched yet are counted from the roster.
