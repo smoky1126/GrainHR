@@ -178,6 +178,45 @@ def _hour_label(hours):
     return text[:-2] if text.endswith(".0") else text
 
 
+def half_hour_units(clock_in, clock_out):
+    """Hours from one clock-in to the matching clock-out, in steps of 0.5.
+
+    07:00-16:30 is 9.5. A gap of 15 minutes or more rounds up to the next half hour.
+    """
+    start = _minutes(clock_in)
+    end = _minutes(clock_out)
+    if start is None or end is None:
+        return None
+    if end < start:
+        end += 24 * 60
+    if end == start:
+        return None
+    return ((end - start + 15) // 30) / 2
+
+
+def pair_hours(clocks):
+    """Hours for each 上班 followed by a 下班. A lunch break is its own pair and is not added."""
+    amounts = []
+    pending = None
+    for kind, clock in clocks:
+        if kind == "上班":
+            pending = clock
+        elif kind == "下班" and pending is not None:
+            amount = half_hour_units(pending, clock)
+            if amount:
+                amounts.append(amount)
+            pending = None
+    return amounts
+
+
+def hours_text(amounts):
+    if not amounts:
+        return ""
+    if len(amounts) == 1:
+        return _hour_label(amounts[0])
+    return " + ".join(_hour_label(amount) for amount in amounts) + " = " + _hour_label(sum(amounts))
+
+
 def _minutes(value):
     text = _text(value).replace("：", ":")
     found = re.search(r"(\d{1,2}):(\d{2})", text)

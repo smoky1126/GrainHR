@@ -12,6 +12,10 @@ def style_days(days):
         "DAKA place": "打卡地點", "Status": "情況",
     }
     shown = days.loc[:, [column for column in names if column in days.columns]].rename(columns=names)
+    if "工時" in days.columns and "下班" in shown.columns:
+        shown.insert(shown.columns.get_loc("下班") + 1, "工時", list(days["工時"]))
+    elif "工時" in days.columns:
+        shown["工時"] = list(days["工時"])
     if "採用店鋪" in shown.columns:
         shown["採用店鋪"] = shown["採用店鋪"].map(lambda value: shop_label(value) or value)
     shown["遲到"] = list(days["Late"]) if "Late" in days.columns else [0] * len(shown)

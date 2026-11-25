@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.10
+
+- Daily attendance shows the hours of each clock-in and clock-out, in steps of 0.5. 7:00–16:30 is 9.5. A lunch break is not counted.
+
 ## 1.6.9
 
 - The server update removes the old pages folder, so a refresh no longer replaces the Chinese menu with English file names.

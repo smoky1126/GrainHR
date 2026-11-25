@@ -273,6 +273,34 @@ def _choose(key, options, default):
     return st.session_state[key]
 
 
+def _with_hours(shown, info):
+    """工時 for each clock-in and clock-out. Falls back to the first and last punch."""
+    from pathlib import Path
+
+    from payroll.attendance.daka import punch_logs
+    from payroll.attendance.days import half_hour_units, hours_text, pair_hours
+
+    logs = {}
+    path = info.get("daka") if isinstance(info, dict) else None
+    if path and Path(path).exists():
+        try:
+            logs = punch_logs(path)
+        except (OSError, SystemExit, ValueError, KeyError):
+            logs = {}
+    labels = []
+    for _, row in shown.iterrows():
+        when = _text(row.get("Date"))[:10]
+        clocks = logs.get((_text(row.get("Name")), when))
+        if clocks:
+            labels.append(hours_text(pair_hours(clocks)))
+            continue
+        amount = half_hour_units(row.get("DAKA in"), row.get("DAKA out"))
+        labels.append(hours_text([amount] if amount else []))
+    stamped = shown.copy()
+    stamped["工時"] = labels
+    return stamped
+
+
 def _page_rows(frame, key):
     size = 100
     if len(frame) <= size:
@@ -298,6 +326,10 @@ def _day_table(frame):
             "更表內容": st.column_config.TextColumn("更表內容", width="medium"),
             "上班": st.column_config.TextColumn("上班", width="small"),
             "下班": st.column_config.TextColumn("下班", width="small"),
+            "工時": st.column_config.TextColumn(
+                "工時", width="medium",
+                help="每次上班到下班，以 0.5 小時計算。7:00–16:30 是 9.5。中間出去吃飯的一段不計。",
+            ),
             "遲到": st.column_config.NumberColumn("遲到", width="small"),
             "早退": st.column_config.NumberColumn("早退", width="small"),
             "加班": st.column_config.NumberColumn("加班", width="small"),
@@ -367,7 +399,7 @@ def _daily_record(info, status, staff, readonly):
         return
     if whole and not shop_code and chosen == "全部":
         st.caption(f"整月全部員工，共 {len(shown)} 行。")
-    _day_table(_page_rows(shown, "attendance-page"))
+    _day_table(_page_rows(_with_hours(shown, info), "attendance-page"))
 
 
 def _pay_tables():

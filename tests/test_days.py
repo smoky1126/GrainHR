@@ -237,6 +237,22 @@ def test_second_company_is_separate_from_the_central_kitchen():
         raise SystemExit(f"a paired building was treated as the wrong shop: {days.iloc[0]['Status']}")
 
 
+def test_worked_hours_use_half_hour_steps():
+    from payroll.attendance.days import half_hour_units, hours_text, pair_hours
+    if half_hour_units("7:00", "16:30") != 9.5:
+        raise SystemExit(half_hour_units("7:00", "16:30"))
+    if half_hour_units("07:07", "16:30") != 9.5:
+        raise SystemExit(half_hour_units("07:07", "16:30"))
+    parts = pair_hours([
+        ("上班", "7:07"), ("下班", "12:26"),
+        ("上班", "13:22"), ("下班", "16:30"),
+    ])
+    if parts != [5.5, 3.0] or hours_text(parts) != "5.5 + 3 = 8.5":
+        raise SystemExit((parts, hours_text(parts)))
+    if hours_text([9.5]) != "9.5":
+        raise SystemExit(hours_text([9.5]))
+
+
 def main():
     test_second_roster_shift_counts()
     test_sick_without_punch_is_leave()
@@ -250,6 +266,7 @@ def main():
     test_lunch_pair_is_not_clock_out()
     test_split_shop_uses_morning_and_afternoon()
     test_second_company_is_separate_from_the_central_kitchen()
+    test_worked_hours_use_half_hour_steps()
     print("day checks ok")
     return 0
 
