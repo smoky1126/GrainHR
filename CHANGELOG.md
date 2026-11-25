@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.17
+
+- Early pay has an adjustment box. A positive number adds to the payout and a negative number subtracts, without changing MPF.
+
 ## 1.6.16
 
 - Early pay for one person no longer waits for the month review page. That page stays locked until new staff are finished.

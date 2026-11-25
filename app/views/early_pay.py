@@ -125,6 +125,7 @@ def _card(info, draft, person, record, part_rows, readonly):
             note = _text(row.get("review"))
             if note and note.lower() != "nan":
                 st.caption(note)
+            _adjustment(info, row, person, readonly)
         if hasattr(left, "year") and left >= date.today():
             st.caption("最後工作日之前可以先出。還沒打卡的日子按更表計算，不當作缺卡。")
         if reason:
@@ -150,6 +151,42 @@ def _card(info, draft, person, record, part_rows, readonly):
                 person["name"], picked.isoformat(), amount_text,
                 left.isoformat() if hasattr(left, "isoformat") else "",
             )
+
+
+def _adjustment(info, row, person, readonly):
+    """A plus or minus on this one slip. It is added after MPF."""
+    staff_id = _text(row.get("staff_id"))
+    if not staff_id:
+        return
+    try:
+        current = float(row.get("manual_delta") or 0)
+    except (TypeError, ValueError):
+        current = 0.0
+    if current != current:
+        current = 0.0
+    typed = st.number_input(
+        "其他調整",
+        value=current,
+        step=1.0,
+        disabled=readonly,
+        help="正數加在過數金額，負數減去。強積金不會跟着改。先儲存，再按提前出糧。",
+        key=f"early-delta-{info['key']}-{person['book']}-{staff_id}",
+    )
+    st.caption("正數是加，負數是減。先按儲存調整，預計過數改了再出糧。")
+    if readonly or not st.button("儲存調整", key=f"early-save-{info['key']}-{person['book']}-{staff_id}"):
+        return
+    from payroll.core.config import book_info
+    from payroll.pay.review import save_one
+    try:
+        save_one(book_info(info, person["book"]), staff_id, {"manual_delta": float(typed)})
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    st.session_state["dirty"] = True
+    st.session_state.pop("drafts", None)
+    st.session_state.pop("draft_stamps", None)
+    st.toast("已儲存調整")
+    st.rerun()
 
 
 def _plan_ahead(info, waiting, readonly):
