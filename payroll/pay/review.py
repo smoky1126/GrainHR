@@ -59,12 +59,14 @@ REVIEW_COLUMNS = [
 EDITABLE = {
     "approved", "ot_choice", "ot_hours_paid", "unpaid_days", "sick_days",
     "statutory_days", "annual_taken", "birthday_days", "taken_rest", "taken_dates",
-    "ot_text", "bonus_override", "manual_delta", "salary_deduct_days", "note", "salary_reference",
+    "ot_text", "bonus_override", "manual_delta", "salary_deduct_days",
+    "final_transport", "final_health", "note", "salary_reference",
     "absence_choices", "sick_hours", "bonus_leaver",
 }
 NUMBER_FIELDS = {
     "unpaid_days", "sick_days", "statutory_days", "annual_taken",
     "birthday_days", "taken_rest", "manual_delta", "salary_deduct_days",
+    "final_transport", "final_health",
 }
 BLANK_NUMBER_FIELDS = {"ot_hours_paid", "bonus_override"}
 ROSTER_FIELDS = {

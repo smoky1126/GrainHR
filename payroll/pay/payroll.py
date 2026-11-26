@@ -21,6 +21,7 @@ from payroll.core.money import (
     annual_leave_pay,
     employee_mpf,
     employer_mpf,
+    final_mpf_income,
     net_pay,
     overtime_pay,
     pay_detected_overtime,
@@ -760,6 +761,13 @@ def _build_draft(info, facts, book):
         leave_pay = 0.0 if left or not leaving else annual_leave_pay(full_basic, leave_days)
         if leave_pay:
             other_income = round_money(float(other_income or 0) + leave_pay)
+        if not left and leaving:
+            mpf_income = final_mpf_income(
+                basic, other_income, ot_pay, bonus_paid, manual, unpaid, rent, water, electricity,
+            )
+            mpf_ee = employee_mpf(mpf_income, scheme)
+            mpf_er = employer_mpf(mpf_income, scheme)
+        if not left and (leave_pay or leaving):
             subtotal = round_money(basic + other_income + ot_pay - rent - unpaid - water - electricity)
             net = net_pay(basic, other_income, ot_pay, rent, unpaid, water, mpf_ee, manual, bonus_paid, electricity)
         birthday_days = 0 if left else _picked_number(adj.birthday_days, detected["birthday_days"])
@@ -806,6 +814,15 @@ def _build_draft(info, facts, book):
             if note and not any("勤工獎" in flag for flag in flags):
                 flags.append(note)
         suggestion = "" if left or manual_case else suggest_ot(detected)
+        final_transport = 0 if left else _num(adj.get("final_transport"))
+        final_health = 0 if left else _num(adj.get("final_health"))
+        if not left and leaving:
+            from payroll.pay.review import _allowance_desc
+            allowance_amount = final_transport + final_health
+            allowance_desc = _allowance_desc("", final_transport, final_health)
+        else:
+            allowance_amount = 0 if left else _num(person.allowance_amount)
+            allowance_desc = "" if left else _text(person.allowance_desc)
         if _text(staff_id) in early_ids or (employee_no and employee_no in early_numbers):
             flags.append(EARLY_NOTE)
         rows.append({
@@ -854,8 +871,10 @@ def _build_draft(info, facts, book):
             "bonus_history": "、".join(f"{month}月 ${amount:g}" for month, amount in history),
             "absence_pending": "、".join(pending_absence),
             "sick_hours": sick_hours,
-            "allowance_desc": "" if left else _text(person.allowance_desc),
-            "allowance_amount": 0 if left else _num(person.allowance_amount),
+            "allowance_desc": allowance_desc,
+            "allowance_amount": allowance_amount,
+            "final_transport": final_transport,
+            "final_health": final_health,
             "allowance_section": "" if left else _text(person.allowance_section),
             "allowance_note": "" if left else _text(person.allowance_note),
             "opening_rest": opening_rest,

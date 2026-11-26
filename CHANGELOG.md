@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.24
+
+- On a last payment, transport and health allowance are typed in, with last month's amount shown as a reminder. MPF is taken off last and includes unused annual leave. The allowance is not part of MPF. Mainland staff still have no MPF.
+
 ## 1.6.23
 
 - Early pay lists each part of the salary. Mainland staff are shown as not paying MPF.

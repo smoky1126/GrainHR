@@ -211,6 +211,12 @@ def test_last_payment_includes_unused_leave_and_overtime():
     from payroll.core.money import employee_mpf
     if employee_mpf(12540, "rent") != 0:
         raise SystemExit("mainland staff were charged MPF")
+    from payroll.core.money import final_mpf_income
+    income = final_mpf_income(12540, 1972.60, 0, 0, 0, 0, 0, 0, 0)
+    if income != 14512.60:
+        raise SystemExit(income)
+    if employee_mpf(income, "mpf") != round(14512.60 * 0.05, 2):
+        raise SystemExit(employee_mpf(income, "mpf"))
     from payroll.pay.early import early_hold
     note = "本月離職：只計 1/11–19/11 基本薪金（19 天）。"
     if early_hold({"review": note, "approved": ""}):

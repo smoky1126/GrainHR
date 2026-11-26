@@ -196,7 +196,7 @@ def _breakdown(row, office=False):
     if scheme == "rent":
         lines.append("強積金　不扣（內地勞工）")
     elif mpf:
-        lines.append(f"− 僱員強積金 {hk(mpf)}")
+        lines.append(f"− 僱員強積金 {hk(mpf)}（最後扣除；已包括未用年假，不包括交通／健康津貼）")
     else:
         lines.append("強積金　不扣")
     lines.append(f"= 預計薪金 {hk(row.get('net'))}")
@@ -235,17 +235,13 @@ def _adjustment(info, row, person, readonly):
     staff_id = _text(row.get("staff_id"))
     if not staff_id:
         return
-    from payroll.pay.payroll import _shown_allowances
-    from payroll.staff.staff import ensure_pay_table
-
-    transport, health = 0.0, 0.0
-    try:
-        table = ensure_pay_table(book=person["book"])
-        matched = table[table["employee_no"].map(_text) == person["employee_no"]]
-        if len(matched):
-            transport, health = _shown_allowances(matched.iloc[0])
-    except SystemExit:
-        transport, health = 0.0, 0.0
+    from payroll.pay.early import previous_allowance
+    last_allowance = previous_allowance(info, staff_id)
+    if last_allowance is None:
+        st.caption("找不到上月津貼。今次交通津貼和健康津貼請自行填寫，儲存後才計入。不計入強積金。")
+    else:
+        st.caption(f"上月津貼 {hk(last_allowance)}。今次請自行填寫，儲存後才計入。不計入強積金。")
+    prefix = f"{info['key']}-{person['book']}-{staff_id}"
     balances = []
     for label_key, days_key in (("al_1_label", "al_1_days"), ("al_2_label", "al_2_days")):
         label = _text(row.get(label_key))
@@ -253,8 +249,7 @@ def _adjustment(info, row, person, readonly):
             balances.append(f"{label} {_amount(row.get(days_key)):g} 日")
     if balances:
         st.caption("未使用年假：" + "；".join(balances))
-    st.caption("未用年假已按全月日薪乘餘下日數計入薪金。代通知金才填在「其他調整」。年假日數只改糧單上的結餘。")
-    prefix = f"{info['key']}-{person['book']}-{staff_id}"
+    st.caption("未用年假已按全月薪金 × 12 ÷ 365 計入薪金，並計入強積金。代通知金才填在「其他調整」。")
     unpaid = st.number_input(
         "無薪假（日）", value=_amount(row.get("unpaid_days")), step=0.5, disabled=readonly,
         help="扣薪的日數。", key=f"early-unpaid-{prefix}",
@@ -264,16 +259,16 @@ def _adjustment(info, row, person, readonly):
         help="這個月已放的年假。未放年假的補償不要填在這裡。", key=f"early-annual-{prefix}",
     )
     transport_value = st.number_input(
-        "交通津貼", value=_amount(transport), step=1.0, disabled=readonly,
-        help="實額，加進糧單津貼。", key=f"early-transport-{prefix}",
+        "交通津貼", value=_amount(row.get("final_transport")), step=1.0, disabled=readonly,
+        help="今次最後一筆由你填。上月金額只作提示。不計入強積金。", key=f"early-transport-{prefix}",
     )
     health_value = st.number_input(
-        "健康津貼", value=_amount(health), step=1.0, disabled=readonly,
-        help="實額，和交通津貼相加。", key=f"early-health-{prefix}",
+        "健康津貼", value=_amount(row.get("final_health")), step=1.0, disabled=readonly,
+        help="今次最後一筆由你填。上月金額只作提示。不計入強積金。", key=f"early-health-{prefix}",
     )
     extra = st.number_input(
         "其他調整", value=_amount(row.get("manual_delta")), step=1.0, disabled=readonly,
-        help="代通知金。正數是加，負數是減。未用年假已經按日薪計入薪金，不要在這裡再填一次。強積金不會跟着改。",
+        help="代通知金。正數是加，負數是減。未用年假已經計入薪金和強積金，不要在這裡再填一次。",
         key=f"early-delta-{prefix}",
     )
     deduct = st.number_input(
@@ -284,15 +279,16 @@ def _adjustment(info, row, person, readonly):
     if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):
         return
     from payroll.core.config import book_info
-    from payroll.pay.review import save_one, set_allowances
+    from payroll.pay.review import save_one
     try:
         save_one(book_info(info, person["book"]), staff_id, {
             "unpaid_days": float(unpaid),
             "annual_taken": float(annual),
             "manual_delta": float(extra),
             "salary_deduct_days": float(deduct),
+            "final_transport": float(transport_value),
+            "final_health": float(health_value),
         })
-        set_allowances(info, person["book"], person["employee_no"], float(transport_value), float(health_value))
     except SystemExit as error:
         st.error(str(error))
         return
