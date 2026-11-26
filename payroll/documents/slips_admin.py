@@ -139,6 +139,10 @@ def _apply_identity(sheet, slip, row, info):
             if isinstance(value, str) and value.startswith("Sick Leave"):
                 _write_days(sheet, excel_row, col, row.sick_days)
             if isinstance(value, str) and "未使用年假" in value:
+                typed = getattr(row, "unused_annual_days", None)
+                if typed is not None and str(typed).strip().lower() not in {"", "nan"}:
+                    _write_days(sheet, excel_row, col, typed)
+                    continue
                 index = sum(
                     1 for earlier in range(start, excel_row)
                     if "未使用年假" in _text(sheet.cell(earlier, col).value)
@@ -181,6 +185,25 @@ def _write_allowances(sheet, slip, row):
         for slot, description in zip(slots, descriptions):
             label_row = slot["cell"][0]
             sheet.cell(label_row, 2).value = description
+    health = float(getattr(row, "final_health", 0) or 0)
+    transport = float(getattr(row, "final_transport", 0) or 0)
+    if slots and abs(amount - (health + transport)) < 0.02:
+        written = 0.0
+        for slot in slots:
+            label = _text(sheet.cell(slot["cell"][0], 2).value).lower()
+            if "health" in label or "健康" in label:
+                piece = health
+            elif "transport" in label or "交通" in label:
+                piece = transport
+            else:
+                continue
+            _write(sheet, slot["cell"], piece)
+            written += piece
+        for excel_row in range(slots[0]["cell"][0], slots[-1]["cell"][0] + 6):
+            if _text(sheet.cell(excel_row, 2).value).startswith("Total"):
+                _write(sheet, (excel_row, slots[0]["cell"][1]), round(written, 2))
+                break
+        return
     if len(slots) == 1:
         _write(sheet, slots[0]["cell"], amount)
     elif len(slots) > 1 and descriptions:
@@ -265,8 +288,7 @@ def _copy_person(path, start, end):
 
 
 def write_person_slip(info, draft, staff_id):
-    """One office person's rows, saved as xlsx and, when Excel is available, pdf."""
-    import subprocess
+    """One office person's PDF slip. The spreadsheet copy is kept beside it."""
     person = draft[draft["staff_id"].astype(str) == str(staff_id)]
     if person.empty:
         raise SystemExit(f"找不到 {staff_id}")
@@ -283,26 +305,9 @@ def write_person_slip(info, draft, staff_id):
     fill_admin(booked, draft)
     slips = parse_admin(target)
     chosen = next((slip for slip in slips if slip["staff_id"] == str(staff_id)), None)
-    if chosen is None:
-        return target
-    _copy_person(target, chosen["anchors"]["start"], chosen["anchors"]["end"])
+    if chosen is not None:
+        _copy_person(target, chosen["anchors"]["start"], chosen["anchors"]["end"])
     pdf = target.with_suffix(".pdf")
-    import os
-    if os.name != "nt":
-        from payroll.documents.slips import _soffice_pdf
-        if _soffice_pdf(target, pdf):
-            return pdf
-        return target
-    from payroll.documents.slips import ps_literal
-    script = (
-        "$excel = New-Object -ComObject Excel.Application; "
-        "$excel.Visible = $false; $excel.DisplayAlerts = $false; "
-        f"$book = $excel.Workbooks.Open({ps_literal(target)}); "
-        f"$book.ExportAsFixedFormat(0, {ps_literal(pdf)}); "
-        "$book.Close($false); $excel.Quit()"
-    )
-    try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True, capture_output=True, timeout=120)
-    except (subprocess.SubprocessError, OSError):
-        return target
-    return pdf if pdf.exists() else target
+    from payroll.documents.slip_pdf import write_office_pdf
+    write_office_pdf(pdf, person.iloc[0], info)
+    return pdf

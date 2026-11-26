@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.27
+
+- An office salary slip downloads as a PDF, with the company logo at the top. A partial month shows the full salary, the days actually paid, and unused annual leave on the payment side.
+
 ## 1.6.26
 
 - Unused annual leave days entered on early pay are added on the office slip at monthly salary × 12 / 365 × days.

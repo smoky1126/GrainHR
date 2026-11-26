@@ -13,6 +13,25 @@ from payroll.pay.part_time import PT_BOOKS, build_pt, clip_days
 from payroll.staff.staff import _text, load_staff
 
 
+def _slip_file(info, draft, person, record):
+    """The download. Office slips are rewritten as a PDF with the logo on top."""
+    stored = Path(_text(record.get("slip")))
+    if _text(person.get("book")) != "admin":
+        return stored if stored.is_file() else None
+    pdf = stored.with_suffix(".pdf") if stored.suffix else None
+    row = _full_row(draft, person)
+    if row is not None and pdf is not None:
+        from payroll.core.config import book_info
+        from payroll.documents.slip_pdf import write_office_pdf
+        try:
+            return write_office_pdf(pdf, row, book_info(info, "admin"))
+        except (OSError, SystemExit):
+            pass
+    if pdf is not None and pdf.is_file():
+        return pdf
+    return stored if stored.is_file() else None
+
+
 def _full_row(draft, person):
     if draft is None or len(draft) == 0 or "employee_no" not in draft.columns:
         return None
@@ -88,12 +107,13 @@ def _card(info, draft, person, record, part_rows, readonly):
             if amount:
                 detail = f"{detail}，過數 {amount}"
             st.success(f"{detail}。月結不會再發。", title="已提前出糧")
-            path = Path(_text(record.get("slip")))
-            if path.is_file():
+            path = _slip_file(info, draft, person, record)
+            if path is not None and path.is_file():
                 st.download_button(
                     "下載這份糧單",
                     path.read_bytes(),
                     file_name=path.name,
+                    mime="application/pdf" if path.suffix.lower() == ".pdf" else None,
                     key=f"early-down-{key}",
                 )
             return

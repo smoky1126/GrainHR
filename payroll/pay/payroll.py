@@ -882,6 +882,8 @@ def _build_draft(info, facts, book):
             "allowance_amount": allowance_amount,
             "final_transport": final_transport,
             "final_health": final_health,
+            "standing_transport": 0 if left else _shown_allowances(person)[0],
+            "standing_health": 0 if left else _shown_allowances(person)[1],
             "allowance_section": "" if left else _text(person.allowance_section),
             "allowance_note": "" if left else _text(person.allowance_note),
             "opening_rest": opening_rest,

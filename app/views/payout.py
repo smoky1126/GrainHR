@@ -121,7 +121,10 @@ def _confirm_person(month_key, book, staff_id, name):
         st.error(str(error))
         return
     st.toast(f"已製作 {path.name}")
-    st.download_button("下載這份糧單", path.read_bytes(), file_name=path.name, key="one-slip")
+    st.download_button(
+        "下載這份糧單", path.read_bytes(), file_name=path.name,
+        mime="application/pdf" if path.suffix.lower() == ".pdf" else None, key="one-slip",
+    )
 
 def step_pay(info, status, draft, readonly):
     if status["pay"] == "wait":

@@ -229,6 +229,51 @@ def test_last_payment_includes_unused_leave_and_overtime():
         raise SystemExit("a real missing punch was ignored")
 
 
+def test_office_slip_pdf_shows_partial_pay_and_unused_leave():
+    from payroll.documents.slip_pdf import slip_content, write_office_pdf
+    row = pd.Series({
+        "slip_name": "Yeung Yuen Ting 楊宛婷",
+        "name_en": "Yeung Yuen Ting Alice",
+        "staff_id": "197-4",
+        "department": "Administration 行政部",
+        "position": "Admin Officer",
+        "join_date": date(2023, 1, 3),
+        "period": "1/11/2026-19/11/2026 (19 Days)",
+        "full_salary": 19800,
+        "basic_salary": 12540,
+        "month_days": 30,
+        "counted_days": 19,
+        "leave_pay": 1555.79,
+        "unused_annual_days": 2.39,
+        "other_income": 1555.79,
+        "mpf_employee": 704.79,
+        "mpf_employer": 704.79,
+        "net": 13391,
+        "final_transport": 316.67,
+        "final_health": 0,
+        "allowance_amount": 316.67,
+        "standing_transport": 500,
+        "standing_health": 150,
+    })
+    content = slip_content(row, {"year": 2026, "month": 11})
+    amounts = [item[1] for item in content["payments"]]
+    if 19800 not in amounts or 12540 not in amounts or 1555.79 not in amounts:
+        raise SystemExit(f"payment lines: {content['payments']}")
+    notes = [item[2] for item in content["payments"]]
+    if "($19,800/30*19)" not in notes or "($237,600/365*2.39)" not in notes:
+        raise SystemExit(f"formulas missing: {notes}")
+    if content["subtotal"] != 14095.79 or content["total"] != 13391:
+        raise SystemExit(f"totals {content['subtotal']} {content['total']}")
+    if content["transport_note"] != "($500/30*19)":
+        raise SystemExit(content["transport_note"])
+    if content["nickname"] != "Alice" or content["file_no"] != "#197- 4":
+        raise SystemExit((content["nickname"], content["file_no"]))
+    folder = Path(tempfile.mkdtemp())
+    path = write_office_pdf(folder / "slip.pdf", row, {"year": 2026, "month": 11})
+    if path.suffix != ".pdf" or not path.read_bytes().startswith(b"%PDF"):
+        raise SystemExit("office slip was not a pdf")
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -249,6 +294,7 @@ def main():
     test_recorded_part_time_is_left_out_of_the_summary()
     test_future_shifts_are_counted_before_the_last_day()
     test_last_payment_includes_unused_leave_and_overtime()
+    test_office_slip_pdf_shows_partial_pay_and_unused_leave()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0
