@@ -57,8 +57,11 @@ def _write(sheet, cell, value):
 
 def _fill_block(sheet, slip, row):
     anchors = slip["anchors"]
+    leave_pay = float(getattr(row, "leave_pay", 0) or 0)
     _write(sheet, anchors.get("basic"), float(row.basic_salary or 0))
-    _write(sheet, anchors.get("subtotal"), round(float(row.basic_salary or 0) - float(row.unpaid_amount or 0), 2))
+    _write_leave_line(sheet, anchors.get("basic"), leave_pay)
+    subtotal = round(float(row.basic_salary or 0) - float(row.unpaid_amount or 0) + leave_pay, 2)
+    _write(sheet, anchors.get("subtotal"), subtotal)
     _write(sheet, anchors.get("mpf_ee"), float(row.mpf_employee or 0))
     _write(sheet, anchors.get("mpf_er"), float(row.mpf_employer or 0))
     _write(sheet, anchors.get("total"), float(row.net or 0))
@@ -66,6 +69,22 @@ def _fill_block(sheet, slip, row):
         _write(sheet, anchors["unpaid"], float(row.unpaid_amount or 0))
     if anchors.get("name"):
         _write(sheet, anchors["name"], _text(row.slip_name))
+
+
+def _write_leave_line(sheet, basic_cell, leave_pay):
+    """Put unused annual leave on the next Payment row so the slip shows the addition."""
+    if not basic_cell or leave_pay <= 0:
+        return
+    basic_row, basic_col = basic_cell
+    target = basic_row + 1
+    label = _text(sheet.cell(target, 2).value)
+    if label.startswith("Subtotal") or "小計" in label:
+        return
+    sheet.cell(target, 2).value = "Unused Annual Leave 未使用年假"
+    currency = sheet.cell(basic_row, basic_col - 1).value
+    if currency:
+        sheet.cell(target, basic_col - 1).value = currency
+    sheet.cell(target, basic_col).value = leave_pay
 
 
 def _stamp(sheet, start, end, staff_id, name):

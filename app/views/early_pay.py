@@ -166,7 +166,9 @@ def _breakdown(row, office=False):
         lines.append(f"基本薪金 {hk(basic)}")
     leave_pay = _amount(row.get("leave_pay"))
     if leave_pay:
-        lines.append(f"+ 未用年假 {hk(leave_pay)}（全月薪金 × 12 ÷ 365 × 餘下日數）")
+        lines.append(
+            f"+ 未用年假 {hk(leave_pay)}（全月薪金 × 12 ÷ 365 × {_amount(row.get('unused_annual_days')):g} 日）"
+        )
     other = _amount(row.get("other_income")) - leave_pay
     if other:
         sign = "+" if other > 0 else "−"
@@ -282,15 +284,22 @@ def _adjustment(info, row, person, readonly):
         if label:
             balances.append(f"{label} {_amount(row.get(days_key)):g} 日")
     if balances:
-        st.caption("未使用年假：" + "；".join(balances))
-    st.caption("未用年假已按全月薪金 × 12 ÷ 365 計入薪金，並計入強積金。代通知金才填在「其他調整」。")
+        st.caption("年假結餘紀錄：" + "；".join(balances))
+    st.caption("這裡填要發放的未用年假日數。糧單會加上全月薪金 × 12 ÷ 365 × 日數。")
     unpaid = st.number_input(
         "無薪假（日）", value=_amount(row.get("unpaid_days")), step=0.5, disabled=readonly,
-        help="扣薪的日數。", key=f"early-unpaid-{prefix}",
+        help="只有真正沒有出糧的缺勤才填。未用年假不要填在這裡。", key=f"early-unpaid-{prefix}",
     )
+    if _amount(row.get("unused_annual_days")):
+        typed_leave = row.get("unused_annual_days")
+    elif _amount(row.get("annual_taken")):
+        typed_leave = row.get("annual_taken")
+    else:
+        typed_leave = _amount(row.get("al_1_days")) + _amount(row.get("al_2_days"))
     annual = st.number_input(
-        "年假（日）", value=_amount(row.get("annual_taken")), step=0.5, disabled=readonly,
-        help="這個月已放的年假。未放年假的補償不要填在這裡。", key=f"early-annual-{prefix}",
+        "未用年假（日）", value=_amount(typed_leave), step=0.01, disabled=readonly,
+        help="要發放的未用年假。金額加進薪金，並計入強積金。",
+        key=f"early-annual-{prefix}",
     )
     transport_value = st.number_input(
         "交通津貼", value=_amount(row.get("final_transport")), step=1.0, disabled=readonly,
@@ -317,7 +326,8 @@ def _adjustment(info, row, person, readonly):
     try:
         save_one(book_info(info, person["book"]), staff_id, {
             "unpaid_days": float(unpaid),
-            "annual_taken": float(annual),
+            "unused_annual_days": float(annual),
+            "annual_taken": 0,
             "manual_delta": float(extra),
             "salary_deduct_days": float(deduct),
             "final_transport": float(transport_value),

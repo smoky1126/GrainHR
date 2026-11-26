@@ -189,7 +189,8 @@ def test_future_shifts_are_counted_before_the_last_day():
 
 def test_last_payment_includes_unused_leave_and_overtime():
     from payroll.core.money import annual_leave_pay, pay_detected_overtime
-    if annual_leave_pay(30000, 2) != round(30000 * 12 / 365 * 2, 2):
+    if annual_leave_pay(19800, 2.39) != 1555.79:
+        raise SystemExit(annual_leave_pay(19800, 2.39))
         raise SystemExit(annual_leave_pay(30000, 2))
     if annual_leave_pay(30000, 0) != 0:
         raise SystemExit("zero unused leave was paid")

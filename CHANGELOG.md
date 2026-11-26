@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.26
+
+- Unused annual leave days entered on early pay are added on the office slip at monthly salary × 12 / 365 × days.
+
 ## 1.6.25
 
 - The payout page loads again. On a last payment, MPF is 5% of the income column: basic salary, unused annual leave, overtime, and attendance bonus. Transport, health allowance, and deductions are not in that 5%. Mainland staff still have no MPF.

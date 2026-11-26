@@ -757,6 +757,11 @@ def _build_draft(info, facts, book):
                 leave_days += float(value or 0)
             except (TypeError, ValueError):
                 continue
+        if not _is_blank(adj.get("unused_annual_days")):
+            leave_days = _num(adj.get("unused_annual_days"))
+        elif leaving and not leave_days and _num(adj.get("annual_taken")):
+            # The early-pay 年假 box was used for the unused days to be paid.
+            leave_days = _num(adj.get("annual_taken"))
         leave_pay = 0.0 if left or not leaving else annual_leave_pay(full_basic, leave_days)
         if leave_pay:
             other_income = round_money(float(other_income or 0) + leave_pay)
@@ -860,6 +865,7 @@ def _build_draft(info, facts, book):
             "salary_deduct_days": 0 if left else salary_deduct_days,
             "other_income": other_income,
             "leave_pay": leave_pay,
+            "unused_annual_days": leave_days if not left else 0,
             "stated_extra": 0 if left else _num(adj.stated_extra),
             "ot_pay": ot_pay,
             "manual_delta": manual,
