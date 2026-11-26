@@ -18,10 +18,12 @@ from payroll.core.money import (
     BONUS_MONTHS,
     LATE_GRACE_MINUTES,
     attendance_bonus,
+    annual_leave_pay,
     employee_mpf,
     employer_mpf,
     net_pay,
     overtime_pay,
+    pay_detected_overtime,
     rent_amount,
     round_money,
     unpaid_amount,
@@ -334,7 +336,7 @@ def _partial_note(record, window, planned=False):
     title = "本月離職" if planned or (left is not None and left <= last) else "本月入職"
     return (
         f"{title}：只計 {first.day}/{first.month}\u2013{last.day}/{last.month} 基本薪金"
-        f"（{counted} 天）。年假補償、代通知金等請在「其他調整」輸入。"
+        f"（{counted} 天）。未用年假按日薪計入薪金。代通知金請在「其他調整」輸入。"
     )
 
 
@@ -686,7 +688,13 @@ def _build_draft(info, facts, book):
         mpf_er = 0 if left else employer_mpf(mpf_income, scheme)
         other_income = 0 if left else _num(adj.other_income)
         paid_hours = 0 if left else _hours_paid(adj, detected["ot_hours"])
-        ot_pay = 0 if left or _text(adj.get("ot_choice")).lower() != "pay" else overtime_pay(full_basic, days, paid_hours)
+        leaving = partial and record is not None and (
+            _as_date(record.get("leave_date")) is not None or planned is not None
+        )
+        if left or not pay_detected_overtime(adj.get("ot_choice"), leaving):
+            ot_pay = 0
+        else:
+            ot_pay = overtime_pay(full_basic, days, paid_hours)
         manual = 0 if left else _num(adj.manual_delta)
         subtotal = round_money(basic + other_income + ot_pay - rent - unpaid - water - electricity) if not left else 0
         opening_rest = _num(bal.opening_rest) if not left else 0
@@ -728,7 +736,6 @@ def _build_draft(info, facts, book):
             )
         history = []
         payout_month = int(info["month"]) in BONUS_MONTHS
-        leaving = partial and record is not None and _as_date(record.get("leave_date")) is not None
         if not left and book != "admin" and (payout_month or leaving):
             history = quarter_history(info, staff_id, employee_no)
         prior_total = sum(amount for _month, amount in history)
@@ -741,6 +748,17 @@ def _build_draft(info, facts, book):
         net = net_pay(basic, other_income, ot_pay, rent, unpaid, water, mpf_ee, manual, bonus_paid, electricity) if not left else 0
         labels, closings = _annual_closing(bal, 0 if left else _picked_number(adj.annual_taken, detected["annual_days"]))
         annual_taken = 0 if left else _picked_number(adj.annual_taken, detected["annual_days"])
+        leave_days = 0.0
+        for value in closings:
+            try:
+                leave_days += float(value or 0)
+            except (TypeError, ValueError):
+                continue
+        leave_pay = 0.0 if left or not leaving else annual_leave_pay(full_basic, days, leave_days)
+        if leave_pay:
+            other_income = round_money(float(other_income or 0) + leave_pay)
+            subtotal = round_money(basic + other_income + ot_pay - rent - unpaid - water - electricity)
+            net = net_pay(basic, other_income, ot_pay, rent, unpaid, water, mpf_ee, manual, bonus_paid, electricity)
         birthday_days = 0 if left else _picked_number(adj.birthday_days, detected["birthday_days"])
         taken_dates = "" if left else _picked_text(adj.taken_dates, detected["rest_dates"])
         flags = []
@@ -816,6 +834,7 @@ def _build_draft(info, facts, book):
             "unpaid_days": unpaid_days,
             "unpaid_amount": unpaid,
             "other_income": other_income,
+            "leave_pay": leave_pay,
             "stated_extra": 0 if left else _num(adj.stated_extra),
             "ot_pay": ot_pay,
             "manual_delta": manual,

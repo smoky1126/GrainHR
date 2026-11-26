@@ -120,8 +120,9 @@ def _card(info, draft, person, record, part_rows, readonly):
                 amount = row.get("net")
         amount_text = hk(amount)
         if amount_text:
-            st.write(f"預計過數 {amount_text}")
+            st.write(f"預計薪金 {amount_text}")
         if person["kind"] == "full" and row is not None:
+            _breakdown(row)
             note = _text(row.get("review"))
             if note and note.lower() != "nan":
                 st.caption(note)
@@ -151,6 +152,34 @@ def _card(info, draft, person, record, part_rows, readonly):
                 person["name"], picked.isoformat(), amount_text,
                 left.isoformat() if hasattr(left, "isoformat") else "",
             )
+
+
+def _breakdown(row):
+    """Show the pieces already inside a last payment."""
+    leave_pay = _amount(row.get("leave_pay"))
+    if leave_pay:
+        st.caption(f"未用年假 {hk(leave_pay)}，已計入預計薪金。日薪是全月基本薪金除以這個月的日數。")
+    hours = _amount(row.get("ot_hours_detected"))
+    overtime = _amount(row.get("ot_pay"))
+    if hours or overtime:
+        st.caption(f"加班 {hours:g} 小時，{hk(overtime) or 'HK$ 0.00'}。沒有選補鐘時，最後一次出糧會計入。")
+    unpaid = _amount(row.get("unpaid_amount"))
+    if unpaid:
+        st.caption(f"無薪假已扣 {hk(unpaid)}。")
+    deducted = []
+    for label, key in (("租金", "rent"), ("水費", "water"), ("電費", "electricity")):
+        value = _amount(row.get(key))
+        if value:
+            deducted.append(f"{label} {hk(value)}")
+    if deducted:
+        st.caption("內地勞工已扣：" + "，".join(deducted) + "。")
+    late = _amount(row.get("late_mins_detected"))
+    if late > 5:
+        st.caption(f"遲到 {late:g} 分鐘。遲到不扣基本薪金，只會沒有勤工獎。離職這個月本來就沒有本月勤工獎。")
+    allowance = _amount(row.get("allowance_amount"))
+    if allowance:
+        st.caption(f"交通／健康津貼 {hk(allowance)}。這是另一筆過數，不在預計薪金裡。")
+        st.write(f"今次共付 {hk(_amount(row.get('net')) + allowance)}")
 
 
 def _amount(value):
@@ -186,7 +215,7 @@ def _adjustment(info, row, person, readonly):
             balances.append(f"{label} {_amount(row.get(days_key)):g} 日")
     if balances:
         st.caption("未使用年假：" + "；".join(balances))
-    st.caption("未放年假的金錢補償和代通知金填在「其他調整」。年假日數只改糧單上的結餘。")
+    st.caption("未用年假已按全月日薪乘餘下日數計入薪金。代通知金才填在「其他調整」。年假日數只改糧單上的結餘。")
     prefix = f"{info['key']}-{person['book']}-{staff_id}"
     unpaid = st.number_input(
         "無薪假（日）", value=_amount(row.get("unpaid_days")), step=0.5, disabled=readonly,
@@ -206,7 +235,7 @@ def _adjustment(info, row, person, readonly):
     )
     extra = st.number_input(
         "其他調整", value=_amount(row.get("manual_delta")), step=1.0, disabled=readonly,
-        help="年假補償、代通知金。正數是加，負數是減。強積金不會跟着改。",
+        help="代通知金。正數是加，負數是減。未用年假已經按日薪計入薪金，不要在這裡再填一次。強積金不會跟着改。",
         key=f"early-delta-{prefix}",
     )
     if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):

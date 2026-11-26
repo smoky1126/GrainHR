@@ -187,7 +187,20 @@ def test_future_shifts_are_counted_before_the_last_day():
         raise SystemExit(summary)
 
 
-def test_early_pay_does_not_wait_for_the_month_review():
+def test_last_payment_includes_unused_leave_and_overtime():
+    from payroll.core.money import annual_leave_pay, pay_detected_overtime
+    if annual_leave_pay(30000, 30, 2) != 2000:
+        raise SystemExit(annual_leave_pay(30000, 30, 2))
+    if annual_leave_pay(30000, 30, 0) != 0:
+        raise SystemExit("zero unused leave was paid")
+    if not pay_detected_overtime("", True):
+        raise SystemExit("a last payment skipped detected overtime")
+    if pay_detected_overtime("exchange", True):
+        raise SystemExit("time off was paid as overtime")
+    if pay_detected_overtime("", False):
+        raise SystemExit("a normal month paid overtime that was not chosen")
+    if not pay_detected_overtime("pay", False):
+        raise SystemExit("chosen overtime was skipped")
     from payroll.pay.early import early_hold
     note = "本月離職：只計 1/11–19/11 基本薪金（19 天）。"
     if early_hold({"review": note, "approved": ""}):
@@ -222,7 +235,7 @@ def main():
     test_record_is_kept_and_a_second_pay_is_refused()
     test_recorded_part_time_is_left_out_of_the_summary()
     test_future_shifts_are_counted_before_the_last_day()
-    test_early_pay_does_not_wait_for_the_month_review()
+    test_last_payment_includes_unused_leave_and_overtime()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

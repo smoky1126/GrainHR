@@ -27,6 +27,21 @@ def unpaid_amount(basic, days_in_month, unpaid_days):
     return round_money(float(basic) / float(days_in_month) * days)
 
 
+def annual_leave_pay(basic, days_in_month, unused_days):
+    """Cash for unused annual leave on a last payment, at the same daily rate as unpaid leave."""
+    return unpaid_amount(basic, days_in_month, unused_days)
+
+
+def pay_detected_overtime(choice, leaving):
+    """Pay detected overtime unless it was saved as time off. A last payment pays it unless saved as time off."""
+    text = str(choice or "").strip().lower()
+    if text in {"exchange", "補鐘"}:
+        return False
+    if text in {"pay", "支薪"}:
+        return True
+    return bool(leaving)
+
+
 def rent_amount(basic, unpaid, rate, rent_base):
     rate = float(rate or 0)
     if rate == 0:
