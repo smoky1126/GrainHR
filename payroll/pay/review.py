@@ -477,6 +477,37 @@ def _allowance_desc(desc, transport, health):
     return ""
 
 
+def set_allowances(info, book, employee_no, transport, health):
+    """Change one person's transport and health allowances without rewriting the rest of the pay table."""
+    from app.lock import ensure_owner
+    ensure_owner(info)
+    from payroll.core.excel_io import save_excel
+    from payroll.staff.staff import _text, ensure_pay_table, pay_table_path
+
+    table = ensure_pay_table(book=book)
+    number = _text(employee_no)
+    matches = [index for index, value in table["employee_no"].items() if _text(value) == number]
+    if not matches:
+        raise SystemExit("這個人不在薪金表。")
+    index = matches[0]
+    old_desc = "" if _blank(table.at[index, "allowance_desc"]) else str(table.at[index, "allowance_desc"]).strip()
+    desc = _allowance_desc(old_desc, transport, health)
+    staff_id = _cell_text(table.at[index, "staff_id"]) or number
+    updated = {
+        "transport_amount": float(transport),
+        "health_amount": float(health),
+        "allowance_amount": float(transport) + float(health),
+        "allowance_desc": desc,
+    }
+    pairs = []
+    for key, value in updated.items():
+        old = table.at[index, key] if key in table.columns else ""
+        table.at[index, key] = value
+        pairs.append((key, old, value))
+    save_excel(pay_table_path(book), table)
+    log_changes(info.get("key", "") if isinstance(info, dict) else "", staff_id, pairs)
+
+
 def apply_pay(rows, book="bg", info=None):
     from app.lock import ensure_owner
     ensure_owner(info)

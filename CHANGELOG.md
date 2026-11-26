@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.18
+
+- Early pay can change unpaid leave, annual leave days, transport, health allowance, and a cash adjustment such as unused-leave pay.
+
 ## 1.6.17
 
 - Early pay has an adjustment box. A positive number adds to the payout and a negative number subtracts, without changing MPF.

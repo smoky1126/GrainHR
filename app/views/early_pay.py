@@ -153,32 +153,73 @@ def _card(info, draft, person, record, part_rows, readonly):
             )
 
 
+def _amount(value):
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if number != number:
+        return 0.0
+    return number
+
+
 def _adjustment(info, row, person, readonly):
-    """A plus or minus on this one slip. It is added after MPF."""
+    """Leave days and allowances for this one early slip."""
     staff_id = _text(row.get("staff_id"))
     if not staff_id:
         return
+    from payroll.pay.payroll import _shown_allowances
+    from payroll.staff.staff import ensure_pay_table
+
+    transport, health = 0.0, 0.0
     try:
-        current = float(row.get("manual_delta") or 0)
-    except (TypeError, ValueError):
-        current = 0.0
-    if current != current:
-        current = 0.0
-    typed = st.number_input(
-        "其他調整",
-        value=current,
-        step=1.0,
-        disabled=readonly,
-        help="正數加在過數金額，負數減去。強積金不會跟着改。先儲存，再按提前出糧。",
-        key=f"early-delta-{info['key']}-{person['book']}-{staff_id}",
+        table = ensure_pay_table(book=person["book"])
+        matched = table[table["employee_no"].map(_text) == person["employee_no"]]
+        if len(matched):
+            transport, health = _shown_allowances(matched.iloc[0])
+    except SystemExit:
+        transport, health = 0.0, 0.0
+    balances = []
+    for label_key, days_key in (("al_1_label", "al_1_days"), ("al_2_label", "al_2_days")):
+        label = _text(row.get(label_key))
+        if label:
+            balances.append(f"{label} {_amount(row.get(days_key)):g} 日")
+    if balances:
+        st.caption("未使用年假：" + "；".join(balances))
+    st.caption("未放年假的金錢補償和代通知金填在「其他調整」。年假日數只改糧單上的結餘。")
+    prefix = f"{info['key']}-{person['book']}-{staff_id}"
+    unpaid = st.number_input(
+        "無薪假（日）", value=_amount(row.get("unpaid_days")), step=0.5, disabled=readonly,
+        help="扣薪的日數。", key=f"early-unpaid-{prefix}",
     )
-    st.caption("正數是加，負數是減。先按儲存調整，預計過數改了再出糧。")
-    if readonly or not st.button("儲存調整", key=f"early-save-{info['key']}-{person['book']}-{staff_id}"):
+    annual = st.number_input(
+        "年假（日）", value=_amount(row.get("annual_taken")), step=0.5, disabled=readonly,
+        help="這個月已放的年假。未放年假的補償不要填在這裡。", key=f"early-annual-{prefix}",
+    )
+    transport_value = st.number_input(
+        "交通津貼", value=_amount(transport), step=1.0, disabled=readonly,
+        help="實額，加進糧單津貼。", key=f"early-transport-{prefix}",
+    )
+    health_value = st.number_input(
+        "健康津貼", value=_amount(health), step=1.0, disabled=readonly,
+        help="實額，和交通津貼相加。", key=f"early-health-{prefix}",
+    )
+    extra = st.number_input(
+        "其他調整", value=_amount(row.get("manual_delta")), step=1.0, disabled=readonly,
+        help="年假補償、代通知金。正數是加，負數是減。強積金不會跟着改。",
+        key=f"early-delta-{prefix}",
+    )
+    if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):
         return
     from payroll.core.config import book_info
-    from payroll.pay.review import save_one
+    from payroll.pay.review import save_one, set_allowances
     try:
-        save_one(book_info(info, person["book"]), staff_id, {"manual_delta": float(typed)})
+        save_one(book_info(info, person["book"]), staff_id, {
+            "unpaid_days": float(unpaid),
+            "annual_taken": float(annual),
+            "manual_delta": float(extra),
+        })
+        set_allowances(info, person["book"], person["employee_no"], float(transport_value), float(health_value))
     except SystemExit as error:
         st.error(str(error))
         return
