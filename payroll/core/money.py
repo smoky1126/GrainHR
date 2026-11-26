@@ -1,5 +1,7 @@
 """Pay figures used by the October 2026 full-time slips."""
 
+import re
+
 from payroll.core.config import ATTENDANCE_BONUS, MPF_MAX_INCOME, MPF_MIN_INCOME, MPF_RATE
 
 
@@ -69,8 +71,20 @@ def overtime_pay(basic, days_in_month, hours):
     return round_money(float(basic or 0) * hours / (days * HOUR_STANDARD))
 
 
+LATE_DEDUCT_MINUTES = 15
+OFFICE_HALF_DAY_MINUTES = 240
 BONUS_MONTHS = (3, 6, 9, 12)
 LATE_GRACE_MINUTES = 5
+
+
+def serious_late(text, limit=LATE_DEDUCT_MINUTES):
+    """Days late by more than `limit` minutes. Text is like '3/11 23分鐘'."""
+    found = []
+    for match in re.finditer(r"(\d{1,2}/\d{1,2})\s*(\d+)\s*分鐘", str(text or "")):
+        minutes = int(match.group(2))
+        if minutes > limit:
+            found.append((match.group(1), minutes))
+    return found
 
 
 def bonus_rule_text():

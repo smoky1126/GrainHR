@@ -176,8 +176,21 @@ def _breakdown(row, office=False):
     if deducted:
         st.caption("內地勞工已扣：" + "，".join(deducted) + "。")
     late = _amount(row.get("late_mins_detected"))
-    if late > 5:
-        st.caption(f"遲到 {late:g} 分鐘。遲到不扣基本薪金，只會沒有勤工獎。離職這個月本來就沒有本月勤工獎。")
+    office_limit = 240 if office else 15
+    from payroll.core.money import serious_late
+    cases = serious_late(row.get("late_text"), office_limit)
+    listed = "、".join(f"{day} {minutes}分鐘" for day, minutes in cases)
+    if office:
+        missing = _text(row.get("missing_text"))
+        if cases or (missing and missing.lower() != "nan"):
+            detail = listed
+            if missing and missing.lower() != "nan":
+                detail = "、".join(part for part in (detail, f"缺卡 {missing}") if part)
+            st.caption(f"寫字樓缺半天可以扣薪：{detail}。扣幾多日由你填，0.5 是半天，0 是不扣。")
+    elif cases:
+        st.caption(f"遲到超過 15 分鐘：{listed}。店舖和工場可以扣薪。扣幾多日由你填，0 是不扣。")
+    elif late > 5:
+        st.caption(f"遲到 {late:g} 分鐘。5 分鐘以內不影響勤工獎，15 分鐘以內不建議扣薪。")
     allowance = _amount(row.get("allowance_amount"))
     if allowance:
         st.caption(f"交通／健康津貼 {hk(allowance)}。這是另一筆過數，不在預計薪金裡。")
@@ -240,6 +253,11 @@ def _adjustment(info, row, person, readonly):
         help="代通知金。正數是加，負數是減。未用年假已經按日薪計入薪金，不要在這裡再填一次。強積金不會跟着改。",
         key=f"early-delta-{prefix}",
     )
+    deduct = st.number_input(
+        "扣薪日數", value=_amount(row.get("salary_deduct_days")), step=0.5, disabled=readonly,
+        help="店舖和工場：遲到超過 15 分鐘可以扣。寫字樓：缺半天可以扣。0 是不扣。0.5 是半天。",
+        key=f"early-deduct-{prefix}",
+    )
     if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):
         return
     from payroll.core.config import book_info
@@ -249,6 +267,7 @@ def _adjustment(info, row, person, readonly):
             "unpaid_days": float(unpaid),
             "annual_taken": float(annual),
             "manual_delta": float(extra),
+            "salary_deduct_days": float(deduct),
         })
         set_allowances(info, person["book"], person["employee_no"], float(transport_value), float(health_value))
     except SystemExit as error:

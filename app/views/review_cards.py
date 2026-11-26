@@ -291,6 +291,7 @@ def _advanced(info, draft, row, staff_id, readonly, book="bg"):
         ("statutory_days", "法定假日"),
         ("bonus_override", "獎金調整"),
         ("manual_delta", "其他調整"),
+        ("salary_deduct_days", "扣薪日數"),
     ]
     values = {}
     for key, label in fields:

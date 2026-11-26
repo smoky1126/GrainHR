@@ -660,6 +660,7 @@ def blank_adjustment(person):
         "other_income": 0,
         "stated_extra": 0,
         "manual_delta": 0,
+        "salary_deduct_days": 0,
         "bonus_override": "",
         "rest_override": "",
         "water_override": "",

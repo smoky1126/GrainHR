@@ -668,6 +668,9 @@ def _build_draft(info, facts, book):
         if not left and _is_blank(adj.unpaid_days):
             charge_days += sick_days
         unpaid = 0 if left else unpaid_amount(full_basic, days, charge_days) + overtime_pay(full_basic, days, sick_hours)
+        salary_deduct_days = 0 if left else _num(adj.get("salary_deduct_days"))
+        if salary_deduct_days:
+            unpaid = round_money(unpaid + unpaid_amount(full_basic, days, salary_deduct_days))
         mainland = scheme == "rent"
         electricity = 0 if left or not mainland else _num(person.get("electricity"))
         water = 0 if left or not mainland else (
@@ -833,6 +836,7 @@ def _build_draft(info, facts, book):
             "electricity": electricity,
             "unpaid_days": unpaid_days,
             "unpaid_amount": unpaid,
+            "salary_deduct_days": 0 if left else salary_deduct_days,
             "other_income": other_income,
             "leave_pay": leave_pay,
             "stated_extra": 0 if left else _num(adj.stated_extra),

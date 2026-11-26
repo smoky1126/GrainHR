@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.22
+
+- Shop and production staff late by more than 15 minutes, and office staff who miss half a day, can have pay deducted. The number of days is chosen on the early-pay card. Zero means no deduction.
+
 ## 1.6.21
 
 - Office staff are not paid overtime. Retail and production staff still are.
