@@ -274,6 +274,24 @@ def test_office_slip_pdf_shows_partial_pay_and_unused_leave():
         raise SystemExit("office slip was not a pdf")
 
 
+def test_slip_keeps_the_transfer_reference():
+    from payroll.documents.slip_pdf import slip_content
+    content = slip_content(pd.Series({
+        "slip_name": "Ada",
+        "staff_id": "1-1",
+        "basic_salary": 10000,
+        "full_salary": 10000,
+        "net": 9500,
+        "mpf_employee": 500,
+        "salary_reference": "NB-SAL",
+        "allowance_reference": "NB-ALL",
+    }), {"pay_date_override": "23 Nov 2026", "month": 11})
+    if content["salary_reference"] != "NB-SAL" or content["allowance_reference"] != "NB-ALL":
+        raise SystemExit(content)
+    if content["pay_date"] != "23 Nov 2026":
+        raise SystemExit(content["pay_date"])
+
+
 def test_mainland_contract_end_is_the_last_day_until_renewed():
     from payroll.staff.staff import employed_window
     info = {"year": 2026, "month": 11, "days": 30}
@@ -348,6 +366,7 @@ def main():
     test_office_slip_pdf_shows_partial_pay_and_unused_leave()
     test_breakdown_is_this_month_and_shows_the_formula()
     test_mainland_contract_end_is_the_last_day_until_renewed()
+    test_slip_keeps_the_transfer_reference()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

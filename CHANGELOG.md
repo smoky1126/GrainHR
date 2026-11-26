@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.30
+
+- An early payment can take a salary reference and an allowance reference, and both are printed on the slip. Calculating before the last day uses the same editor as a resignation payment.
+
 ## 1.6.29
 
 - For mainland staff, 合約完結 is the last working day. Pay stops on that date. Enter a later date on 出糧 when the contract is renewed.

@@ -923,6 +923,7 @@ def _build_draft(info, facts, book):
             "ot_text": "" if left else _text(adj.ot_text),
             "ot_suggest": suggestion,
             "salary_reference": "" if left else _text(adj.get("salary_reference")),
+            "allowance_reference": "" if left else _text(adj.get("allowance_reference")),
             "ot_choice": "" if left else _text(adj.get("ot_choice")),
             "ot_hours_paid": "" if left or _is_blank(adj.get("ot_hours_paid")) else _num(adj.get("ot_hours_paid")),
             "bonus_override": "" if left or _is_blank(adj.bonus_override) else _num(adj.bonus_override),

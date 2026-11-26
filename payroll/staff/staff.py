@@ -680,6 +680,7 @@ def blank_adjustment(person):
         "note": "",
         "approved": "",
         "salary_reference": "",
+        "allowance_reference": "",
         "absence_choices": "",
         "sick_hours": "",
         "bonus_leaver": "",

@@ -173,6 +173,9 @@ def slip_content(row, info=None):
         "transport_note": transport_note,
         "logo": _logo_path(),
         "details": _detail_lines(row, info),
+        "pay_date": _text(info, "pay_date_override"),
+        "salary_reference": _text(row, "salary_reference"),
+        "allowance_reference": _text(row, "allowance_reference"),
     }
 
 
@@ -315,8 +318,11 @@ def _draw(pdf, content):
     pdf.rect(left, box_top - 2, width, y - box_top + 4)
     y += 12
     y = _pay_box(pdf, left, y, right, mid, content)
-    y += 16
+    y = _autopay(pdf, left, y + 4, right, content["pay_date"], content["salary_reference"])
+    y += 12
     y = _allowance_box(pdf, left, y, right, content)
+    if content["health"] or content["transport"] or content["allowance_reference"]:
+        y = _autopay(pdf, left, y + 4, right, content["pay_date"], content["allowance_reference"])
     y = _detail_box(pdf, left, y + 14, right, content)
     pdf.set_text_color(0, 0, 0)
     _text_at(pdf, left, min(y + 16, 800), width, 12, FOOTER, 7, "C")
@@ -390,6 +396,18 @@ def _total_line(pdf, left, y, right, label, currency, amount, size):
     _text_at(pdf, left + 6, y, 280, 14, label, size, "L")
     _text_at(pdf, right - 130, y, 46, 14, currency, size, "R")
     _text_at(pdf, right - 82, y, 76, 14, _money(amount), size, "R")
+    return y + 14
+
+
+def _autopay(pdf, left, y, right, pay_date, reference):
+    when = pay_date or ""
+    number = reference or ""
+    if not when and not number:
+        return y
+    _text_at(
+        pdf, left + 6, y, right - left - 12, 12,
+        f"By Auto Pay 經自動轉賬 {when}  交易編號：{number}", 8, "L",
+    )
     return y + 14
 
 

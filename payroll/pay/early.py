@@ -308,6 +308,16 @@ def _part_calculation(info, person):
     return clipped, row
 
 
+def preview_early(info, employee_no, last_day, book=None, kind=None):
+    """The calculated row for a chosen last day, before the payment is issued."""
+    person = _resolve(info, employee_no, book, kind, last_day)
+    if person["kind"] == "part":
+        clipped, _row = _part_calculation(info, person)
+        return person, None, clipped, ""
+    _booked, _draft, row = _full_calculation(info, person)
+    return person, row, None, early_hold(row)
+
+
 def quote_early(info, employee_no, last_day, book=None, kind=None):
     """The amount for a last day, including roster days that have not been punched yet."""
     person = _resolve(info, employee_no, book, kind, last_day)

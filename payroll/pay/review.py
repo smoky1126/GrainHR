@@ -61,6 +61,7 @@ EDITABLE = {
     "statutory_days", "annual_taken", "birthday_days", "taken_rest", "taken_dates",
     "ot_text", "bonus_override", "manual_delta", "salary_deduct_days",
     "final_transport", "final_health", "unused_annual_days", "note", "salary_reference",
+    "allowance_reference",
     "absence_choices", "sick_hours", "bonus_leaver",
 }
 NUMBER_FIELDS = {

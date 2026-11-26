@@ -106,6 +106,9 @@ def _apply_identity(sheet, slip, row, info):
     own = _text(row.get("salary_reference"))
     if own.lower() == "nan":
         own = ""
+    own_allowance = _text(row.get("allowance_reference"))
+    if own_allowance.lower() == "nan":
+        own_allowance = ""
     pay_date = _pay_date(info)
     section = "salary"
     shown = _text(row.staff_id)
@@ -133,7 +136,7 @@ def _apply_identity(sheet, slip, row, info):
             if text.startswith("Salary Slip") or text.startswith("Basic Salary"):
                 section = "salary"
             if isinstance(value, str) and value.startswith("By Auto Pay"):
-                reference = allowance_ref if section == "allowance" else (own or salary_ref)
+                reference = (own_allowance or allowance_ref) if section == "allowance" else (own or salary_ref)
                 sheet.cell(excel_row, col).value = autopay_line(value, pay_date, reference)
             if isinstance(value, str) and value.startswith("Annual Leave"):
                 _write_days(sheet, excel_row, col, row.annual_taken)
