@@ -274,6 +274,31 @@ def test_office_slip_pdf_shows_partial_pay_and_unused_leave():
         raise SystemExit("office slip was not a pdf")
 
 
+def test_mainland_contract_end_is_the_last_day_until_renewed():
+    from payroll.staff.staff import employed_window
+    info = {"year": 2026, "month": 11, "days": 30}
+    record = {
+        "sheet": "內地勞工", "status": "在職",
+        "join_date": date(2024, 1, 1), "leave_date": None,
+        "contract_end": date(2026, 11, 28),
+    }
+    if employed_window(record, info) != (date(2026, 11, 1), date(2026, 11, 28)):
+        raise SystemExit(employed_window(record, info))
+    record["contract_end"] = date(2027, 11, 28)
+    if employed_window(record, info) != (date(2026, 11, 1), date(2026, 11, 30)):
+        raise SystemExit(employed_window(record, info))
+    record["contract_end"] = date(2026, 10, 31)
+    if employed_window(record, info) is not None:
+        raise SystemExit("an ended mainland contract was still paid")
+    office = {
+        "sheet": "BG & MD", "status": "在職",
+        "join_date": date(2024, 1, 1), "leave_date": None,
+        "contract_end": date(2026, 11, 28),
+    }
+    if employed_window(office, info) != (date(2026, 11, 1), date(2026, 11, 30)):
+        raise SystemExit(employed_window(office, info))
+
+
 def test_breakdown_is_this_month_and_shows_the_formula():
     from payroll.documents.breakdown import breakdown_lines, dates_in_month
     if dates_in_month("12/10(AM)、3/11(PM)", 11) != "3/11(PM)":
@@ -322,6 +347,7 @@ def main():
     test_last_payment_includes_unused_leave_and_overtime()
     test_office_slip_pdf_shows_partial_pay_and_unused_leave()
     test_breakdown_is_this_month_and_shows_the_formula()
+    test_mainland_contract_end_is_the_last_day_until_renewed()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

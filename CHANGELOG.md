@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.29
+
+- For mainland staff, 合約完結 is the last working day. Pay stops on that date. Enter a later date on 出糧 when the contract is renewed.
+
 ## 1.6.28
 
 - Every salary slip lists this month's annual leave, the unused-leave formula, and any lateness or salary deduction with the day and the minutes. A date from another month, such as 12/10 on a November slip, is not carried forward.

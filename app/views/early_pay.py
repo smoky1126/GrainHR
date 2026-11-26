@@ -371,6 +371,73 @@ def _adjustment(info, row, person, readonly):
     st.rerun()
 
 
+def _mainland_contracts(info, readonly):
+    """合約完結 is the last working day. A later date entered here is a renewal."""
+    from payroll.staff.staff import _as_date, _text, load_staff
+    from payroll.staff.staff_write import edit_staff
+
+    start = date(int(info["year"]), int(info["month"]), 1)
+    end = date(int(info["year"]), int(info["month"]), int(info["days"]))
+    people = []
+    for _, record in load_staff().iterrows():
+        if _text(record.get("sheet")) != "內地勞工" or _text(record.get("status")) == "已離職":
+            continue
+        number = _text(record.get("employee_no"))
+        if not number:
+            continue
+        people.append({
+            "employee_no": number,
+            "name_zh": _text(record.get("name_zh")),
+            "name": _text(record.get("name_zh")) or _text(record.get("name_en")) or number,
+            "sheet": "內地勞工",
+            "contract_end": _as_date(record.get("contract_end")),
+        })
+    if not people:
+        return
+    people.sort(key=lambda person: ((person["contract_end"] or date.max), person["name"]))
+    ending = [
+        person for person in people
+        if person["contract_end"] is not None and person["contract_end"] <= end
+    ]
+    st.markdown("**內地合約完結**")
+    st.caption("合約完結日是最後工作日，薪金計到那一日。續約就填一個更後的日期。")
+    if ending:
+        names = "、".join(
+            f"{person['name']} {person['contract_end'].isoformat()}" for person in ending
+        )
+        st.caption(f"已到或本月完結：{names}")
+    labels = [
+        f"{person['name']}（{person['employee_no']}）"
+        + (f"　{person['contract_end'].isoformat()}" if person["contract_end"] else "　未填")
+        for person in people
+    ]
+    chosen = st.selectbox("同事", labels, key=f"contract-who-{info['key']}")
+    person = people[labels.index(chosen)]
+    current = person["contract_end"] if isinstance(person["contract_end"], date) else end
+    picked = st.date_input(
+        "合約完結日期",
+        value=current,
+        format="YYYY-MM-DD",
+        disabled=readonly,
+        key=f"contract-end-{info['key']}-{person['employee_no']}-{current.isoformat()}",
+    )
+    if readonly or not st.button("儲存合約完結", key=f"contract-save-{info['key']}-{person['employee_no']}"):
+        return
+    try:
+        edit_staff(person["sheet"], person["employee_no"], person["name_zh"], {
+            "合約完結日期": picked.isoformat(),
+        })
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    st.session_state["dirty"] = True
+    st.session_state.pop("drafts", None)
+    st.session_state.pop("draft_stamps", None)
+    st.session_state.pop("draft", None)
+    st.toast("已更新合約完結日期")
+    st.rerun()
+
+
 def _plan_ahead(info, waiting, readonly):
     st.markdown("**最後工作日之前先計算**")
     st.caption("未寫離職也可以。選最後工作日，還沒打卡的日子按更表計算。")
@@ -379,9 +446,12 @@ def _plan_ahead(info, waiting, readonly):
     person = waiting[labels.index(chosen)]
     start = date(int(info["year"]), int(info["month"]), 1)
     end = date(int(info["year"]), int(info["month"]), int(info["days"]))
-    default = date.today()
+    contract = person.get("contract_end")
+    default = contract if isinstance(contract, date) and start <= contract <= end else date.today()
     if default < start or default > end:
         default = end
+    if isinstance(contract, date) and start <= contract <= end:
+        st.caption(f"合約完結 {contract.isoformat()} 是最後工作日。續約請改上面的合約完結日期。")
     picked_last = st.date_input(
         "最後工作日",
         value=default,
@@ -389,7 +459,7 @@ def _plan_ahead(info, waiting, readonly):
         max_value=end,
         format="YYYY-MM-DD",
         disabled=readonly,
-        key=f"early-last-{info['key']}",
+        key=f"early-last-{info['key']}-{person['employee_no']}",
     )
     pay_on = st.date_input(
         "出糧日期",
@@ -452,6 +522,7 @@ def early_section(info, draft, readonly):
     except SystemExit as error:
         st.error(str(error))
         return
+    _mainland_contracts(info, readonly)
     if not people and not waiting:
         return
     st.markdown("**離職提前出糧**")

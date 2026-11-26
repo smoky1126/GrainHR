@@ -333,7 +333,14 @@ def _partial_note(record, window, planned=False):
     counted = (last - first).days + 1
     from payroll.staff.staff import _as_date
     left = _as_date(record.get("leave_date")) if record is not None else None
-    title = "本月離職" if planned or (left is not None and left <= last) else "本月入職"
+    from payroll.staff.staff import contract_end_date
+    contract = contract_end_date(record) if record is not None else None
+    if planned or (left is not None and left <= last):
+        title = "本月離職"
+    elif contract is not None and contract <= last:
+        title = "合約完結"
+    else:
+        title = "本月入職"
     return (
         f"{title}：只計 {first.day}/{first.month}\u2013{last.day}/{last.month} 基本薪金"
         f"（{counted} 天）。未用年假按日薪計入薪金。代通知金請在「其他調整」輸入。"
@@ -691,8 +698,11 @@ def _build_draft(info, facts, book):
         mpf_er = 0 if left else employer_mpf(mpf_income, scheme)
         other_income = 0 if left else _num(adj.other_income)
         paid_hours = 0 if left else _hours_paid(adj, detected["ot_hours"])
+        from payroll.staff.staff import contract_end_date
+        contract = contract_end_date(record) if record is not None else None
+        contract_ends = contract is not None and window is not None and window[0] <= contract <= window[1]
         leaving = partial and record is not None and (
-            _as_date(record.get("leave_date")) is not None or planned is not None
+            _as_date(record.get("leave_date")) is not None or planned is not None or contract_ends
         )
         if left or not pay_detected_overtime(adj.get("ot_choice"), leaving, office=book == "admin"):
             ot_pay = 0

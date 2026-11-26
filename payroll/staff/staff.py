@@ -290,21 +290,31 @@ def _as_date(value):
     return parsed.date()
 
 
+def contract_end_date(record):
+    """Mainland 合約完結 is the last working day until a later date is entered."""
+    if _text(record.get("sheet")) != "內地勞工":
+        return None
+    return _as_date(record.get("contract_end"))
+
+
 def employed_window(record, info):
     """First and last day this person is employed in the month, or None."""
     start = date(info["year"], info["month"], 1)
     end = date(info["year"], info["month"], info["days"])
     joined = _as_date(record.get("join_date"))
     left = _as_date(record.get("leave_date"))
-    if left is not None and left < start:
+    contract = contract_end_date(record)
+    ends = [day for day in (left, contract) if day is not None]
+    cutoff = min(ends) if ends else None
+    if cutoff is not None and cutoff < start:
         return None
     if joined is not None and joined > end:
         return None
     # A blank status is not "left". Only 已離職, with no date, drops the month.
-    if left is None and _text(record.get("status")) not in {"", "在職"}:
+    if cutoff is None and _text(record.get("status")) not in {"", "在職"}:
         return None
     first = start if joined is None or joined < start else joined
-    last = end if left is None or left > end else left
+    last = end if cutoff is None or cutoff > end else cutoff
     if first > last:
         return None
     return first, last

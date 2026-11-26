@@ -218,6 +218,7 @@ def open_people(info):
                 "name": _text(person.get("slip_name")) or _text(record.get("name_zh")) or number,
                 "leave_date": None,
                 "join_date": _as_date(record.get("join_date")),
+                "contract_end": _as_date(record.get("contract_end")) if _text(record.get("sheet")) == "內地勞工" else None,
             })
     from payroll.pay.part_time import pt_company
     if "part_time" in staff.columns:
@@ -238,6 +239,7 @@ def open_people(info):
                 "name": _text(record.get("name_zh")) or _text(record.get("name_en")) or number,
                 "leave_date": None,
                 "join_date": _as_date(record.get("join_date")),
+                "contract_end": None,
             })
     found.sort(key=lambda person: person["name"])
     return found
