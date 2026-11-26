@@ -122,7 +122,7 @@ def _card(info, draft, person, record, part_rows, readonly):
         if amount_text:
             st.write(f"預計薪金 {amount_text}")
         if person["kind"] == "full" and row is not None:
-            _breakdown(row)
+            _breakdown(row, office=person["book"] == "admin")
             note = _text(row.get("review"))
             if note and note.lower() != "nan":
                 st.caption(note)
@@ -154,15 +154,17 @@ def _card(info, draft, person, record, part_rows, readonly):
             )
 
 
-def _breakdown(row):
+def _breakdown(row, office=False):
     """Show the pieces already inside a last payment."""
     leave_pay = _amount(row.get("leave_pay"))
     if leave_pay:
         st.caption(f"未用年假 {hk(leave_pay)}，已計入預計薪金。日薪是全月基本薪金乘 12 再除以 365。")
     hours = _amount(row.get("ot_hours_detected"))
     overtime = _amount(row.get("ot_pay"))
-    if hours or overtime:
-        st.caption(f"加班 {hours:g} 小時，{hk(overtime) or 'HK$ 0.00'}。沒有選補鐘時，最後一次出糧會計入。")
+    if office and hours:
+        st.caption(f"加班 {hours:g} 小時。寫字樓沒有加班費。")
+    elif hours or overtime:
+        st.caption(f"加班 {hours:g} 小時，{hk(overtime) or 'HK$ 0.00'}。店舖和工場沒有選補鐘時，最後一次出糧會計入。")
     unpaid = _amount(row.get("unpaid_amount"))
     if unpaid:
         st.caption(f"無薪假已扣 {hk(unpaid)}。")

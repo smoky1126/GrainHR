@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.21
+
+- Office staff are not paid overtime. Retail and production staff still are.
+
 ## 1.6.20
 
 - Unused annual leave on a last payment is full monthly salary × 12 / 365 × unused days.

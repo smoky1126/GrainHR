@@ -691,7 +691,7 @@ def _build_draft(info, facts, book):
         leaving = partial and record is not None and (
             _as_date(record.get("leave_date")) is not None or planned is not None
         )
-        if left or not pay_detected_overtime(adj.get("ot_choice"), leaving):
+        if left or not pay_detected_overtime(adj.get("ot_choice"), leaving, office=book == "admin"):
             ot_pay = 0
         else:
             ot_pay = overtime_pay(full_basic, days, paid_hours)

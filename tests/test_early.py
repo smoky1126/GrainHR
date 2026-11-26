@@ -201,6 +201,8 @@ def test_last_payment_includes_unused_leave_and_overtime():
         raise SystemExit("a normal month paid overtime that was not chosen")
     if not pay_detected_overtime("pay", False):
         raise SystemExit("chosen overtime was skipped")
+    if pay_detected_overtime("pay", True, office=True):
+        raise SystemExit("office staff were paid overtime")
     from payroll.pay.early import early_hold
     note = "本月離職：只計 1/11–19/11 基本薪金（19 天）。"
     if early_hold({"review": note, "approved": ""}):

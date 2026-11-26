@@ -35,8 +35,14 @@ def annual_leave_pay(monthly_basic, unused_days):
     return round_money(float(monthly_basic or 0) * 12 / 365 * days)
 
 
-def pay_detected_overtime(choice, leaving):
-    """Pay detected overtime unless it was saved as time off. A last payment pays it unless saved as time off."""
+def pay_detected_overtime(choice, leaving, office=False):
+    """Pay detected overtime unless it was saved as time off.
+
+    A last payment pays it unless it was saved as time off. Office staff are
+    never paid overtime.
+    """
+    if office:
+        return False
     text = str(choice or "").strip().lower()
     if text in {"exchange", "補鐘"}:
         return False
