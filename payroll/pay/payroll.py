@@ -754,7 +754,7 @@ def _build_draft(info, facts, book):
                 leave_days += float(value or 0)
             except (TypeError, ValueError):
                 continue
-        leave_pay = 0.0 if left or not leaving else annual_leave_pay(full_basic, days, leave_days)
+        leave_pay = 0.0 if left or not leaving else annual_leave_pay(full_basic, leave_days)
         if leave_pay:
             other_income = round_money(float(other_income or 0) + leave_pay)
             subtotal = round_money(basic + other_income + ot_pay - rent - unpaid - water - electricity)

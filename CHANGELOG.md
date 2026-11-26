@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.20
+
+- Unused annual leave on a last payment is full monthly salary × 12 / 365 × unused days.
+
 ## 1.6.19
 
 - A last payment adds unused annual leave at the daily rate and pays detected overtime unless it was saved as time off. Rent, water, electricity, and transport stay in the figures. Lateness does not reduce basic salary.

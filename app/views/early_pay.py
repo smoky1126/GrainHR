@@ -158,7 +158,7 @@ def _breakdown(row):
     """Show the pieces already inside a last payment."""
     leave_pay = _amount(row.get("leave_pay"))
     if leave_pay:
-        st.caption(f"未用年假 {hk(leave_pay)}，已計入預計薪金。日薪是全月基本薪金除以這個月的日數。")
+        st.caption(f"未用年假 {hk(leave_pay)}，已計入預計薪金。日薪是全月基本薪金乘 12 再除以 365。")
     hours = _amount(row.get("ot_hours_detected"))
     overtime = _amount(row.get("ot_pay"))
     if hours or overtime:

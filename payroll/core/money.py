@@ -27,9 +27,12 @@ def unpaid_amount(basic, days_in_month, unpaid_days):
     return round_money(float(basic) / float(days_in_month) * days)
 
 
-def annual_leave_pay(basic, days_in_month, unused_days):
-    """Cash for unused annual leave on a last payment, at the same daily rate as unpaid leave."""
-    return unpaid_amount(basic, days_in_month, unused_days)
+def annual_leave_pay(monthly_basic, unused_days):
+    """Unused annual leave on a last payment: full monthly salary × 12 / 365 × unused days."""
+    days = float(unused_days or 0)
+    if days == 0:
+        return 0.0
+    return round_money(float(monthly_basic or 0) * 12 / 365 * days)
 
 
 def pay_detected_overtime(choice, leaving):
