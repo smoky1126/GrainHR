@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.23
+
+- Early pay lists each part of the salary. Mainland staff are shown as not paying MPF.
+
 ## 1.6.22
 
 - Shop and production staff late by more than 15 minutes, and office staff who miss half a day, can have pay deducted. The number of days is chosen on the early-pay card. Zero means no deduction.

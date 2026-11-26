@@ -208,6 +208,9 @@ def test_last_payment_includes_unused_leave_and_overtime():
         raise SystemExit(serious_late("3/11 10分鐘、4/11 16分鐘、5/11 15分鐘"))
     if serious_late("3/11 200分鐘、4/11 300分鐘", 240) != [("4/11", 300)]:
         raise SystemExit(serious_late("3/11 200分鐘、4/11 300分鐘", 240))
+    from payroll.core.money import employee_mpf
+    if employee_mpf(12540, "rent") != 0:
+        raise SystemExit("mainland staff were charged MPF")
     from payroll.pay.early import early_hold
     note = "本月離職：只計 1/11–19/11 基本薪金（19 天）。"
     if early_hold({"review": note, "approved": ""}):

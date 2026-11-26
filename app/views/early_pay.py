@@ -119,8 +119,6 @@ def _card(info, draft, person, record, part_rows, readonly):
                 reason = early_hold(row)
                 amount = row.get("net")
         amount_text = hk(amount)
-        if amount_text:
-            st.write(f"預計薪金 {amount_text}")
         if person["kind"] == "full" and row is not None:
             _breakdown(row, office=person["book"] == "admin")
             note = _text(row.get("review"))
@@ -155,46 +153,71 @@ def _card(info, draft, person, record, part_rows, readonly):
 
 
 def _breakdown(row, office=False):
-    """Show the pieces already inside a last payment."""
+    """One line for each part of the salary, in the order it is added or taken off."""
+    full = _amount(row.get("full_salary"))
+    counted = _amount(row.get("counted_days"))
+    month_days = _amount(row.get("month_days"))
+    basic = _amount(row.get("basic_salary"))
+    lines = []
+    if full and month_days and counted and counted != month_days:
+        lines.append(f"全月基本薪金 {hk(full)}")
+        lines.append(f"基本薪金 {hk(full)} ÷ {month_days:g} × {counted:g} = {hk(basic)}")
+    else:
+        lines.append(f"基本薪金 {hk(basic)}")
     leave_pay = _amount(row.get("leave_pay"))
     if leave_pay:
-        st.caption(f"未用年假 {hk(leave_pay)}，已計入預計薪金。日薪是全月基本薪金乘 12 再除以 365。")
-    hours = _amount(row.get("ot_hours_detected"))
+        lines.append(f"+ 未用年假 {hk(leave_pay)}（全月薪金 × 12 ÷ 365 × 餘下日數）")
+    other = _amount(row.get("other_income")) - leave_pay
+    if other:
+        sign = "+" if other > 0 else "−"
+        lines.append(f"{sign} 其他收入 {hk(abs(other))}")
     overtime = _amount(row.get("ot_pay"))
-    if office and hours:
-        st.caption(f"加班 {hours:g} 小時。寫字樓沒有加班費。")
-    elif hours or overtime:
-        st.caption(f"加班 {hours:g} 小時，{hk(overtime) or 'HK$ 0.00'}。店舖和工場沒有選補鐘時，最後一次出糧會計入。")
+    hours = _amount(row.get("ot_hours_detected"))
+    if office and hours and not overtime:
+        lines.append(f"加班 {hours:g} 小時，寫字樓不計加班費")
+    elif overtime:
+        lines.append(f"+ 加班 {hours:g} 小時 {hk(overtime)}")
+    bonus = _amount(row.get("bonus_paid"))
+    if bonus:
+        lines.append(f"+ 勤工獎 {hk(bonus)}")
+    manual = _amount(row.get("manual_delta"))
+    if manual:
+        sign = "+" if manual > 0 else "−"
+        lines.append(f"{sign} 其他調整 {hk(abs(manual))}")
     unpaid = _amount(row.get("unpaid_amount"))
     if unpaid:
-        st.caption(f"無薪假已扣 {hk(unpaid)}。")
-    deducted = []
+        lines.append(f"− 無薪假及扣薪 {hk(unpaid)}")
     for label, key in (("租金", "rent"), ("水費", "water"), ("電費", "electricity")):
         value = _amount(row.get(key))
         if value:
-            deducted.append(f"{label} {hk(value)}")
-    if deducted:
-        st.caption("內地勞工已扣：" + "，".join(deducted) + "。")
-    late = _amount(row.get("late_mins_detected"))
-    office_limit = 240 if office else 15
+            lines.append(f"− {label} {hk(value)}")
+    scheme = _text(row.get("scheme")).lower()
+    mpf = _amount(row.get("mpf_employee"))
+    if scheme == "rent":
+        lines.append("強積金　不扣（內地勞工）")
+    elif mpf:
+        lines.append(f"− 僱員強積金 {hk(mpf)}")
+    else:
+        lines.append("強積金　不扣")
+    lines.append(f"= 預計薪金 {hk(row.get('net'))}")
+    allowance = _amount(row.get("allowance_amount"))
+    if allowance:
+        lines.append(f"+ 交通／健康津貼 {hk(allowance)}（另一筆過數）")
+        lines.append(f"= 今次共付 {hk(_amount(row.get('net')) + allowance)}")
+    st.markdown("\n".join(f"- {line}" for line in lines))
     from payroll.core.money import serious_late
+    office_limit = 240 if office else 15
     cases = serious_late(row.get("late_text"), office_limit)
     listed = "、".join(f"{day} {minutes}分鐘" for day, minutes in cases)
     if office:
         missing = _text(row.get("missing_text"))
-        if cases or (missing and missing.lower() != "nan"):
+        if cases or missing:
             detail = listed
-            if missing and missing.lower() != "nan":
+            if missing:
                 detail = "、".join(part for part in (detail, f"缺卡 {missing}") if part)
-            st.caption(f"寫字樓缺半天可以扣薪：{detail}。扣幾多日由你填，0.5 是半天，0 是不扣。")
+            st.caption(f"寫字樓缺半天可以扣薪：{detail}。在「扣薪日數」填 0.5 是半天，0 是不扣。")
     elif cases:
-        st.caption(f"遲到超過 15 分鐘：{listed}。店舖和工場可以扣薪。扣幾多日由你填，0 是不扣。")
-    elif late > 5:
-        st.caption(f"遲到 {late:g} 分鐘。5 分鐘以內不影響勤工獎，15 分鐘以內不建議扣薪。")
-    allowance = _amount(row.get("allowance_amount"))
-    if allowance:
-        st.caption(f"交通／健康津貼 {hk(allowance)}。這是另一筆過數，不在預計薪金裡。")
-        st.write(f"今次共付 {hk(_amount(row.get('net')) + allowance)}")
+        st.caption(f"遲到超過 15 分鐘：{listed}。在「扣薪日數」決定扣幾多日，0 是不扣。")
 
 
 def _amount(value):
