@@ -477,10 +477,68 @@ def fill_document(info, draft):
 
     _rewrite_autopay(document, draft, info)
     _rewrite_batch_numbers(document, draft, info)
+    _write_breakdowns(document, by_id, info)
     if info.get("_quarter"):
         _paint_quarter(document, draft, info)
     document.save(output)
     return output
+
+
+def _write_breakdowns(document, by_id, info):
+    """Put this month's leave, the pay formula, and lateness on each shop slip."""
+    import re
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.text.paragraph import Paragraph
+
+    from payroll.documents.breakdown import breakdown_lines
+    from payroll.documents.docxutil import set_paragraph_text
+
+    month = info.get("month") if isinstance(info, dict) else None
+    current = None
+    body = document.element.body
+    for child in list(body.iterchildren()):
+        if child.tag == qn("w:tbl"):
+            blob = "".join(node.text or "" for node in child.iter(qn("w:t")))
+            match = re.search(r"#\s*(\d+)\s*-\s*(\d+)", blob)
+            if match:
+                current = f"{match.group(1)}-{int(match.group(2))}"
+            continue
+        if child.tag != qn("w:p"):
+            continue
+        paragraph = Paragraph(child, document)
+        text = paragraph.text.strip()
+        if "如對薪金" not in text and not text.startswith("For salary content"):
+            continue
+        row = _breakdown_row(by_id, current)
+        note = ""
+        if row is not None:
+            lines = breakdown_lines(row, month)
+            if lines:
+                note = "明細 Breakdown: " + "；".join(lines)
+        previous = child.getprevious()
+        if previous is not None and previous.tag == qn("w:p"):
+            previous_text = Paragraph(previous, document).text.strip()
+            if previous_text.startswith("明細") or previous_text.startswith("*Breakdown"):
+                set_paragraph_text(Paragraph(previous, document), note)
+                continue
+        if not note:
+            continue
+        fresh = OxmlElement("w:p")
+        child.addprevious(fresh)
+        set_paragraph_text(Paragraph(fresh, document), note)
+
+
+def _breakdown_row(by_id, staff_id):
+    if not staff_id:
+        return None
+    if staff_id in by_id:
+        return by_id[staff_id]
+    suffix = staff_id.split("-")[-1]
+    hits = [row for key, row in by_id.items() if str(key).split("-")[-1] == suffix]
+    if len(hits) == 1:
+        return hits[0]
+    return None
 
 
 def keep_person(document, staff_id):

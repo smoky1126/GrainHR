@@ -24,9 +24,17 @@ def _slip_file(info, draft, person, record):
         from payroll.core.config import book_info
         from payroll.documents.slip_pdf import write_office_pdf
         try:
-            return write_office_pdf(pdf, row, book_info(info, "admin"))
+            written = write_office_pdf(pdf, row, book_info(info, "admin"))
         except (OSError, SystemExit):
-            pass
+            written = None
+        if written is not None:
+            try:
+                from payroll.documents.slips_admin import refresh_leave_dates
+                xlsx = stored if stored.suffix.lower() == ".xlsx" else pdf.with_suffix(".xlsx")
+                refresh_leave_dates(xlsx, row)
+            except (OSError, SystemExit):
+                pass
+            return written
     if pdf is not None and pdf.is_file():
         return pdf
     return stored if stored.is_file() else None

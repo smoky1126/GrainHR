@@ -38,6 +38,9 @@ def empty_summary():
         "wrong_dates": "",
         "day_off_dates": "",
         "leave_text": "",
+        "annual_dates": "",
+        "sick_dates": "",
+        "unpaid_dates": "",
         "rest_days": 0,
         "annual_days": 0,
         "sick_days": 0,
@@ -252,6 +255,16 @@ def _join(dates):
     return "、".join(dates)
 
 
+def _leave_when(label, roster):
+    """12/11, or 12/11(AM) / 12/11(PM) when the roster marks half a day."""
+    text = _text(roster)
+    if re.search(r"上午|\bAM\b", text, re.I):
+        return f"{label}(AM)"
+    if re.search(r"下午|\bPM\b", text, re.I):
+        return f"{label}(PM)"
+    return label
+
+
 def _shift_clock(roster, which):
     match = SHIFT.search(_text(roster))
     if not match:
@@ -437,8 +450,16 @@ def merge_days(facts, punches, assume_until=None):
             leave_kind = detail
             status = LEAVE_LABEL.get(detail, STATUS["leave"])
             person[detail] += 1
+            source = next((item for item, kind in leaves if kind == detail), None)
+            stamp = _leave_when(label, source.get("roster") if source is not None else "")
             if detail == "rest":
                 person["rest_dates"].append(label)
+            elif detail == "annual":
+                person["annual_dates"].append(stamp)
+            elif detail == "sick":
+                person["sick_dates"].append(stamp)
+            elif detail == "unpaid":
+                person["unpaid_dates"].append(stamp)
         elif kind == "leave":
             status = STATUS["worked on day off"]
             person["worked"] += 1
@@ -494,6 +515,9 @@ def _fresh():
         "unpaid": 0,
         "birthday": 0,
         "rest_dates": [],
+        "annual_dates": [],
+        "sick_dates": [],
+        "unpaid_dates": [],
         "two_shift": [],
         "no_shift": [],
         "not_in_daka": False,
@@ -549,6 +573,9 @@ def _finish(person):
         "sick_days": person["sick"],
         "unpaid_days": person["unpaid"],
         "birthday_days": person["birthday"],
+        "annual_dates": _join(person["annual_dates"]),
+        "sick_dates": _join(person["sick_dates"]),
+        "unpaid_dates": _join(person["unpaid_dates"]),
         "rest_dates": _join(person["rest_dates"]),
         "two_shift_dates": _join(person["two_shift"]),
         "no_shift_dates": _join(person["no_shift"]),

@@ -274,6 +274,32 @@ def test_office_slip_pdf_shows_partial_pay_and_unused_leave():
         raise SystemExit("office slip was not a pdf")
 
 
+def test_breakdown_is_this_month_and_shows_the_formula():
+    from payroll.documents.breakdown import breakdown_lines, dates_in_month
+    if dates_in_month("12/10(AM)、3/11(PM)", 11) != "3/11(PM)":
+        raise SystemExit(dates_in_month("12/10(AM)、3/11(PM)", 11))
+    row = pd.Series({
+        "annual_dates": "12/10(AM)",
+        "annual_taken": 0,
+        "full_salary": 19800,
+        "basic_salary": 12540,
+        "month_days": 30,
+        "counted_days": 19,
+        "leave_pay": 1555.79,
+        "unused_annual_days": 2.39,
+        "late_text": "2/11 15分鐘、3/11 16分鐘",
+        "salary_deduct_days": 0.5,
+        "book": "admin",
+    })
+    text = " | ".join(breakdown_lines(row, 11))
+    if "12/10" in text:
+        raise SystemExit(text)
+    if "本月年假 Annual leave taken: 無" not in text:
+        raise SystemExit(text)
+    if "× 12 / 365" not in text or "2/11 15分鐘" not in text or "扣薪" not in text:
+        raise SystemExit(text)
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -295,6 +321,7 @@ def main():
     test_future_shifts_are_counted_before_the_last_day()
     test_last_payment_includes_unused_leave_and_overtime()
     test_office_slip_pdf_shows_partial_pay_and_unused_leave()
+    test_breakdown_is_this_month_and_shows_the_formula()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

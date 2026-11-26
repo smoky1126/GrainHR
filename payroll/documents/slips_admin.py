@@ -3,6 +3,7 @@
 import re
 import shutil
 from copy import copy
+from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 
@@ -136,8 +137,10 @@ def _apply_identity(sheet, slip, row, info):
                 sheet.cell(excel_row, col).value = autopay_line(value, pay_date, reference)
             if isinstance(value, str) and value.startswith("Annual Leave"):
                 _write_days(sheet, excel_row, col, row.annual_taken)
+                _write_leave_dates(sheet, excel_row, col, _text(getattr(row, "annual_dates", "")))
             if isinstance(value, str) and value.startswith("Sick Leave"):
                 _write_days(sheet, excel_row, col, row.sick_days)
+                _write_leave_dates(sheet, excel_row, col, _text(getattr(row, "sick_dates", "")))
             if isinstance(value, str) and "未使用年假" in value:
                 typed = getattr(row, "unused_annual_days", None)
                 if typed is not None and str(typed).strip().lower() not in {"", "nan"}:
@@ -151,6 +154,25 @@ def _apply_identity(sheet, slip, row, info):
                 if index < len(lines):
                     days = lines[index].get("days", 0) if isinstance(lines[index], dict) else 0
                     _write_days(sheet, excel_row, col, days)
+
+
+def _write_leave_dates(sheet, row, col, dates):
+    """Replace last month's date, such as 12/10(AM), with this month's dates."""
+    day_col = None
+    for scan in range(col + 1, 16):
+        if "Day" in _text(sheet.cell(row, scan).value):
+            day_col = scan
+            break
+    if day_col is None:
+        return
+    written = False
+    for scan in range(col + 1, day_col):
+        value = sheet.cell(row, scan).value
+        if isinstance(value, str) and value.strip() and "Day" not in value:
+            sheet.cell(row, scan).value = dates if not written else None
+            written = True
+    if dates and not written:
+        sheet.cell(row, max(col + 1, day_col - 2)).value = dates
 
 
 def _write_days(sheet, row, col, days):
@@ -285,6 +307,29 @@ def _copy_person(path, start, end):
     book.save(path)
     from payroll.core.excel_io import guard_xlsx
     guard_xlsx(path)
+
+
+def refresh_leave_dates(path, row):
+    """Drop a leave date that belongs to another month, such as 12/10 on a November slip."""
+    file = Path(path)
+    if not file.is_file():
+        return
+    book = load_workbook(file)
+    sheet = book.worksheets[0]
+    for excel_row in range(1, sheet.max_row + 1):
+        for col in range(1, 14):
+            value = sheet.cell(excel_row, col).value
+            if not isinstance(value, str):
+                continue
+            if value.startswith("Annual Leave"):
+                _write_days(sheet, excel_row, col, getattr(row, "annual_taken", 0))
+                _write_leave_dates(sheet, excel_row, col, _text(getattr(row, "annual_dates", "")))
+            elif value.startswith("Sick Leave"):
+                _write_days(sheet, excel_row, col, getattr(row, "sick_days", 0))
+                _write_leave_dates(sheet, excel_row, col, _text(getattr(row, "sick_dates", "")))
+    book.save(file)
+    from payroll.core.excel_io import guard_xlsx
+    guard_xlsx(file)
 
 
 def write_person_slip(info, draft, staff_id):

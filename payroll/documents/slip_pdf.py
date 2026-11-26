@@ -55,6 +55,17 @@ def _join_text(value):
     return text.split(" ")[0] if "00:00:00" in text else text
 
 
+def _dates_for_month(text, month):
+    from payroll.documents.breakdown import dates_in_month
+    return dates_in_month(text, month)
+
+
+def _detail_lines(row, info):
+    from payroll.documents.breakdown import breakdown_lines
+    month = info.get("month") if isinstance(info, dict) else None
+    return breakdown_lines(row, month)
+
+
 def _plain(value):
     if value is None:
         return ""
@@ -146,7 +157,7 @@ def slip_content(row, info=None):
         "unused_days": shown_days,
         "sick_days": _num(row, "sick_days"),
         "annual_taken": _num(row, "annual_taken"),
-        "annual_dates": _text(row, "annual_dates"),
+        "annual_dates": _dates_for_month(_text(row, "annual_dates"), info.get("month")),
         "unpaid_days": _num(row, "unpaid_days"),
         "birthday_days": _num(row, "birthday_days"),
         "absent_mins": _num(row, "absent_mins"),
@@ -161,6 +172,7 @@ def slip_content(row, info=None):
         "transport": transport,
         "transport_note": transport_note,
         "logo": _logo_path(),
+        "details": _detail_lines(row, info),
     }
 
 
@@ -305,8 +317,9 @@ def _draw(pdf, content):
     y = _pay_box(pdf, left, y, right, mid, content)
     y += 16
     y = _allowance_box(pdf, left, y, right, content)
+    y = _detail_box(pdf, left, y + 14, right, content)
     pdf.set_text_color(0, 0, 0)
-    _text_at(pdf, left, y + 22, width, 12, FOOTER, 7, "C")
+    _text_at(pdf, left, min(y + 16, 800), width, 12, FOOTER, 7, "C")
 
 
 def _day_text(days, dates=""):
@@ -378,6 +391,25 @@ def _total_line(pdf, left, y, right, label, currency, amount, size):
     _text_at(pdf, right - 130, y, 46, 14, currency, size, "R")
     _text_at(pdf, right - 82, y, 76, 14, _money(amount), size, "R")
     return y + 14
+
+
+def _detail_box(pdf, left, y, right, content):
+    lines = [line for line in content.get("details") or [] if line]
+    if not lines:
+        return y
+    top = y
+    _text_at(pdf, left + 6, y, right - left - 12, 12, "明細 Breakdown", 8, "L")
+    y += 13
+    pdf.set_font("slip", size=7)
+    for line in lines:
+        pdf.set_xy(left + 6, y)
+        pdf.multi_cell(right - left - 12, 10, line)
+        y = pdf.get_y()
+        if y > 760:
+            break
+    y += 4
+    pdf.rect(left, top, right - left, y - top)
+    return y
 
 
 def _allowance_box(pdf, left, y, right, content):
