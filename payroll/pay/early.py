@@ -100,6 +100,41 @@ def leaving_this_month(record, info):
     return _text(record.get("status")) == "已離職"
 
 
+def previous_allowance(info, staff_id):
+    """The allowance paid on last month's draft, or None when that file is absent."""
+    from payroll.core.config import parse_month
+    import pandas as pd
+
+    year, month = int(info["year"]), int(info["month"])
+    if month == 1:
+        key = f"{year - 1}-12"
+    else:
+        key = f"{year}-{month - 1:02d}"
+    path = parse_month(key)["folder"] / "payroll_draft.xlsx"
+    if not path.exists():
+        return None
+    wanted = _text(staff_id)
+    try:
+        book = pd.ExcelFile(path)
+    except (OSError, ValueError):
+        return None
+    for sheet in book.sheet_names:
+        frame = pd.read_excel(path, sheet_name=sheet)
+        if "糧單編號" not in frame.columns or "津貼" not in frame.columns:
+            continue
+        hit = frame[frame["糧單編號"].map(_text) == wanted]
+        if hit.empty:
+            continue
+        try:
+            amount = float(hit.iloc[0]["津貼"])
+        except (TypeError, ValueError):
+            return None
+        if amount != amount:
+            return None
+        return amount
+    return None
+
+
 _PRIOR_NOTES = ("本月離職", "本月入職", "未到最後工作日的更表")
 
 

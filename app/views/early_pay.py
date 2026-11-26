@@ -196,7 +196,7 @@ def _breakdown(row, office=False):
     if scheme == "rent":
         lines.append("強積金　不扣（內地勞工）")
     elif mpf:
-        lines.append(f"− 僱員強積金 {hk(mpf)}（最後扣除；已包括未用年假，不包括交通／健康津貼）")
+        lines.append(f"− 僱員強積金 {hk(mpf)}（收入欄合計 × 5%，最後扣除，不包括交通／健康津貼）")
     else:
         lines.append("強積金　不扣")
     lines.append(f"= 預計薪金 {hk(row.get('net'))}")
@@ -230,13 +230,47 @@ def _amount(value):
     return number
 
 
+def _previous_allowance(info, staff_id):
+    """Last month's allowance from the saved draft. None when that file is absent."""
+    import pandas as pd
+    from payroll.core.config import parse_month
+
+    year, month = int(info["year"]), int(info["month"])
+    if month == 1:
+        key = f"{year - 1}-12"
+    else:
+        key = f"{year}-{month - 1:02d}"
+    path = parse_month(key)["folder"] / "payroll_draft.xlsx"
+    if not path.exists():
+        return None
+    wanted = _text(staff_id)
+    try:
+        book = pd.ExcelFile(path)
+    except (OSError, ValueError):
+        return None
+    for sheet in book.sheet_names:
+        frame = pd.read_excel(path, sheet_name=sheet)
+        if "糧單編號" not in frame.columns or "津貼" not in frame.columns:
+            continue
+        hit = frame[frame["糧單編號"].map(_text) == wanted]
+        if hit.empty:
+            continue
+        try:
+            amount = float(hit.iloc[0]["津貼"])
+        except (TypeError, ValueError):
+            return None
+        if amount != amount:
+            return None
+        return amount
+    return None
+
+
 def _adjustment(info, row, person, readonly):
     """Leave days and allowances for this one early slip."""
     staff_id = _text(row.get("staff_id"))
     if not staff_id:
         return
-    from payroll.pay.early import previous_allowance
-    last_allowance = previous_allowance(info, staff_id)
+    last_allowance = _previous_allowance(info, staff_id)
     if last_allowance is None:
         st.caption("找不到上月津貼。今次交通津貼和健康津貼請自行填寫，儲存後才計入。不計入強積金。")
     else:

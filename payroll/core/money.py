@@ -29,26 +29,6 @@ def unpaid_amount(basic, days_in_month, unpaid_days):
     return round_money(float(basic) / float(days_in_month) * days)
 
 
-def final_mpf_income(basic, other, overtime, bonus, manual, unpaid, rent, water, electricity):
-    """Income for MPF on a last payment.
-
-    Unused annual leave is already inside `other`. Transport and health
-    allowances are not included. MPF is taken off this total at the end.
-    """
-    total = (
-        float(basic or 0)
-        + float(other or 0)
-        + float(overtime or 0)
-        + float(bonus or 0)
-        + float(manual or 0)
-        - float(unpaid or 0)
-        - float(rent or 0)
-        - float(water or 0)
-        - float(electricity or 0)
-    )
-    return round_money(max(0, total))
-
-
 def annual_leave_pay(monthly_basic, unused_days):
     """Unused annual leave on a last payment: full monthly salary × 12 / 365 × unused days."""
     days = float(unused_days or 0)

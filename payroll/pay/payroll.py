@@ -21,7 +21,6 @@ from payroll.core.money import (
     annual_leave_pay,
     employee_mpf,
     employer_mpf,
-    final_mpf_income,
     net_pay,
     overtime_pay,
     pay_detected_overtime,
@@ -762,9 +761,11 @@ def _build_draft(info, facts, book):
         if leave_pay:
             other_income = round_money(float(other_income or 0) + leave_pay)
         if not left and leaving:
-            mpf_income = final_mpf_income(
-                basic, other_income, ot_pay, bonus_paid, manual, unpaid, rent, water, electricity,
-            )
+            # Payment 收入: basic salary plus the other income lines. Allowances and deductions are outside it.
+            income = float(basic or 0) + float(other_income or 0) + float(ot_pay or 0) + float(bonus_paid or 0)
+            if manual > 0:
+                income += manual
+            mpf_income = round_money(max(0, income))
             mpf_ee = employee_mpf(mpf_income, scheme)
             mpf_er = employer_mpf(mpf_income, scheme)
         if not left and (leave_pay or leaving):

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.25
+
+- The payout page loads again. On a last payment, MPF is 5% of the income column: basic salary, unused annual leave, overtime, and attendance bonus. Transport, health allowance, and deductions are not in that 5%. Mainland staff still have no MPF.
+
 ## 1.6.24
 
 - On a last payment, transport and health allowance are typed in, with last month's amount shown as a reminder. MPF is taken off last and includes unused annual leave. The allowance is not part of MPF. Mainland staff still have no MPF.
