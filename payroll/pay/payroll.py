@@ -653,6 +653,7 @@ def _build_draft(info, facts, book):
         partial = (not left) and _partial(window, info)
         basic = 0 if left else (full_basic if not partial else round_money(full_basic / days * ((window[1] - window[0]).days + 1)))
         scheme = _text(person.scheme) or "mpf"
+        punch_missing = _text(detected.get("missing_dates"))
         absence_labels = [part.strip() for part in _text(detected.get("absent_dates")).split("、") if part.strip()]
         absence = parse_absence_choices(adj.get("absence_choices"))
         pending_absence = [label for label in absence_labels if label not in absence]
@@ -863,6 +864,7 @@ def _build_draft(info, facts, book):
             "roster_days": detected["roster_days"],
             "days_worked": detected["days_worked"],
             "missing_text": detected["missing_dates"],
+            "punch_missing": punch_missing,
             "late_text": detected["late_text"],
             "early_text": detected["early_text"],
             "wrong_text": detected["wrong_dates"],

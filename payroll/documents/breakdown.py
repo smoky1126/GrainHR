@@ -63,6 +63,23 @@ def dates_in_month(text, month):
     return "、".join(kept)
 
 
+def missing_punch_marks(text, month=None):
+    """Forgot to clock in, clock out, or both. Dates outside this pay month are left out."""
+    marks = []
+    source = dates_in_month(text, month) if month else str(text or "")
+    for part in re.split(r"[、,，;；]", source):
+        part = part.strip()
+        if not part:
+            continue
+        if part.endswith("上班"):
+            marks.append(f"{part[:-2]} 上班缺卡")
+        elif part.endswith("下班"):
+            marks.append(f"{part[:-2]} 下班缺卡")
+        else:
+            marks.append(f"{part} 全天缺卡")
+    return marks
+
+
 def breakdown_lines(row, month=None):
     """One line per figure that needs a reason: leave taken this month, the pay formula, lateness."""
     if row is None:
@@ -89,6 +106,9 @@ def breakdown_lines(row, month=None):
         lines.append(
             f"未用年假 Unused annual leave: {_days(leave_days)} 日 × ${_whole(full)} × 12 / 365 = HKD${leave_pay:,.2f}"
         )
+    missing = missing_punch_marks(_text(row, "punch_missing") or _text(row, "missing_text"), month)
+    if missing:
+        lines.append("缺卡 Missing punch: " + "、".join(missing))
     late = dates_in_month(_text(row, "late_text") or _text(row, "late_dates"), month)
     if late:
         lines.append(f"遲到 Lateness: {late}")

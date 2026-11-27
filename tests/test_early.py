@@ -380,6 +380,27 @@ def test_late_minutes_deduct_at_the_hourly_rate():
         raise SystemExit("shop slip was not a pdf")
 
 
+def test_a_forgotten_punch_is_marked_in_the_deduction_column():
+    from payroll.documents.breakdown import missing_punch_marks
+    from payroll.documents.slip_pdf import slip_content
+    marks = missing_punch_marks("12/10下班、8/11上班、19/11下班、3/11", 11)
+    if marks != ["8/11 上班缺卡", "19/11 下班缺卡", "3/11 全天缺卡"]:
+        raise SystemExit(marks)
+    row = pd.Series({
+        "punch_missing": "8/11上班、19/11下班",
+        "basic_salary": 10000,
+        "net": 10000,
+        "mpf_employee": 0,
+    })
+    content = slip_content(row, {"year": 2026, "month": 11})
+    if content["punch_marks"] != ["8/11 上班缺卡", "19/11 下班缺卡"]:
+        raise SystemExit(content["punch_marks"])
+    if not any("8/11 上班缺卡" in line for line in content["details"]):
+        raise SystemExit(content["details"])
+    if any(item[0].startswith("8/11") for item in content["deductions"]):
+        raise SystemExit(content["deductions"])
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -405,6 +426,7 @@ def main():
     test_mainland_contract_end_is_the_last_day_until_renewed()
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
+    test_a_forgotten_punch_is_marked_in_the_deduction_column()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

@@ -61,6 +61,13 @@ def _dates_for_month(text, month):
     return dates_in_month(text, month)
 
 
+def _punch_marks(row, info):
+    from payroll.documents.breakdown import missing_punch_marks
+    month = info.get("month") if isinstance(info, dict) else None
+    text = _text(row, "punch_missing") or _text(row, "missing_text")
+    return missing_punch_marks(text, month)
+
+
 def _detail_lines(row, info):
     from payroll.documents.breakdown import breakdown_lines
     month = info.get("month") if isinstance(info, dict) else None
@@ -173,6 +180,7 @@ def slip_content(row, info=None):
         "absent_mins": _num(row, "salary_deduct_minutes") or _num(row, "absent_mins"),
         "payments": payments,
         "deductions": deductions,
+        "punch_marks": _punch_marks(row, info),
         "subtotal": subtotal,
         "mpf_employee": mpf_employee,
         "mpf_employer": _num(row, "mpf_employer"),
@@ -415,6 +423,9 @@ def _pay_box(pdf, left, y, right, mid, content):
         _text_at(pdf, mid + 6, split, right - mid - 90, 12, label, 8, "L")
         _text_at(pdf, right - 86, split, 28, 12, "-HKD$", 8, "L")
         _text_at(pdf, right - 78, split, 72, 12, _money(amount), 8, "R")
+        split += 13
+    for mark in content.get("punch_marks") or []:
+        _text_at(pdf, mid + 6, split, right - mid - 12, 12, mark, 8, "L", fit=True)
         split += 13
     y = max(y, split) + 36
     pdf.line(mid, top, mid, y)
