@@ -350,6 +350,40 @@ def _downloads():
     return [line.strip() for line in (done.stdout or "").splitlines() if line.strip()]
 
 
+def _saver_activity(package):
+    dump = _adb("shell", "dumpsys", "package", package).stdout or ""
+    match = re.search(r"([\w.]+SaveActivity)", dump)
+    if match:
+        return f"{package}/{match.group(1)}"
+    return f"{package}/{package}.SaveActivity"
+
+
+def _shared_uri():
+    dump = _adb("shell", "dumpsys", "activity", "activities").stdout or ""
+    found = re.findall(r"(content://[^\s\"'}]+)", dump)
+    for uri in reversed(found):
+        if "intentresolver" in uri or uri.endswith("/"):
+            continue
+        return uri
+    return ""
+
+
+def _hand_to_saver(package):
+    """Give the shared file to DAKA Save when the share list does not show it."""
+    if not package:
+        return False
+    uri = _shared_uri()
+    if not uri:
+        return False
+    result = _adb(
+        "shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "*/*",
+        "-n", _saver_activity(package),
+        "--grant-read-uri-permission",
+        "--eu", "android.intent.extra.STREAM", uri,
+    )
+    return result.returncode == 0 and "Error" not in (result.stdout or "")
+
+
 def _tap_share(device, label):
     if label and _tap_label(device, label):
         return True
@@ -375,19 +409,25 @@ def _expand_share_sheet(device):
     return False
 
 
-def _save_share(device, label):
-    for _ in range(6):
+def _save_share(device, label, package=""):
+    for _ in range(4):
         _deny_location(device)
         _expand_share_sheet(device)
-        deadline = time.time() + 6
+        deadline = time.time() + 4
         while time.time() < deadline:
             if _tap_share(device, label):
                 time.sleep(2)
                 if device.app_current().get("package") != "com.android.intentresolver":
                     return
-            time.sleep(0.5)
+            time.sleep(0.4)
+        if _hand_to_saver(package):
+            time.sleep(2)
+            return
         device.swipe(540, 1600, 540, 800, 0.2)
         time.sleep(0.6)
+    if _hand_to_saver(package):
+        time.sleep(2)
+        return
     raise SystemExit("分享清單沒有 %s。目前畫面：%s" % (label, "、".join(_screen_labels(device))))
 
 
@@ -452,7 +492,7 @@ def _grab_open_share(device, plan):
     if not (device(text="Sharing 1 file").exists or (label and device(text=label).exists)):
         return None
     before = set(_downloads())
-    _save_share(device, label)
+    _save_share(device, label, plan.get("save_package") or "")
     time.sleep(2)
     try:
         return _as_payroll_csv(_pull_new(before))
@@ -525,7 +565,7 @@ def _export_ranges(device, plan, today):
         if not tapped:
             raise SystemExit("畫面上找不到匯出。目前畫面：%s" % "、".join(_screen_labels(device)))
         time.sleep(2)
-        _save_share(device, plan["save_label"])
+        _save_share(device, plan["save_label"], plan.get("save_package") or "")
         time.sleep(2)
         pulled = _as_payroll_csv(_pull_new(before))
         named = OUTBOX / f"daka_{start.isoformat()}_{end.isoformat()}_{time.strftime('%Y%m%d_%H%M%S')}.csv"
