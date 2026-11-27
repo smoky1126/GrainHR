@@ -513,8 +513,6 @@ def _adjustment_inputs(row, person, readonly, prefix):
     )
     if _amount(row.get("unused_annual_days")):
         typed_leave = row.get("unused_annual_days")
-    elif _amount(row.get("annual_taken")):
-        typed_leave = row.get("annual_taken")
     else:
         typed_leave = _amount(row.get("al_1_days")) + _amount(row.get("al_2_days"))
     annual = st.number_input(
@@ -572,7 +570,7 @@ def _adjustment_inputs(row, person, readonly, prefix):
     return {
         "unpaid_days": float(unpaid),
         "unused_annual_days": float(annual),
-        "annual_taken": 0,
+        "annual_taken": "",
         "manual_delta": float(extra),
         "salary_deduct_days": float(deduct),
         "salary_deduct_minutes": float(deduct_mins),
