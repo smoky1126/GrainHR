@@ -100,6 +100,20 @@ def _click_parent(device, xpath, missing):
     node.click()
 
 
+def _export_targets(plan):
+    """Labels that open the DAKA export page. The app now uses 报表汇出 instead of 匯出."""
+    preferred = [
+        "匯出", "导出", "汇出", "Export",
+        "导出报表", "匯出報表", "汇出报表", "导出文件", "匯出文件",
+        "报表汇出", "報表匯出", "报表导出", "報表導出",
+    ]
+    labels = []
+    for label in [plan.get("open")] + _as_list(plan.get("open_text")) + preferred:
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
 def _screen_labels(device):
     xml = device.dump_hierarchy()
     labels = []
@@ -115,9 +129,9 @@ def _screen_labels(device):
             if any(word in label for word in ("signal", "Battery", "notification", "Wifi", "Phone")):
                 continue
             labels.append(label)
-            if len(labels) >= 6:
-                return labels
-    return labels
+    interesting = [label for label in labels if any(word in label for word in ("汇出", "匯出", "导出", "導出", "Export", "内勤", "外勤"))]
+    ordered = interesting + [label for label in labels if label not in interesting]
+    return ordered[:12]
 
 
 def _as_list(value):
@@ -156,7 +170,7 @@ def _tap_label(device, label):
 def _open_export(device, plan):
     """Leave the company list if it is showing, then open the export dialog."""
     dialogs = _as_list(plan.get("dialog"))
-    opens = [plan.get("open")] + _as_list(plan.get("open_text"))
+    opens = _export_targets(plan)
     company = plan.get("company") or ""
     backs = _as_list(plan.get("back"))
     deadline = time.time() + 40
@@ -420,7 +434,7 @@ def _export_ranges(device, plan, today):
         _set_date(device, plan["end"], end)
         before = set(_downloads())
         tapped = False
-        for label in [plan.get("export")] + _as_list(plan.get("open_text")):
+        for label in _export_targets(plan):
             if not label:
                 continue
             node = device.xpath('//*[@text="%s"]/..' % label)
