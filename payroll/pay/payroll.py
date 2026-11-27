@@ -108,17 +108,11 @@ def _minute_parts(text):
     return found
 
 
-def _as_hours(minutes):
-    """883 minutes is 14小時43分鐘, so it can be set beside overtime hours."""
+def _same_unit(minutes):
+    """Hours and minutes, then the minute count. Overtime uses the same shape."""
     minutes = int(round(float(minutes or 0)))
     hours, mins = divmod(abs(minutes), 60)
-    if hours and mins:
-        text = f"{hours}小時{mins}分鐘"
-    elif hours:
-        text = f"{hours}小時"
-    else:
-        text = f"{mins}分鐘"
-    return text
+    return f"{hours}小時{mins}分鐘（{minutes}分鐘）"
 
 
 def clock_review(late_text, early_text, late_mins, early_mins, ot_hours):
@@ -142,25 +136,29 @@ def clock_review(late_text, early_text, late_mins, early_mins, ot_hours):
     worst = max((minutes for _day, minutes in late), default=0)
     forgot = [(day, minutes) for day, minutes in late if minutes >= FORGOT_MINUTES]
     need = late_total + early_total
-    gap = need - int(round(overtime * 60))
-    if gap <= 0 and need:
-        compare = f"加班 {_hour_text(overtime)} 小時，可以補完遲到及早退。"
-    elif need:
-        compare = f"加班 {_hour_text(overtime)} 小時，未能補完，尚欠 {_as_hours(gap)}。"
+    ot_mins = int(round(overtime * 60))
+    gap = need - ot_mins
+    if need:
+        compare = f"遲到及早退 {_same_unit(need)}。加班 {_same_unit(ot_mins)}。"
+        if gap > 0:
+            compare += f"尚欠 {_same_unit(gap)}。"
+        else:
+            compare += "加班可以補完。"
     else:
         compare = ""
     return {
         "late_times": len(late),
         "late_mins": late_total,
-        "late_span": _as_hours(late_total),
+        "late_span": _same_unit(late_total),
         "worst": worst,
         "early_times": len(early),
         "early_mins": early_total,
-        "early_span": _as_hours(early_total),
+        "early_span": _same_unit(early_total),
         "need_mins": need,
-        "need_span": _as_hours(need),
+        "need_span": _same_unit(need),
         "ot_hours": overtime,
-        "ot_span": _as_hours(int(round(overtime * 60))),
+        "ot_mins": ot_mins,
+        "ot_span": _same_unit(ot_mins),
         "forgot": forgot,
         "can_cover": bool(late_total) and overtime > 0,
         "compare": compare,

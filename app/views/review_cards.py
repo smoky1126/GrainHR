@@ -163,28 +163,22 @@ def _clock_panel(booked, draft, row, book, staff_id, readonly):
     lines = []
     if facts["late_mins"]:
         lines.append(
-            f"遲到 {facts['late_times']} 次，共 {facts['late_mins']} 分鐘（{facts['late_span']}），最長 {facts['worst']} 分鐘"
+            f"遲到 {facts['late_times']} 次，{facts['late_span']}，最長 {facts['worst']} 分鐘"
         )
         if _text(row.get("late_text")):
             lines.append(_text(row.get("late_text")))
     if facts["early_mins"]:
-        lines.append(
-            f"早退 {facts['early_times']} 次，共 {facts['early_mins']} 分鐘（{facts['early_span']}）"
-        )
+        lines.append(f"早退 {facts['early_times']} 次，{facts['early_span']}")
         if _text(row.get("early_text")):
             lines.append(_text(row.get("early_text")))
-    if facts["need_mins"]:
-        lines.append(
-            f"遲到及早退共 {facts['need_mins']} 分鐘（{facts['need_span']}）。加班 {facts['ot_span']}。"
-        )
-        if facts["compare"]:
-            lines.append(facts["compare"])
+    if facts["compare"]:
+        lines.append(facts["compare"])
     st.markdown("  \n".join(lines))
     if facts["forgot"]:
         shown = "、".join(f"{day} {minutes}分鐘" for day, minutes in facts["forgot"])
         st.warning(f"這些遲到很長，可能是忘記打上班卡：{shown}")
     if facts["can_cover"]:
-        st.info(f"有加班 {facts['ot_hours']:g} 小時。遲到可以用這些時間補鐘。")
+        st.info(f"加班 {facts['ot_span']}。遲到可以用這些時間補鐘。")
     if not (facts["forgot"] or facts["can_cover"]):
         return
     stored = _text(row.get("time_choice"))
