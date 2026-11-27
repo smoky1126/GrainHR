@@ -41,6 +41,42 @@ def _slip_file(info, draft, person, record):
     return stored if stored.is_file() else None
 
 
+def _offer_slip(info, person, row, pay_date, readonly, key):
+    """Transaction numbers and the PDF, the same as an issued slip."""
+    if row is None or person.get("kind") == "part":
+        return
+    staff_id = _text(row.get("staff_id")) or _text(person.get("staff_id"))
+    prefix = f"{info['key']}-{person['book']}-{staff_id or person['employee_no']}"
+    salary_ref = _saved_text(
+        "薪金交易編號", f"early-ref-{prefix}", _text(row.get("salary_reference")), readonly,
+    )
+    allowance_ref = _saved_text(
+        "津貼交易編號", f"early-allow-ref-{prefix}", _text(row.get("allowance_reference")), readonly,
+    )
+    st.caption("薪金和津貼是兩次過數。編號會印在糧單的自動轉賬一行。沒有津貼就讓津貼編號留空。")
+    if staff_id and not readonly and st.button("儲存交易編號", key=f"slip-ref-save-{prefix}"):
+        from payroll.core.config import book_info
+        from payroll.pay.review import save_one
+        try:
+            save_one(book_info(info, person["book"]), staff_id, {
+                "salary_reference": salary_ref.strip(),
+                "allowance_reference": allowance_ref.strip(),
+            })
+        except SystemExit as error:
+            st.error(str(error))
+            return
+        st.session_state["dirty"] = True
+        st.session_state.pop("drafts", None)
+        st.session_state.pop("draft_stamps", None)
+        st.session_state.pop("early-preview", None)
+        st.toast("已儲存交易編號。下載的糧單會印上這個編號。")
+        st.rerun()
+    shown = row.copy()
+    shown["salary_reference"] = salary_ref.strip()
+    shown["allowance_reference"] = allowance_ref.strip()
+    _download_slip(info, person, shown, pay_date, key)
+
+
 def _download_slip(info, person, row, pay_date, key):
     """Offer the same PDF download before the salary is issued."""
     if row is None or person.get("kind") == "part":
@@ -181,12 +217,21 @@ def _card(info, draft, person, record, part_rows, readonly):
                 reason = early_hold(row)
                 amount = row.get("net")
         amount_text = hk(amount)
-        if person["kind"] == "full" and row is not None:
+        calculated = person["kind"] == "full" and row is not None
+        picked = date.today()
+        if calculated:
             _breakdown(row, office=person["book"] == "admin")
             note = _text(row.get("review"))
             if note and note.lower() != "nan":
                 st.caption(note)
-            _download_slip(info, person, row, date.today(), f"early-pdf-{key}")
+            picked = st.date_input(
+                "出糧日期",
+                value=date.today(),
+                disabled=readonly,
+                format="YYYY-MM-DD",
+                key=f"early-date-{key}",
+            )
+            _offer_slip(info, person, row, picked, readonly, f"early-pdf-{key}")
             _adjustment(info, row, person, readonly)
             _confirm_absence(info, row, person, readonly)
         if hasattr(left, "year") and left >= date.today():
@@ -195,13 +240,14 @@ def _card(info, draft, person, record, part_rows, readonly):
             st.warning(reason)
         actions = st.container(horizontal=True, vertical_alignment="bottom")
         with actions:
-            picked = st.date_input(
-                "出糧日期",
-                value=date.today(),
-                disabled=readonly,
-                format="YYYY-MM-DD",
-                key=f"early-date-{key}",
-            )
+            if not calculated:
+                picked = st.date_input(
+                    "出糧日期",
+                    value=date.today(),
+                    disabled=readonly,
+                    format="YYYY-MM-DD",
+                    key=f"early-date-{key}",
+                )
             go = st.button(
                 "提前出糧",
                 type="primary",
@@ -410,13 +456,6 @@ def _adjustment(info, row, person, readonly):
         if deduct_mins:
             from payroll.core.money import minute_deduction
             st.caption(f"{int(deduct_mins)} 分鐘扣 {hk(minute_deduction(row.get('full_salary'), row.get('month_days'), deduct_mins))}。")
-    salary_ref = _saved_text(
-        "薪金交易編號", f"early-ref-{prefix}", _text(row.get("salary_reference")), readonly,
-    )
-    allowance_ref = _saved_text(
-        "津貼交易編號", f"early-allow-ref-{prefix}", _text(row.get("allowance_reference")), readonly,
-    )
-    st.caption("兩次過數就填兩個編號。沒有津貼就讓津貼編號留空。")
     if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):
         return
     from payroll.core.config import book_info
@@ -431,8 +470,6 @@ def _adjustment(info, row, person, readonly):
             "salary_deduct_minutes": float(deduct_mins),
             "final_transport": float(transport_value),
             "final_health": float(health_value),
-            "salary_reference": salary_ref.strip(),
-            "allowance_reference": allowance_ref.strip(),
         })
     except SystemExit as error:
         st.error(str(error))
@@ -714,8 +751,15 @@ def _plan_editor(info, person, last_day, readonly):
     note = _text(row.get("review"))
     if note and note.lower() != "nan":
         st.caption(note)
-    _download_slip(
-        info, person, row, date.today(),
+    picked = st.date_input(
+        "出糧日期",
+        value=date.today(),
+        disabled=readonly,
+        format="YYYY-MM-DD",
+        key=f"early-payon-{info['key']}-{person['employee_no']}",
+    )
+    _offer_slip(
+        info, person, row, picked, readonly,
         f"early-pdf-{info['key']}-{person['employee_no']}",
     )
     _adjustment(info, row, person, readonly)
@@ -726,13 +770,6 @@ def _plan_editor(info, person, last_day, readonly):
         st.warning(reason)
     actions = st.container(horizontal=True, vertical_alignment="bottom")
     with actions:
-        picked = st.date_input(
-            "出糧日期",
-            value=date.today(),
-            disabled=readonly,
-            format="YYYY-MM-DD",
-            key=f"early-payon-{info['key']}-{person['employee_no']}",
-        )
         go = st.button(
             "提前出糧",
             type="primary",
