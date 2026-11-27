@@ -1,6 +1,6 @@
 """Staff master: eight groups, one profile, and the edit dialogs."""
 
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 
 import pandas as pd
@@ -141,10 +141,36 @@ def _profile(row, info, locked):
         right.write(f"在職：{row['service_days'] or '—'}")
         right.write(f"離職日期：{_iso(row['leave_date']) or '—'}")
         right.write(f"合約完結：{_iso(row['contract_end']) or '—'}")
+        mainland = row.get("group") in {"bg_esl", "md_esl"}
+        contract = _as_date(row.get("contract_end"))
+        if mainland and contract:
+            right.write(f"最後工作日：{(contract - timedelta(days=1)).isoformat()}")
         right.write(f"狀況：{row['status']}")
+        from payroll.core.settings import no_monthly_pay
+        if _text(row.get("employee_no")) in no_monthly_pay():
+            st.caption("這位同事不每月出糧。")
+        if mainland:
+            st.caption("內地同事的薪金計到合約完結的前一日。續約時填新合約由哪一日開始。")
+            from payroll.staff.contracts import saved_terms
+            terms = saved_terms(row.get("employee_no"))
+            if len(terms) >= 2:
+                started, ended = terms[-1]
+                previous = terms[-2][1]
+                gap_last = (started - timedelta(days=1)).isoformat() if started else ""
+                st.caption(
+                    f"今次合約由 {started.isoformat() if started else '—'} 至 {ended.isoformat()}。"
+                    f"{previous.isoformat()} 至 {gap_last} 不出糧。"
+                )
+        missing_leave = row["status"] == "已離職" and not _iso(row.get("leave_date"))
+        if missing_leave:
+            st.caption("這位同事已標成離職，但離職日期還沒有寫進員工檔。")
         if st.button("修改資料", key="staff-edit", disabled=locked):
             action = "edit"
-        if row["status"] == "在職" and st.button("離職", key="staff-resign", disabled=locked):
+        if mainland and row["status"] == "在職" and st.button("續約", key="staff-renew", disabled=locked):
+            action = "renew"
+        if (row["status"] == "在職" or missing_leave) and st.button(
+            "填寫離職日期" if missing_leave else "離職", key="staff-resign", disabled=locked,
+        ):
             action = "resign"
     with pay:
         left, right = st.columns(2)
@@ -185,7 +211,7 @@ def _field_map(group):
     return [
         ("員工名稱", "text"), ("英文姓名", "text"), ("性別", "性別"), ("出生日期", "date"),
         ("婚姻狀況", "婚姻狀況"), ("住址", "text"), ("身份證號碼", "text"), ("手提電話號碼", "text"),
-        ("職位", "text"), ("就業形式", "就業形式"), (join, "date"), ("部門", "部門"),
+        ("職位", "text"), ("就業形式", "就業形式"), (join, "date"), ("離職日期", "date"), ("部門", "部門"),
         ("銀行名稱", "銀行名稱"), ("銀行賬號", "text"),
         ("緊急聯絡人", "text"), ("緊急聯絡人關係", "text"), ("緊急聯絡人電話號碼", "text"),
         ("合約編號", "text"), ("批准信地址", "text"), ("合約完結日期", "date"),
@@ -197,6 +223,7 @@ def _row_value(row, column):
         "員工名稱": "roster_hint", "英文姓名": "name_en", "性別": "gender", "出生日期": "birth_date",
         "婚姻狀況": "marital", "住址": "address", "身份證號碼": "hkid", "手提電話號碼": "phone",
         "職位": "position", "就業形式": "employment", "入職日期": "join_date", "到職日期": "join_date",
+        "離職日期": "leave_date",
         "部門": "department", "銀行名稱": "bank_name", "銀行賬號": "bank_account",
         "緊急聯絡人": "emergency_name", "緊急聯絡人關係": "emergency_relation",
         "緊急聯絡人電話號碼": "emergency_phone", "合約編號": "contract_no",
@@ -243,7 +270,7 @@ def _edit_dialog(row, staff, info=None):
 
 def _original(row, column):
     value = _row_value(row, column)
-    if column in {"出生日期", "入職日期", "到職日期", "合約完結日期"}:
+    if column in {"出生日期", "入職日期", "到職日期", "離職日期", "合約完結日期"}:
         return _iso(value)
     return _text(value)
 
@@ -273,7 +300,10 @@ def _collect(options, group, row, prefix, hide_bank=False):
 
 @st.dialog("離職")
 def _resign_dialog(row, info=None):
-    st.write(f"將 {row['name_zh']} 標成離職。確定後不能在這裡復原。")
+    if row["status"] == "已離職":
+        st.write(f"為 {row['name_zh']} 寫入離職日期。")
+    else:
+        st.write(f"將 {row['name_zh']} 標成離職。確定後不能在這裡復原。")
     picked = st.date_input("離職日期", value=date.today(), format="YYYY-MM-DD")
     sure = st.checkbox("我確定這位同事離職")
     if st.button("確定離職", type="primary", disabled=not sure):
@@ -281,6 +311,51 @@ def _resign_dialog(row, info=None):
             _save(lambda: resign_staff(
                 row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"],
                 picked.isoformat(), info=info,
+            ))
+        except SystemExit as error:
+            st.error(str(error))
+
+
+def _year_later(day):
+    try:
+        return day.replace(year=day.year + 1)
+    except ValueError:
+        return day + timedelta(days=365)
+
+
+@st.dialog("續約")
+def _renew_dialog(row, info=None):
+    from payroll.staff.contracts import apply_renewal
+    current = _as_date(row.get("contract_end"))
+    last = (current - timedelta(days=1)).isoformat() if current else "—"
+    st.caption(f"目前合約完結：{current.isoformat() if current else '未填'}。最後工作日是 {last}。")
+    new_start = st.date_input(
+        "新合約開始日期", value=current or date.today(), format="YYYY-MM-DD",
+        key=f"renew-start-{row['employee_no']}",
+    )
+    suggested = _year_later(new_start) if isinstance(new_start, date) else date.today()
+    new_end = st.date_input(
+        "新合約完結日期", value=suggested, format="YYYY-MM-DD",
+        key=f"renew-end-{row['employee_no']}",
+    )
+    if isinstance(new_start, date) and isinstance(new_end, date):
+        paid_until = (new_end - timedelta(days=1)).isoformat()
+        if current and new_start > current:
+            quiet = (new_start - timedelta(days=1)).isoformat()
+            st.write(f"{current.isoformat()} 至 {quiet} 不出糧。新合約計到 {paid_until}。")
+        else:
+            st.write(f"連續續約，薪金計到 {paid_until}。")
+    if st.button("確定續約", type="primary"):
+        if not isinstance(new_start, date) or not isinstance(new_end, date):
+            st.error("請填新合約的開始和完結日期。")
+            return
+        try:
+            apply_renewal(
+                row["employee_no"], _as_date(row.get("join_date")), current, new_start, new_end,
+            )
+            _save(lambda: edit_staff(
+                row["sheet"] or _sheet_for(row["group"]), row["employee_no"], row["name_zh"],
+                {"合約完結日期": new_end.isoformat()}, info=info,
             ))
         except SystemExit as error:
             st.error(str(error))
@@ -383,6 +458,9 @@ def render(info, readonly, staff, demo, month_label):
             "service_days": "在職", "salary": "薪金", "pay_basis": "計薪",
         })
         order = ["員工編號", "中文姓名", "英文姓名", "職位", "部門", "狀況", "在職", "薪金", "計薪"]
+        if group_key in {"bg_esl", "md_esl"} and "contract_end" in view.columns:
+            view["合約完結"] = view["contract_end"].map(_iso)
+            order.insert(6, "合約完結")
         st.dataframe(
             view, hide_index=True, width="stretch",
             column_order=order,
@@ -392,7 +470,7 @@ def render(info, readonly, staff, demo, month_label):
     _restore_backup(readonly)
     # A dialog stays open on its own after this run. Calling it again from a
     # saved flag opens a second dialog and Streamlit rejects the page.
-    for stale in ("staff_add", "staff_edit", "staff_resign", "staff_salary"):
+    for stale in ("staff_add", "staff_edit", "staff_resign", "staff_salary", "staff_renew"):
         st.session_state.pop(stale, None)
     person = None
     action = None
@@ -407,6 +485,8 @@ def render(info, readonly, staff, demo, month_label):
         _edit_dialog(person, staff, info)
     elif person is not None and action == "resign":
         _resign_dialog(person, info)
+    elif person is not None and action == "renew":
+        _renew_dialog(person, info)
     elif person is not None and action == "salary":
         _salary_dialog(person, info)
 

@@ -332,6 +332,12 @@ def manual_pay():
     return dict(people.get("manual_pay") or {})
 
 
+def no_monthly_pay():
+    """Employee numbers who stay on the staff list and are not paid each month."""
+    people = load().get("people") or {}
+    return {str(item).strip() for item in (people.get("no_monthly_pay") or []) if str(item).strip()}
+
+
 def users():
     return dict(load().get("users") or {})
 

@@ -19,6 +19,13 @@ def _column_letter(number):
     return letters
 
 
+def _column_number(letters):
+    number = 0
+    for char in letters:
+        number = number * 26 + ord(char) - 64
+    return number
+
+
 def _cell_xml(ref, value):
     if value is None or str(value) == "":
         return f'<c r="{ref}"/>'
@@ -117,6 +124,37 @@ def _apply_fields(xml, row_number, columns, fields):
     return xml.replace("</sheetData>", row + "</sheetData>", 1)
 
 
+def _highest_column(columns, xml):
+    """The last used column. A new header goes in the next one, past any note."""
+    highest = max(columns.values(), default=0)
+    for letters in re.findall(r'\br="([A-Z]+)\d+"', xml):
+        highest = max(highest, _column_number(letters))
+    dimension = re.search(r'<dimension\b[^>]*\bref="[A-Z]+\d+:([A-Z]+)\d+"', xml)
+    if dimension:
+        highest = max(highest, _column_number(dimension.group(1)))
+    return highest
+
+
+def _widen_dimension(xml, column):
+    pattern = re.compile(r'(<dimension\b[^>]*\bref="[A-Z]+\d+:)([A-Z]+)(\d+")')
+    match = pattern.search(xml)
+    if not match or _column_number(match.group(2)) >= column:
+        return xml
+    letter = _column_letter(column)
+    return pattern.sub(lambda found: found.group(1) + letter + found.group(3), xml, count=1)
+
+
+def _ensure_column(xml, header_row, columns, name):
+    """Add a header when the sheet has no column of that name."""
+    if name in columns or not header_row:
+        return xml, columns
+    column = _highest_column(columns, xml) + 1
+    columns = dict(columns)
+    columns[name] = column
+    xml = _apply_fields(xml, header_row, columns, {name: name})
+    return _widen_dimension(xml, column), columns
+
+
 def edit_staff_sheet(path, sheet_name, employee_no, name_zh, fields, action):
     """Change one person's cells. Dropdowns and the other cells stay in the file."""
     path = Path(path)
@@ -137,6 +175,8 @@ def edit_staff_sheet(path, sheet_name, employee_no, name_zh, fields, action):
         xml = archive.read(part).decode("utf-8")
         names = [item.filename for item in archive.infolist()]
         payload = {item.filename: archive.read(item.filename) for item in archive.infolist()}
+    if "離職日期" in fields:
+        xml, columns = _ensure_column(xml, header_row, columns, "離職日期")
     updated = _apply_fields(xml, row_number, columns, fields)
     payload[part] = updated.encode("utf-8")
     temp = path.with_name(f".{path.name}.editing")

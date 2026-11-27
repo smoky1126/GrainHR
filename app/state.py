@@ -193,9 +193,12 @@ def new_joiners(staff, pay_table, info=None):
         people = staff[employed_in(staff, info) & ~staff["part_time"]]
     from payroll.staff.staff import _as_date
     end = None if info is None else date(info["year"], info["month"], info["days"])
+    from payroll.core.settings import no_monthly_pay
+    outside = no_monthly_pay()
     found = []
     for _, record in people.iterrows():
-        if _text(record["employee_no"]) in paid or _text(record.get("status")) == "已離職":
+        number = _text(record["employee_no"])
+        if number in paid or number in outside or _text(record.get("status")) == "已離職":
             continue
         left = _as_date(record.get("leave_date"))
         if left is not None and (end is None or left <= end):

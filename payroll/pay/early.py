@@ -220,7 +220,8 @@ def open_people(info):
     """Employed people who can be calculated before the resignation is written."""
     from payroll.core.excel_io import read_table
     from payroll.pay.run import allowed_books
-    from payroll.staff.staff import contract_end_date, load_staff, pay_table_path
+    from payroll.staff.contracts import ending_this_month
+    from payroll.staff.staff import load_staff, pay_table_path
 
     from payroll.staff.directory import GROUP_LABEL, staff_group
 
@@ -231,7 +232,9 @@ def open_people(info):
         )
         return group, GROUP_LABEL.get(group) or "未分類"
 
+    from payroll.core.settings import no_monthly_pay
     staff = load_staff()
+    outside_monthly = no_monthly_pay()
     resigned = {person["employee_no"] for person in month_leavers(info)}
     paid = early_employee_nos(info)
     found = []
@@ -242,7 +245,7 @@ def open_people(info):
             continue
         for _, person in table.iterrows():
             number = _text(person.get("employee_no"))
-            if not number or number in seen or number in resigned or number in paid:
+            if not number or number in seen or number in resigned or number in paid or number in outside_monthly:
                 continue
             record = _current_record(staff, number, info)
             if record is None:
@@ -259,7 +262,7 @@ def open_people(info):
                 "group_label": group_label,
                 "leave_date": None,
                 "join_date": _as_date(record.get("join_date")),
-                "contract_end": contract_end_date(record),
+                "contract_end": ending_this_month(record, info),
             })
     from payroll.pay.part_time import pt_company
     if "part_time" in staff.columns:
@@ -267,7 +270,7 @@ def open_people(info):
             if not bool(record.get("part_time")):
                 continue
             number = _text(record.get("employee_no"))
-            if not number or number in seen or number in resigned or number in paid:
+            if not number or number in seen or number in resigned or number in paid or number in outside_monthly:
                 continue
             if _current_record(staff, number, info) is None:
                 continue

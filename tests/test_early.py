@@ -557,6 +557,67 @@ def test_a_compiled_slip_stays_on_the_leaver_list():
         raise SystemExit(people)
 
 
+def test_a_later_contract_does_not_pay_the_gap_month():
+    import os
+    from payroll.core.config import scratch_dir
+    from payroll.staff.contracts import apply_renewal, clear_contract_cache
+    from payroll.staff.staff import employed_window
+    home = scratch_dir("contract-gap")
+    os.environ["PAYROLL_HOME"] = str(home)
+    clear_contract_cache()
+    try:
+        record = {
+            "sheet": "內地勞工", "status": "在職", "employee_no": "E001",
+            "join_date": date(2024, 11, 28), "leave_date": None,
+            "contract_end": date(2026, 11, 28),
+        }
+        november = {"year": 2026, "month": 11, "days": 30}
+        december = {"year": 2026, "month": 12, "days": 31}
+        january = {"year": 2027, "month": 1, "days": 31}
+        if employed_window(record, december) is not None:
+            raise SystemExit("十二月在續約前已被出糧")
+        apply_renewal("E001", date(2024, 11, 28), date(2026, 11, 28), date(2027, 1, 1), date(2028, 1, 1))
+        record["contract_end"] = date(2028, 1, 1)
+        if employed_window(record, november) != (date(2026, 11, 1), date(2026, 11, 27)):
+            raise SystemExit(employed_window(record, november))
+        if employed_window(record, december) is not None:
+            raise SystemExit("中間的月份被出糧")
+        if employed_window(record, january) != (date(2027, 1, 1), date(2027, 1, 31)):
+            raise SystemExit(employed_window(record, january))
+    finally:
+        os.environ.pop("PAYROLL_HOME", None)
+        clear_contract_cache()
+
+
+def test_someone_outside_monthly_pay_is_not_a_new_joiner():
+    import os
+    import pandas as pd
+    from payroll.core.config import scratch_dir
+    from payroll.core.settings import load, no_monthly_pay
+    home = scratch_dir("no-monthly")
+    (home / "company.toml").write_text("[people]\nno_monthly_pay = [\"E009\"]\n", encoding="utf-8")
+    os.environ["PAYROLL_COMPANY"] = str(home / "company.toml")
+    load.cache_clear()
+    try:
+        if no_monthly_pay() != {"E009"}:
+            raise SystemExit(no_monthly_pay())
+        from app.state import new_joiners
+        staff = pd.DataFrame([
+            {"employee_no": "E009", "active": True, "part_time": False, "status": "在職", "leave_date": None},
+            {"employee_no": "E010", "active": True, "part_time": False, "status": "在職", "leave_date": None},
+        ])
+        found = [_text_no(row.employee_no) for row in new_joiners(staff, pd.DataFrame(columns=["employee_no"]))]
+        if found != ["E010"]:
+            raise SystemExit(found)
+    finally:
+        os.environ.pop("PAYROLL_COMPANY", None)
+        load.cache_clear()
+
+
+def _text_no(value):
+    return str(value).strip()
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -580,6 +641,8 @@ def main():
     test_office_slip_pdf_shows_partial_pay_and_unused_leave()
     test_breakdown_is_this_month_and_shows_the_formula()
     test_mainland_contract_ends_the_day_before_until_renewed()
+    test_a_later_contract_does_not_pay_the_gap_month()
+    test_someone_outside_monthly_pay_is_not_a_new_joiner()
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()

@@ -732,76 +732,6 @@ def _rewrite_shop_slip(info, person, record, row, salary_ref, allowance_ref, sta
         return
 
 
-def _mainland_contracts(info, readonly):
-    """The day before 合約完結 is the last working day. A later date entered here is a renewal."""
-    from datetime import timedelta
-
-    from payroll.staff.staff import _as_date, _text, load_staff
-    from payroll.staff.staff_write import edit_staff
-
-    start = date(int(info["year"]), int(info["month"]), 1)
-    end = date(int(info["year"]), int(info["month"]), int(info["days"]))
-    people = []
-    for _, record in load_staff().iterrows():
-        if _text(record.get("sheet")) != "內地勞工" or _text(record.get("status")) == "已離職":
-            continue
-        number = _text(record.get("employee_no"))
-        if not number:
-            continue
-        people.append({
-            "employee_no": number,
-            "name_zh": _text(record.get("name_zh")),
-            "name": _text(record.get("name_zh")) or _text(record.get("name_en")) or number,
-            "sheet": "內地勞工",
-            "contract_end": _as_date(record.get("contract_end")),
-        })
-    if not people:
-        return
-    people.sort(key=lambda person: ((person["contract_end"] or date.max), person["name"]))
-    ending = [
-        person for person in people
-        if person["contract_end"] is not None and person["contract_end"] - timedelta(days=1) <= end
-    ]
-    st.markdown("**內地合約完結**")
-    st.caption("合約完結日的前一日是最後工作日，薪金計到那一日。例如合約完結 28/11，計到 27/11。續約就填一個更後的日期。")
-    if ending:
-        names = "、".join(
-            f"{person['name']} 最後工作日 {(person['contract_end'] - timedelta(days=1)).isoformat()}"
-            for person in ending
-        )
-        st.caption(f"已到或本月完結：{names}")
-    labels = [
-        f"{person['name']}（{person['employee_no']}）"
-        + (f"　{person['contract_end'].isoformat()}" if person["contract_end"] else "　未填")
-        for person in people
-    ]
-    chosen = st.selectbox("同事", labels, key=f"contract-who-{info['key']}")
-    person = people[labels.index(chosen)]
-    current = person["contract_end"] if isinstance(person["contract_end"], date) else end
-    picked = st.date_input(
-        "合約完結日期",
-        value=current,
-        format="YYYY-MM-DD",
-        disabled=readonly,
-        key=f"contract-end-{info['key']}-{person['employee_no']}-{current.isoformat()}",
-    )
-    if readonly or not st.button("儲存合約完結", key=f"contract-save-{info['key']}-{person['employee_no']}"):
-        return
-    try:
-        edit_staff(person["sheet"], person["employee_no"], person["name_zh"], {
-            "合約完結日期": picked.isoformat(),
-        })
-    except SystemExit as error:
-        st.error(str(error))
-        return
-    st.session_state["dirty"] = True
-    st.session_state.pop("drafts", None)
-    st.session_state.pop("draft_stamps", None)
-    st.session_state.pop("draft", None)
-    st.toast("已更新合約完結日期")
-    st.rerun()
-
-
 def _plan_departments(waiting):
     """Departments that still have someone to calculate, in the staff-list order."""
     from payroll.staff.directory import GROUPS
@@ -828,17 +758,25 @@ def _plan_ahead(info, waiting, readonly):
     dept_labels = [f"{label}（{count}）" for label, count in departments]
     dept_key = f"early-dept-{info['key']}"
     if st.session_state.get(dept_key) not in dept_labels:
-        st.session_state[dept_key] = dept_labels[0]
+        st.session_state.pop(dept_key, None)
     filters = st.columns(2)
-    dept_choice = filters[0].selectbox("部門", dept_labels, key=dept_key)
+    dept_choice = filters[0].selectbox(
+        "部門", dept_labels, index=None, placeholder="選擇部門", key=dept_key,
+    )
+    if dept_choice not in dept_labels:
+        return
     dept = departments[dept_labels.index(dept_choice)][0]
     people = [person for person in waiting if (person.get("group_label") or "未分類") == dept]
     people.sort(key=lambda person: person["name"])
     labels = [f"{person['name']}（{person['employee_no']}）" for person in people]
     staff_key = f"early-who-{info['key']}-{dept}"
     if st.session_state.get(staff_key) not in labels:
-        st.session_state[staff_key] = labels[0]
-    chosen = filters[1].selectbox("同事", labels, key=staff_key)
+        st.session_state.pop(staff_key, None)
+    chosen = filters[1].selectbox(
+        "同事", labels, index=None, placeholder="選擇同事", key=staff_key,
+    )
+    if chosen not in labels:
+        return
     person = people[labels.index(chosen)]
     panel = st.expander(
         f"計算 {person['name']}",
@@ -858,7 +796,7 @@ def _plan_person(info, person, readonly):
     if default < start or default > end:
         default = end
     if isinstance(contract, date) and start <= contract <= end:
-        st.caption(f"按合約，最後工作日是 {contract.isoformat()}（合約完結日的前一日）。續約請改上面的合約完結日期。")
+        st.caption(f"按合約，最後工作日是 {contract.isoformat()}（合約完結日的前一日）。續約請到員工總表按「續約」。")
     picked_last = st.date_input(
         "最後工作日",
         value=default,
@@ -1007,7 +945,6 @@ def early_section(info, draft, readonly):
     except SystemExit as error:
         st.error(str(error))
         return
-    _mainland_contracts(info, readonly)
     if not people and not waiting:
         return
     st.markdown("**離職提前出糧**")

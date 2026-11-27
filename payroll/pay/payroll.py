@@ -343,8 +343,8 @@ def _partial_note(record, window, planned=False):
     counted = (last - first).days + 1
     from payroll.staff.staff import _as_date
     left = _as_date(record.get("leave_date")) if record is not None else None
-    from payroll.staff.staff import contract_end_date
-    contract = contract_end_date(record) if record is not None else None
+    from payroll.staff.contracts import term_cutoff
+    contract = term_cutoff(record, last) if record is not None else None
     if planned or (left is not None and left <= last):
         title = "本月離職"
     elif contract is not None and contract <= last:
@@ -557,8 +557,10 @@ def pay_sheet_rows(staff, pay_table, info=None):
             "allowance_section": _text(person.allowance_section),
             "allowance_note": _text(person.allowance_note),
         })
+    from payroll.core.settings import no_monthly_pay
+    outside_monthly = no_monthly_pay()
     for _, record in staff[employed & ~staff["part_time"]].iterrows():
-        if record["employee_no"] in paid:
+        if record["employee_no"] in paid or record["employee_no"] in outside_monthly:
             continue
         rows.append({
             "employee_no": record["employee_no"],
@@ -628,7 +630,9 @@ def _build_draft(info, facts, book):
             line_by_id[staff_id] = row
     duplicate_ids = set(staff.loc[employed, "employee_no"].value_counts().loc[lambda counts: counts > 1].index)
     days = info["days"]
+    from payroll.core.settings import no_monthly_pay
     from payroll.pay.early import EARLY_NOTE, early_keys, include_in_month_pay
+    outside_monthly = no_monthly_pay()
     early_ids, early_numbers = early_keys(info)
     rows = []
     matched_names = set()
@@ -706,8 +710,8 @@ def _build_draft(info, facts, book):
         mpf_er = 0 if left else employer_mpf(mpf_income, scheme)
         other_income = 0 if left else _num(adj.other_income)
         paid_hours = 0 if left else _hours_paid(adj, detected["ot_hours"])
-        from payroll.staff.staff import contract_end_date
-        contract = contract_end_date(record) if record is not None else None
+        from payroll.staff.contracts import term_cutoff
+        contract = term_cutoff(record, window[1]) if record is not None and window is not None else None
         contract_ends = contract is not None and window is not None and window[0] <= contract <= window[1]
         leaving = partial and record is not None and (
             _as_date(record.get("leave_date")) is not None or planned is not None or contract_ends
@@ -949,14 +953,18 @@ def _build_draft(info, facts, book):
             "roster_rest_dates": detected["rest_dates"],
             "review": "；".join(dict.fromkeys(flags)),
             "approved": "" if left else _text(adj.approved),
-            "pay_this": include_in_month_pay(not left, staff_id, employee_no, early_ids, early_numbers),
-            "show_on_review": True,
+            "pay_this": False if employee_no in outside_monthly else include_in_month_pay(
+                not left, staff_id, employee_no, early_ids, early_numbers,
+            ),
+            "show_on_review": employee_no not in outside_monthly,
             "show_not_on_slip": False,
         })
 
     already_paid = paid_numbers()
     if book == "bg":
         for _, record in staff[employed & ~staff["part_time"]].iterrows():
+            if record["employee_no"] in outside_monthly:
+                continue
             if record["employee_no"] in already_paid or _as_date(record.get("leave_date")) is not None:
                 continue
             problem = MANUAL_PAY.get(record["employee_no"], NEW_JOINER)

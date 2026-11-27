@@ -290,6 +290,11 @@ def _as_date(value):
     return parsed.date()
 
 
+def _saved_terms(record):
+    from payroll.staff.contracts import saved_terms
+    return bool(saved_terms(record.get("employee_no")))
+
+
 def contract_end_date(record):
     """Last working day of a mainland contract: the day before 合約完結日期.
 
@@ -308,6 +313,21 @@ def employed_window(record, info):
     end = date(info["year"], info["month"], info["days"])
     joined = _as_date(record.get("join_date"))
     left = _as_date(record.get("leave_date"))
+    if _text(record.get("sheet")) == "內地勞工" and (
+        _as_date(record.get("contract_end")) is not None or _saved_terms(record)
+    ):
+        from payroll.staff.contracts import covered_span
+        span = covered_span(record, start, end)
+        if span is None:
+            return None
+        first, last = span
+        if left is not None and left < first:
+            return None
+        if left is not None and left < last:
+            last = left
+        if first > last:
+            return None
+        return first, last
     contract = contract_end_date(record)
     ends = [day for day in (left, contract) if day is not None]
     cutoff = min(ends) if ends else None

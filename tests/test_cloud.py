@@ -94,6 +94,41 @@ def test_staff_edit_keeps_dropdowns_and_other_cells():
     after.close()
 
 
+def test_resign_adds_the_leave_date_column_when_the_sheet_has_none():
+    folder = ROOT / "_tmp" / "cloud-sheet-leave"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "staff.xlsx"
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "內地勞工"
+    sheet["C5"] = "員工編號"
+    sheet["E5"] = "中文姓名"
+    sheet["L5"] = "僱傭狀況"
+    sheet["C8"] = "ESL009"
+    sheet["E8"] = "甲"
+    sheet["L8"] = "在職"
+    sheet["V28"] = "note"
+    book.save(path)
+    book.close()
+    edit_staff_sheet(
+        path, "內地勞工", "ESL009", "甲",
+        {"僱傭狀況": "已離職", "離職日期": "2026-11-27"}, "resign",
+    )
+    from payroll.staff.staff import _as_date, _read_sheet
+    frame = _read_sheet(path, "內地勞工")
+    row = frame[frame["員工編號"].map(lambda value: str(value).strip()) == "ESL009"].iloc[0]
+    found = _as_date(row["離職日期"])
+    if str(row["僱傭狀況"]).strip() != "已離職" or found is None or found.isoformat() != "2026-11-27":
+        _fail((row["僱傭狀況"], row["離職日期"]))
+    after = load_workbook(path)
+    headers = [after["內地勞工"].cell(5, col).value for col in range(1, 30)]
+    if "離職日期" not in headers or headers.index("離職日期") + 1 <= 22:
+        _fail(headers)
+    if after["內地勞工"]["V28"].value != "note":
+        _fail(after["內地勞工"]["V28"].value)
+    after.close()
+
+
 def test_a_blank_first_column_can_still_be_edited():
     folder = ROOT / "_tmp" / "cloud-sheet-blank"
     folder.mkdir(parents=True, exist_ok=True)
@@ -122,5 +157,6 @@ if __name__ == "__main__":
     test_hr_cannot_see_office_pay()
     test_unknown_role_is_hr_and_viewer_is_not_a_role()
     test_staff_edit_keeps_dropdowns_and_other_cells()
+    test_resign_adds_the_leave_date_column_when_the_sheet_has_none()
     test_a_blank_first_column_can_still_be_edited()
     print("cloud ok")

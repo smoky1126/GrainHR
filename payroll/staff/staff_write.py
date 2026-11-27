@@ -227,7 +227,7 @@ def _apply(action, sheet, employee_no, name_zh, fields, path=None):
     if action != "add" and before is None:
         raise SystemExit(f"找不到 {employee_no} {name_zh}。")
     known = _sheet_columns(path, sheet)
-    if action == "resign":
+    if "離職日期" in fields:
         known.add("離職日期")
     clean = {
         key: "" if value is None else _text(value)

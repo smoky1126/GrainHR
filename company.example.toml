@@ -240,6 +240,7 @@ logo = "app/assets/logo.jpg"
 
 [people]
 varying_pay = ["Person G", "Person H", "Person I"]
+no_monthly_pay = ["X009"]
 
 [people.manual_pay]
 X001 = "Enter this month's amount by hand."
