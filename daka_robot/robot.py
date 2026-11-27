@@ -350,29 +350,42 @@ def _downloads():
     return [line.strip() for line in (done.stdout or "").splitlines() if line.strip()]
 
 
-def _share_target(device, label):
-    return device.xpath('//*[@text="%s"]/ancestor::*[@clickable="true"][1]' % label)
+def _share_label(node_xml):
+    text = re.search(r'text="([^"]*)"', node_xml)
+    desc = re.search(r'content-desc="([^"]*)"', node_xml)
+    for match in (text, desc):
+        label = (match.group(1) if match else "").strip()
+        if label:
+            return label
+    return ""
+
+
+def _tap_share(device, label):
+    if label and _tap_label(device, label):
+        return True
+    xml = device.dump_hierarchy()
+    for node in re.findall(r"<node [^>]+>", xml):
+        shown = _share_label(node)
+        if not shown or "DAKA" not in shown.upper():
+            continue
+        if _tap_label(device, shown):
+            return True
+    return False
 
 
 def _save_share(device, label):
-    for _ in range(4):
+    for _ in range(6):
         _deny_location(device)
-        deadline = time.time() + 8
-        target = _share_target(device, label)
-        while time.time() < deadline and not target.exists:
+        deadline = time.time() + 6
+        while time.time() < deadline:
+            if _tap_share(device, label):
+                time.sleep(2)
+                if device.app_current().get("package") != "com.android.intentresolver":
+                    return
             time.sleep(0.5)
-            target = _share_target(device, label)
-        if not target.exists:
-            device.swipe(800, 2100, 200, 2100, 0.2)
-            time.sleep(1)
-            target = _share_target(device, label)
-        if not target.exists:
-            raise SystemExit(f"分享清單沒有 {label}。")
-        target.click()
-        time.sleep(2)
-        if device.app_current().get("package") != "com.android.intentresolver":
-            return
-    raise SystemExit(f"分享清單沒有 {label}。")
+        device.swipe(540, 1600, 540, 700, 0.2)
+        time.sleep(0.8)
+    raise SystemExit("分享清單沒有 %s。目前畫面：%s" % (label, "、".join(_screen_labels(device))))
 
 
 _HEADER = {
