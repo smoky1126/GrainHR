@@ -4,9 +4,10 @@ from payroll.core.names import chinese
 from payroll.core.settings import name_aliases
 
 
-def unmatched_names(roster_names, daka_names, links):
+def unmatched_names(roster_names, daka_names, links, aliases=None):
     """Roster names with no employee, then DAKA names that match no roster name."""
-    aliases = name_aliases()
+    if aliases is None:
+        aliases = name_aliases()
     linked_roster = {
         name for name, link in (links or {}).items() if (link or {}).get("employee_no")
     }

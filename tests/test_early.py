@@ -621,6 +621,27 @@ def _text_no(value):
     return str(value).strip()
 
 
+def test_unmatched_name_shows_its_roster_and_can_be_ignored():
+    import pandas as pd
+    from app.views.names import name_sources, where_found
+    from payroll.attendance.matching import unmatched_names
+    days = pd.DataFrame([
+        {"Name": "甲", "Chosen shop": "S1"},
+        {"Name": "甲", "Chosen shop": "S2"},
+        {"Name": "乙", "Chosen shop": ""},
+    ])
+    punches = {("丙", "2026-11-02"): {"in_place": "中環", "place": "中環"}}
+    roster, daka = name_sources(days, punches)
+    roster["甲"] = {"生產", "零售"}
+    if where_found("甲", roster, daka) != "更表：生產、零售":
+        raise SystemExit(where_found("甲", roster, daka))
+    if where_found("丙", roster, daka) != "DAKA：中環":
+        raise SystemExit(where_found("丙", roster, daka))
+    roster_left, daka_left = unmatched_names(["甲", "乙"], ["丙"], {}, aliases={"乙": "已離職"})
+    if roster_left != ["甲"] or daka_left != ["丙"]:
+        raise SystemExit((roster_left, daka_left))
+
+
 def test_name_match_includes_people_who_left_this_month():
     import pandas as pd
     from app.views.names import _people
@@ -663,6 +684,7 @@ def main():
     test_mainland_contract_ends_the_day_before_until_renewed()
     test_a_later_contract_does_not_pay_the_gap_month()
     test_someone_outside_monthly_pay_is_not_a_new_joiner()
+    test_unmatched_name_shows_its_roster_and_can_be_ignored()
     test_name_match_includes_people_who_left_this_month()
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
