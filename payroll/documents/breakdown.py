@@ -53,14 +53,8 @@ def breakdown_lines(row, month=None, year=None):
     """Only what the rest of the slip does not already show."""
     if row is None:
         return []
+    del year
     lines = []
-    book = _text(row, "book")
-    if year and month and book:
-        from payroll.core.holidays import holiday_dates
-        holidays = holiday_dates(year, month, book)
-        if holidays:
-            title = "公眾假期 Public holiday" if book == "admin" else "法定假期 Statutory holiday"
-            lines.append(f"{title}: {holidays}")
     sick_dates = dates_in_month(_text(row, "sick_dates"), month)
     if sick_dates:
         lines.append(f"病假 Sick leave: {sick_dates}")

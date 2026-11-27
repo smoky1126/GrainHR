@@ -83,17 +83,23 @@ def _minute_lines(row, info, late_pay):
         total(_text(row, "early_text") or _text(row, "early_dates")),
     )
     parts = []
+    def when(text):
+        kept = dates_in_month(text, month) if month else str(text or "")
+        return kept
+
+    late_when = when(_text(row, "late_text") or _text(row, "late_dates"))
+    early_when = when(_text(row, "early_text") or _text(row, "early_dates"))
     if late_mins:
         parts.append((
             f"遲到 {late_mins} 分鐘",
             minute_deduction(full, month_days, late_mins),
-            _minute_formula(full, month_days, late_mins),
+            _minute_note(late_when, _minute_formula(full, month_days, late_mins)),
         ))
     if early_mins:
         parts.append((
             f"早退 {early_mins} 分鐘",
             minute_deduction(full, month_days, early_mins),
-            _minute_formula(full, month_days, early_mins),
+            _minute_note(early_when, _minute_formula(full, month_days, early_mins)),
         ))
     if not parts:
         parts.append((f"遲到 {charged} 分鐘" if charged else "遲到", late_pay, _minute_formula(full, month_days, charged)))
@@ -104,6 +110,10 @@ def _minute_lines(row, info, late_pay):
         label, amount, note = parts[-1]
         parts[-1] = (label, round(amount + difference, 2), note)
     return parts
+
+
+def _minute_note(dates, formula):
+    return "\n".join(part for part in (dates, formula) if part)
 
 
 def _minute_formula(full, month_days, minutes):
@@ -144,6 +154,16 @@ def _npl_formula(row, full, month_days, amount):
     if not bits:
         return ""
     return "(" + "+".join(bits) + ")"
+
+
+def _holiday_dates(row, info):
+    year = info.get("year") if isinstance(info, dict) else None
+    month = info.get("month") if isinstance(info, dict) else None
+    book = _text(row, "book")
+    if not year or not month or not book:
+        return "無"
+    from payroll.core.holidays import holiday_dates
+    return holiday_dates(year, month, book) or "無"
 
 
 def _punch_marks(row, info):
@@ -265,6 +285,9 @@ def slip_content(row, info=None):
             _text(row, "taken_dates") or _text(row, "rest_dates") or _text(row, "roster_rest_dates"),
             info.get("month"),
         ) or "無",
+        "rest_month": _days(_num(row, "rest_entitlement")),
+        "holiday_title": "公眾假期 Public holiday" if _text(row, "book") == "admin" else "法定假期 Statutory holiday",
+        "holiday_dates": _holiday_dates(row, info),
         "unpaid_days": _num(row, "unpaid_days"),
         "birthday_days": _num(row, "birthday_days"),
         "absent_mins": _num(row, "salary_deduct_minutes") or _num(row, "absent_mins"),
@@ -449,10 +472,15 @@ def _draw(pdf, content):
     y = _pair(pdf, left, y, width, "Position 職位:", content["position"], "")
     y = _pair(pdf, left, y, width, "Join Date 入職日期:", content["join_date"], "")
     box_top = y
-    pdf.set_xy(left + 4, y)
     pdf.set_font("slip", size=8)
-    pdf.multi_cell(right - left - 8, 11, f"已放假 Rest day taken: {content.get('rest_taken') or '無'}")
-    y = pdf.get_y() + 2
+    for line in (
+        f"已放假 Rest day taken: {content.get('rest_taken') or '無'}",
+        f"本月例假 Rest day: {content.get('rest_month') or '0'} Day(s)",
+        f"{content.get('holiday_title') or '法定假期 Statutory holiday'}: {content.get('holiday_dates') or '無'}",
+    ):
+        pdf.set_xy(left + 4, y)
+        pdf.multi_cell(right - left - 8, 11, line)
+        y = pdf.get_y() + 1
     y = _leave_row(pdf, left, y, right, mid, "Payment Period 計薪周期:", content["period"], content["unused_label"], content["unused_days"])
     y = _leave_row(pdf, left, y, right, mid, "Sick Leave 病假:", _day_text(content["sick_days"]), "Annual Leave 年假:", content["annual_taken"], content["annual_dates"])
     y = _leave_row(pdf, left, y, right, mid, "NPL 無薪假:", _day_text(content["unpaid_days"]), "Birthday Leave 生日假:", content["birthday_days"])
@@ -530,9 +558,11 @@ def _pay_box(pdf, left, y, right, mid, content):
         split += 13
         if note:
             pdf.set_text_color(70, 70, 70)
-            _text_at(pdf, mid + 8, split, right - mid - 14, 11, note, 7, "L", fit=True)
+            pdf.set_xy(mid + 8, split)
+            pdf.set_font("slip", size=7)
+            pdf.multi_cell(right - mid - 14, 9, note)
             pdf.set_text_color(0, 0, 0)
-            split += 11
+            split = pdf.get_y() + 1
     y = max(y, split) + 36
     pdf.line(mid, top, mid, y)
     pdf.line(left, y, right, y)

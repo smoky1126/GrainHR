@@ -417,7 +417,10 @@ def test_lateness_and_early_leave_are_separate_deductions():
     if labels != ["遲到 14 分鐘", "早退 24 分鐘"]:
         raise SystemExit(labels)
     notes = [item[2] for item in content["deductions"]]
-    if notes != ["($16,680/30/9.5/60*14)", "($16,680/30/9.5/60*24)"]:
+    if notes != [
+        "15/11 4分鐘、19/11 14分鐘\n($16,680/30/9.5/60*14)",
+        "24/11 24分鐘\n($16,680/30/9.5/60*24)",
+    ]:
         raise SystemExit(notes)
     npl = slip_content(pd.Series({
         "basic_salary": 16680,
@@ -468,12 +471,14 @@ def test_breakdown_lists_rest_days_and_statutory_holidays():
     content = slip_content(row, {"year": 2026, "month": 11})
     if content["rest_taken"] != "2/11、8/11":
         raise SystemExit(content["rest_taken"])
-    text = " | ".join(breakdown_lines(row, 11, 2026))
-    if text:
-        raise SystemExit(text)
-    december = " | ".join(breakdown_lines(pd.Series({"book": "bg"}), 12, 2026))
-    if december != "法定假期 Statutory holiday: 25/12、26/12":
-        raise SystemExit(december)
+    if content["holiday_dates"] != "無":
+        raise SystemExit(content["holiday_dates"])
+    december = slip_content(
+        pd.Series({"book": "bg", "basic_salary": 1, "net": 1, "rest_entitlement": 4}),
+        {"year": 2026, "month": 12},
+    )
+    if december["rest_month"] != "4" or december["holiday_dates"] != "25/12、26/12":
+        raise SystemExit((december["rest_month"], december["holiday_dates"]))
 
 
 def test_editing_an_issued_slip_updates_the_amount_and_does_not_add_another_pay():
