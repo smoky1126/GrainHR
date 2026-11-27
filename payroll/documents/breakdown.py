@@ -2,9 +2,11 @@
 
 import re
 
+from payroll.core.config import HOUR_STANDARD
 from payroll.core.money import (
     LATE_DEDUCT_MINUTES,
     OFFICE_HALF_DAY_MINUTES,
+    minute_deduction,
     serious_late,
     unpaid_amount,
 )
@@ -103,6 +105,14 @@ def breakdown_lines(row, month=None):
         why = "、".join(f"{day} {minutes}分鐘" for day, minutes in marked) or late or f"{_days(deduct_days)} 日"
         lines.append(
             f"扣薪 Salary deduction: {_days(deduct_days)} 日（{why}）${_whole(full)}/{month_days}×{_days(deduct_days)} = HKD${amount:,.2f}"
+        )
+    minutes = _num(row, "salary_deduct_minutes")
+    if minutes > 0.009 and full and month_days:
+        amount = minute_deduction(full, month_days, minutes)
+        shown = int(round(minutes)) if abs(minutes - round(minutes)) < 0.001 else _days(minutes)
+        lines.append(
+            f"扣薪遲到 Lateness: {shown} 分鐘 "
+            f"${_whole(full)}/{month_days}/{_days(HOUR_STANDARD)}/60×{shown} = HKD${amount:,.2f}"
         )
     unpaid_days = _num(row, "unpaid_days")
     unpaid_dates = dates_in_month(_text(row, "unpaid_dates"), month)

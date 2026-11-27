@@ -22,6 +22,8 @@ from payroll.core.money import (
     employee_mpf,
     employer_mpf,
     net_pay,
+    minute_deduction,
+    minutes_for_pay,
     overtime_pay,
     pay_detected_overtime,
     rent_amount,
@@ -678,6 +680,10 @@ def _build_draft(info, facts, book):
         salary_deduct_days = 0 if left else _num(adj.get("salary_deduct_days"))
         if salary_deduct_days:
             unpaid = round_money(unpaid + unpaid_amount(full_basic, days, salary_deduct_days))
+        salary_deduct_minutes = 0 if left else minutes_for_pay(book, adj.get("salary_deduct_minutes"))
+        minute_amount = minute_deduction(full_basic, days, salary_deduct_minutes) if salary_deduct_minutes else 0
+        if minute_amount:
+            unpaid = round_money(unpaid + minute_amount)
         mainland = scheme == "rent"
         electricity = 0 if left or not mainland else _num(person.get("electricity"))
         water = 0 if left or not mainland else (
@@ -873,6 +879,8 @@ def _build_draft(info, facts, book):
             "unpaid_days": unpaid_days,
             "unpaid_amount": unpaid,
             "salary_deduct_days": 0 if left else salary_deduct_days,
+            "salary_deduct_minutes": 0 if left else salary_deduct_minutes,
+            "minute_deduct_amount": 0 if left else minute_amount,
             "other_income": other_income,
             "leave_pay": leave_pay,
             "unused_annual_days": leave_days if not left else 0,

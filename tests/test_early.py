@@ -343,6 +343,43 @@ def test_breakdown_is_this_month_and_shows_the_formula():
         raise SystemExit(text)
 
 
+def test_late_minutes_deduct_at_the_hourly_rate():
+    from payroll.core.money import minute_deduction, minutes_for_pay
+    from payroll.documents.breakdown import breakdown_lines
+    from payroll.documents.slip_pdf import slip_content
+    expected = round(19800 * (16 / 60) / (30 * 9.5), 2)
+    if minute_deduction(19800, 30, 16) != expected or minute_deduction(19800, 30, 0) != 0:
+        raise SystemExit(minute_deduction(19800, 30, 16))
+    if minutes_for_pay("admin", 16) != 0 or minutes_for_pay("bg", 16) != 16:
+        raise SystemExit((minutes_for_pay("admin", 16), minutes_for_pay("bg", 16)))
+    row = pd.Series({
+        "full_salary": 19800,
+        "basic_salary": 19800,
+        "month_days": 30,
+        "salary_deduct_minutes": 16,
+        "minute_deduct_amount": expected,
+        "unpaid_amount": expected,
+        "late_text": "3/11 16分鐘",
+        "net": 19800 - expected,
+        "mpf_employee": 0,
+    })
+    text = " | ".join(breakdown_lines(row, 11))
+    if "16 分鐘" not in text or f"{expected:,.2f}" not in text or "/9.5/60" not in text:
+        raise SystemExit(text)
+    content = slip_content(row, {"year": 2026, "month": 11})
+    labels = [item[0] for item in content["deductions"]]
+    if labels != ["遲到 16 分鐘"] or content["deductions"][0][1] != expected:
+        raise SystemExit(content["deductions"])
+    if content["absent_mins"] != 16:
+        raise SystemExit(content["absent_mins"])
+    from payroll.documents.slip_pdf import _company_from_text, render_office_pdf
+    if _company_from_text("Sample Limited有限公司Employee name") != "Sample Limited有限公司":
+        raise SystemExit(_company_from_text("Sample Limited有限公司Employee name"))
+    pdf = render_office_pdf(row, {"year": 2026, "month": 11, "book": "bg"})
+    if not pdf.startswith(b"%PDF"):
+        raise SystemExit("shop slip was not a pdf")
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -367,6 +404,7 @@ def main():
     test_breakdown_is_this_month_and_shows_the_formula()
     test_mainland_contract_end_is_the_last_day_until_renewed()
     test_slip_keeps_the_transfer_reference()
+    test_late_minutes_deduct_at_the_hourly_rate()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

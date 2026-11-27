@@ -671,6 +671,7 @@ def blank_adjustment(person):
         "stated_extra": 0,
         "manual_delta": 0,
         "salary_deduct_days": 0,
+        "salary_deduct_minutes": 0,
         "unused_annual_days": "",
         "final_transport": 0,
         "final_health": 0,

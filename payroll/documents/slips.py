@@ -136,6 +136,18 @@ def _join_text(value):
     return f"{parsed.day} {parsed.strftime('%B')} {parsed.year}"
 
 
+def _charged_minutes(row):
+    """Minutes typed for a pay deduction, or the older absent-minute note."""
+    for key in ("salary_deduct_minutes", "absent_mins"):
+        try:
+            number = float(row.get(key) or 0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if number == number and number > 0:
+            return int(round(number))
+    return 0
+
+
 def _keep_label(text, value):
     for mark in ("：", ":"):
         if mark in text:
@@ -461,11 +473,12 @@ def fill_document(info, draft):
                 ot_lines = [f"加班 {amount}"]
         for index, anchor in enumerate(slip["ot_anchors"]):
             _put(document, anchor, ot_lines[index] if index < len(ot_lines) else "")
-        if row.absent_mins and anchors.get("absent_header"):
+        shown_mins = _charged_minutes(row)
+        if shown_mins and anchors.get("absent_header"):
             paragraph = _paragraph(document, anchors["absent_header"])
             updated = re.sub(
                 r"(缺勤分鐘[:：]\s*)\d*",
-                rf"\g<1>{int(float(row.absent_mins))}",
+                rf"\g<1>{shown_mins}",
                 paragraph.text,
                 count=1,
             )

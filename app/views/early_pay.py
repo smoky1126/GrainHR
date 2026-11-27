@@ -14,32 +14,61 @@ from payroll.staff.staff import _text, load_staff
 
 
 def _slip_file(info, draft, person, record):
-    """The download. Office slips are rewritten as a PDF with the logo on top."""
+    """The download. Every slip is a PDF with the logo on top."""
     stored = Path(_text(record.get("slip")))
-    if _text(person.get("book")) != "admin":
-        return stored if stored.is_file() else None
     pdf = stored.with_suffix(".pdf") if stored.suffix else None
     row = _full_row(draft, person)
     if row is not None and pdf is not None:
         from payroll.core.config import book_info
         from payroll.documents.slip_pdf import write_office_pdf
         try:
-            booked = book_info(info, "admin")
+            booked = book_info(info, person["book"])
             booked["pay_date_override"] = _text(record.get("pay_date"))
             written = write_office_pdf(pdf, row, booked)
         except (OSError, SystemExit):
             written = None
         if written is not None:
-            try:
-                from payroll.documents.slips_admin import refresh_leave_dates
-                xlsx = stored if stored.suffix.lower() == ".xlsx" else pdf.with_suffix(".xlsx")
-                refresh_leave_dates(xlsx, row)
-            except (OSError, SystemExit):
-                pass
+            if person["book"] == "admin":
+                try:
+                    from payroll.documents.slips_admin import refresh_leave_dates
+                    xlsx = stored if stored.suffix.lower() == ".xlsx" else pdf.with_suffix(".xlsx")
+                    refresh_leave_dates(xlsx, row)
+                except (OSError, SystemExit):
+                    pass
             return written
     if pdf is not None and pdf.is_file():
         return pdf
     return stored if stored.is_file() else None
+
+
+def _download_slip(info, person, row, pay_date, key):
+    """Offer the same PDF download before the salary is issued."""
+    if row is None or person.get("kind") == "part":
+        return
+    from payroll.core.config import book_info
+    from payroll.documents.slip_pdf import render_office_pdf
+    from payroll.pay.early import format_pay_date
+    from payroll.staff.staff import read_batch
+    booked = book_info(info, person["book"])
+    if hasattr(pay_date, "day"):
+        booked["pay_date_override"] = format_pay_date(pay_date)
+    staff_id = _text(row.get("staff_id")) or person["employee_no"]
+    name = _text(row.get("slip_name")).split()[0] or staff_id
+    safe = "".join(ch for ch in name if ch not in '<>:"/\\|?*\'').strip() or staff_id
+    batch = read_batch(booked) or str(staff_id).split("-")[0]
+    suffix = str(staff_id).split("-")[-1]
+    try:
+        data = render_office_pdf(row, booked)
+    except (OSError, SystemExit, ValueError) as error:
+        st.error(str(error))
+        return
+    st.download_button(
+        "下載這份糧單",
+        data,
+        file_name=f"#{batch}_{suffix}_{safe}.pdf",
+        mime="application/pdf",
+        key=key,
+    )
 
 
 def _full_row(draft, person):
@@ -176,6 +205,8 @@ def _card(info, draft, person, record, part_rows, readonly):
                 disabled=readonly or bool(reason),
                 key=f"early-go-{key}",
             )
+        if person["kind"] == "full" and row is not None:
+            _download_slip(info, person, row, picked, f"early-pdf-{key}")
         if go:
             confirm_early(
                 info["key"], person["employee_no"], person["book"], person["kind"],
@@ -257,8 +288,17 @@ def _breakdown(row, office=False):
             if missing:
                 detail = "、".join(part for part in (detail, f"缺卡 {missing}") if part)
             st.caption(f"寫字樓缺半天可以扣薪：{detail}。在「扣薪日數」填 0.5 是半天，0 是不扣。")
-    elif cases:
-        st.caption(f"遲到超過 15 分鐘：{listed}。在「扣薪日數」決定扣幾多日，0 是不扣。")
+    if not office:
+        notes = []
+        for label, text in (("遲到", row.get("late_text")), ("早退", row.get("early_text"))):
+            found = serious_late(text, 0)
+            if not found:
+                continue
+            total = sum(minutes for _, minutes in found)
+            detail = "、".join(f"{day} {minutes}分鐘" for day, minutes in found)
+            notes.append(f"{label} {detail}，共 {total} 分鐘")
+        if notes:
+            st.caption("。".join(notes) + "。店舖和工場在「扣薪分鐘」填要扣的分鐘，按實際分鐘計薪。0 是不扣。")
 
 
 def _amount(value):
@@ -354,10 +394,21 @@ def _adjustment(info, row, person, readonly):
         key=f"early-delta-{prefix}",
     )
     deduct = st.number_input(
-        "扣薪日數", value=_amount(row.get("salary_deduct_days")), step=0.5, disabled=readonly,
-        help="店舖和工場：遲到超過 15 分鐘可以扣。寫字樓：缺半天可以扣。0 是不扣。0.5 是半天。",
+        "扣薪日數", value=_amount(row.get("salary_deduct_days")), step=0.5, min_value=0.0, disabled=readonly,
+        help="半天或整天。0 是不扣。0.5 是半天。",
         key=f"early-deduct-{prefix}",
     )
+    deduct_mins = 0.0
+    if _text(person.get("book")) != "admin":
+        deduct_mins = st.number_input(
+            "扣薪分鐘", value=_amount(row.get("salary_deduct_minutes")), step=1.0, min_value=0.0, disabled=readonly,
+            help="店舖和工場。寫字樓不適用。金額 = 月薪 ÷ 當月日數 ÷ 9.5 小時 ÷ 60 × 分鐘。0 是不扣。",
+            format="%.0f",
+            key=f"early-deduct-mins-{prefix}",
+        )
+        if deduct_mins:
+            from payroll.core.money import minute_deduction
+            st.caption(f"{int(deduct_mins)} 分鐘扣 {hk(minute_deduction(row.get('full_salary'), row.get('month_days'), deduct_mins))}。")
     salary_ref = _saved_text(
         "薪金交易編號", f"early-ref-{prefix}", _text(row.get("salary_reference")), readonly,
     )
@@ -376,6 +427,7 @@ def _adjustment(info, row, person, readonly):
             "annual_taken": 0,
             "manual_delta": float(extra),
             "salary_deduct_days": float(deduct),
+            "salary_deduct_minutes": float(deduct_mins),
             "final_transport": float(transport_value),
             "final_health": float(health_value),
             "salary_reference": salary_ref.strip(),
@@ -682,6 +734,10 @@ def _plan_editor(info, person, last_day, readonly):
             disabled=readonly or bool(reason),
             key=f"early-issue-{info['key']}-{person['employee_no']}",
         )
+    _download_slip(
+        info, person, row, picked,
+        f"early-pdf-{info['key']}-{person['employee_no']}",
+    )
     if go:
         confirm_early(
             info["key"], person["employee_no"], person["book"], person["kind"],

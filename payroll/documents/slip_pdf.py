@@ -1,5 +1,6 @@
-"""One-page office salary slip as a PDF, with the company logo at the top."""
+"""One-page salary slip as a PDF, with the company logo at the top."""
 
+import re
 from pathlib import Path
 
 
@@ -115,8 +116,17 @@ def slip_content(row, info=None):
         payments.append(("其他調整", manual, ""))
         included += manual
     deductions = []
+    unpaid = _num(row, "unpaid_amount")
+    late_pay = min(_num(row, "minute_deduct_amount"), unpaid)
+    leave_unpaid = round(unpaid - late_pay, 2)
+    if leave_unpaid > 0.009:
+        deductions.append(("NPL 無薪假", leave_unpaid))
+        included -= leave_unpaid
+    if late_pay > 0.009:
+        mins = int(round(_num(row, "salary_deduct_minutes")))
+        deductions.append((f"遲到 {mins} 分鐘" if mins else "遲到", late_pay))
+        included -= late_pay
     for key, label in (
-        ("unpaid_amount", "NPL 無薪假"),
         ("rent", "Rent 租金"),
         ("water", "Water 水費"),
         ("electricity", "Electricity 電費"),
@@ -160,7 +170,7 @@ def slip_content(row, info=None):
         "annual_dates": _dates_for_month(_text(row, "annual_dates"), info.get("month")),
         "unpaid_days": _num(row, "unpaid_days"),
         "birthday_days": _num(row, "birthday_days"),
-        "absent_mins": _num(row, "absent_mins"),
+        "absent_mins": _num(row, "salary_deduct_minutes") or _num(row, "absent_mins"),
         "payments": payments,
         "deductions": deductions,
         "subtotal": subtotal,
@@ -223,6 +233,13 @@ def _file_no(row, info):
     return f"#{prefix}- {suffix}"
 
 
+def _company_from_text(text):
+    head = str(text or "").strip().split("Employee")[0].strip()
+    if "Limited" in head or "有限公司" in head:
+        return head
+    return ""
+
+
 def _company_name(info):
     template = info.get("slip_template") if isinstance(info, dict) else None
     if not template:
@@ -232,24 +249,36 @@ def _company_name(info):
         except (KeyError, TypeError, ValueError, OSError, SystemExit):
             template = None
     path = Path(str(template)) if template else None
-    if path is None or not path.is_file():
+    found = ""
+    if path is not None and path.is_file() and path.suffix.lower() == ".xlsx":
+        from openpyxl import load_workbook
+        book = load_workbook(path, read_only=True, data_only=True)
         try:
-            from payroll.core.settings import daka
-            return str(daka().get("company") or "")
-        except (OSError, TypeError):
-            return ""
-    from openpyxl import load_workbook
-    book = load_workbook(path, read_only=True, data_only=True)
+            sheet = book.worksheets[0]
+            for cells in sheet.iter_rows(max_row=40, max_col=3, values_only=True):
+                for value in cells:
+                    text = _plain(value)
+                    if "有限公司" in text or "Limited" in text:
+                        found = text
+                        break
+                if found:
+                    break
+        finally:
+            book.close()
+    elif path is not None and path.is_file() and path.suffix.lower() == ".docx":
+        import zipfile
+        try:
+            xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8", "ignore")
+        except (OSError, KeyError, zipfile.BadZipFile):
+            xml = ""
+        found = _company_from_text(re.sub(r"<[^>]+>", "", xml))
+    if found:
+        return found
     try:
-        sheet = book.worksheets[0]
-        for cells in sheet.iter_rows(max_row=40, max_col=3, values_only=True):
-            for value in cells:
-                text = _plain(value)
-                if "有限公司" in text or "Limited" in text:
-                    return text
-    finally:
-        book.close()
-    return ""
+        from payroll.core.settings import daka
+        return str(daka().get("company") or "")
+    except (OSError, TypeError):
+        return ""
 
 
 def _logo_path():
@@ -275,19 +304,27 @@ def _logo_path():
     return None
 
 
-def write_office_pdf(path, row, info=None):
-    """Write one office salary slip. The file is a PDF, not a spreadsheet."""
+def _document(row, info=None):
     from fpdf import FPDF
 
-    content = slip_content(row, info)
     pdf = FPDF(format="A4", unit="pt")
     pdf.set_auto_page_break(False)
     pdf.add_page()
     pdf.add_font("slip", "", str(FONT))
-    _draw(pdf, content)
+    _draw(pdf, slip_content(row, info))
+    return pdf
+
+
+def render_office_pdf(row, info=None):
+    """The slip as PDF bytes, for a download button."""
+    return bytes(_document(row, info).output())
+
+
+def write_office_pdf(path, row, info=None):
+    """Write one salary slip. The file is a PDF, not a spreadsheet."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    pdf.output(str(target))
+    _document(row, info).output(str(target))
     return target
 
 

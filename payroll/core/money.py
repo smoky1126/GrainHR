@@ -71,6 +71,24 @@ def overtime_pay(basic, days_in_month, hours):
     return round_money(float(basic or 0) * hours / (days * HOUR_STANDARD))
 
 
+def minute_deduction(basic, days_in_month, minutes):
+    """Late minutes at the overtime hour: monthly salary / days / 9.5 / 60."""
+    minutes = float(minutes or 0)
+    if minutes <= 0:
+        return 0.0
+    return overtime_pay(basic, days_in_month, minutes / 60)
+
+
+def minutes_for_pay(book, minutes):
+    """Shop and production can deduct exact minutes. Office staff cannot."""
+    if str(book or "") == "admin":
+        return 0.0
+    minutes = float(minutes or 0)
+    if minutes != minutes or minutes <= 0:
+        return 0.0
+    return minutes
+
+
 LATE_DEDUCT_MINUTES = 15
 OFFICE_HALF_DAY_MINUTES = 240
 BONUS_MONTHS = (3, 6, 9, 12)

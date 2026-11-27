@@ -293,10 +293,16 @@ def _advanced(info, draft, row, staff_id, readonly, book="bg"):
         ("manual_delta", "其他調整"),
         ("salary_deduct_days", "扣薪日數"),
     ]
+    if book != "admin":
+        fields.append(("salary_deduct_minutes", "扣薪分鐘"))
     values = {}
     for key, label in fields:
         help_text = None
-        if key == "statutory_days":
+        if key == "salary_deduct_days":
+            help_text = "半天或整天。0 是不扣。0.5 是半天。"
+        elif key == "salary_deduct_minutes":
+            help_text = "店舖和工場。寫字樓不適用。金額 = 月薪 ÷ 當月日數 ÷ 9.5 小時 ÷ 60 × 分鐘。0 是不扣。"
+        elif key == "statutory_days":
             count = holiday_count(info, book)
             if book == "admin":
                 label = "公眾假期"

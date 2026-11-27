@@ -485,10 +485,24 @@ def _issue_full(info, person, pay_date):
     booked["pay_date_override"] = format_pay_date(pay_date)
     if person["book"] == "admin":
         from payroll.documents.slips_admin import write_person_slip
+        path = write_person_slip(booked, draft, staff_id)
     else:
-        from payroll.documents.slips import write_person_slip
-    path = write_person_slip(booked, draft, staff_id)
+        path = _shop_pdf(booked, row)
     return path, row.get("net")
+
+
+def _shop_pdf(info, row):
+    """Shop and production slips use the same PDF as an office slip."""
+    from payroll.documents.slip_pdf import write_office_pdf
+    from payroll.staff.staff import read_batch
+
+    staff_id = _text(row.get("staff_id"))
+    name = _text(row.get("slip_name")).split()[0] or staff_id
+    batch = read_batch(info) or staff_id.split("-")[0]
+    suffix = staff_id.split("-")[-1]
+    folder = Path(info["output"]) / "個別"
+    folder.mkdir(parents=True, exist_ok=True)
+    return write_office_pdf(folder / f"#{batch}_{suffix}_{_safe_name(name, staff_id)}.pdf", row, info)
 
 
 def _issue_part(info, person):
