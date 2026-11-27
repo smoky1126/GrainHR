@@ -118,7 +118,7 @@ def _remember(info, draft, stamp=None):
     st.session_state["draft_stamps"][book] = (info["key"], stamp)
 
 
-@st.cache_data(ttl=600, max_entries=18, show_spinner=False)
+@st.cache_data(ttl=6 * 60 * 60, max_entries=18, show_spinner=False)
 def _cached_book_draft(book, month_key, stamp):
     from payroll.core.config import book_info, parse_month
     from payroll.pay.run import _draft_from_facts

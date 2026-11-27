@@ -160,7 +160,7 @@ def _download_slip(info, person, row, pay_date, key, record=None, pays=False, di
     )
 
 
-@st.cache_data(ttl=600, max_entries=24, show_spinner=False)
+@st.cache_data(ttl=6 * 60 * 60, max_entries=24, show_spinner=False)
 def _cached_leaver_draft(month_key, book, plan, stamp, today_iso):
     from payroll.pay.early import leaver_draft
     del stamp, today_iso
@@ -883,16 +883,42 @@ def _plan_ahead(info, waiting, readonly):
 
 
 def _plan_editor(info, person, last_day, readonly):
-    """Same salary editor as a resignation payment, for a last day chosen in advance."""
+    """Same salary editor as a resignation payment, for a last day chosen in advance.
+
+    The salary is calculated only after 計算薪金, so opening 出糧 does not build it.
+    """
+    from app.context import _input_stamp
+    from payroll.core.config import book_info
     from payroll.pay.early import early_hold
     planned = dict(person)
     planned["leave_date"] = last_day
-    try:
-        with st.spinner("正在計算"):
-            row = _leaver_row(info, planned)
-    except SystemExit as error:
-        st.error(str(error))
+    token = (info["key"], person["employee_no"], person["book"], last_day.isoformat(), date.today().isoformat())
+    cached = st.session_state.get("early-plan")
+    same = isinstance(cached, dict) and cached.get("token") == token
+    if not same:
+        if st.button("計算薪金", disabled=readonly, key=f"early-plan-go-{info['key']}"):
+            try:
+                with st.spinner("正在計算"):
+                    row = _leaver_row(info, planned)
+            except SystemExit as error:
+                st.error(str(error))
+                return
+            stamp = _input_stamp(book_info(info, person["book"]))
+            st.session_state["early-plan"] = {"token": token, "stamp": stamp, "row": row}
+            st.rerun()
+        st.caption("選好同事和最後工作日，按「計算薪金」。")
         return
+    stamp = _input_stamp(book_info(info, person["book"]))
+    if cached.get("stamp") != stamp:
+        try:
+            with st.spinner("正在計算"):
+                row = _leaver_row(info, planned)
+        except SystemExit as error:
+            st.error(str(error))
+            return
+        cached = {"token": token, "stamp": stamp, "row": row}
+        st.session_state["early-plan"] = cached
+    row = cached["row"]
     reason = early_hold(row)
     _breakdown(row, office=person["book"] == "admin")
     note = _text(row.get("review"))

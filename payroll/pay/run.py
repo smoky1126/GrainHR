@@ -92,9 +92,23 @@ def run_check(info, open_workbook=False, fetch=True):
     return draft
 
 
+_facts_cache = {"key": None, "frame": None}
+
+
 def pd_read_facts(info):
     import pandas as pd
-    return pd.read_excel(info["system"] / "daily_facts.xlsx")
+    path = info["system"] / "daily_facts.xlsx"
+    try:
+        stat = path.stat()
+        key = (str(path), stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        key = (str(path), 0, 0)
+    if _facts_cache["key"] == key and _facts_cache["frame"] is not None:
+        return _facts_cache["frame"].copy()
+    frame = pd.read_excel(path)
+    _facts_cache["key"] = key
+    _facts_cache["frame"] = frame
+    return frame.copy()
 
 
 def _pay_date(info):

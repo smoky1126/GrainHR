@@ -1,6 +1,7 @@
 """Company names and paths. The real file is company.toml and is not committed."""
 
 import os
+import time
 import tomllib
 from pathlib import Path
 
@@ -47,10 +48,32 @@ def load():
     return raw
 
 
+_derived = {"token": None, "at": 0.0, "keywords": None, "codes": None}
+
+
+def _cached_rules(kind):
+    """Reuse shop rules for a moment. A changed company file is read on the next check."""
+    now = time.monotonic()
+    if _derived[kind] is not None and now - _derived["at"] < 2.0:
+        return _derived[kind]
+    load()
+    token = (_loaded["path"], _loaded["stamp"])
+    if _derived["token"] != token:
+        _derived["keywords"] = None
+        _derived["codes"] = None
+        _derived["token"] = token
+    _derived["at"] = now
+    return _derived[kind]
+
+
 def _clear_loaded():
     _loaded["path"] = None
     _loaded["stamp"] = None
     _loaded["data"] = None
+    _derived["token"] = None
+    _derived["at"] = 0.0
+    _derived["keywords"] = None
+    _derived["codes"] = None
 
 
 load.cache_clear = _clear_loaded
@@ -120,17 +143,23 @@ def punch_places():
 
 def shop_keywords():
     """Longest place word first, and the shop code it means."""
+    cached = _cached_rules("keywords")
+    if cached is not None:
+        return cached
+    data = _loaded["data"] or {}
     rows = []
-    for label, code in shops():
+    for row in data.get("shops") or []:
+        label, code = row.get("label", ""), row.get("code", "")
         if str(label or "").strip() and str(code or "").strip():
             rows.append((str(label).strip(), str(code).strip()))
-    extra = load().get("punch_words") or {}
+    extra = data.get("punch_words") or {}
     if isinstance(extra, dict):
         for word, code in extra.items():
             if str(word).strip() and str(code).strip():
                 rows.append((str(word).strip(), str(code).strip()))
     rows.sort(key=lambda item: len(item[0]), reverse=True)
-    return tuple(rows)
+    _derived["keywords"] = tuple(rows)
+    return _derived["keywords"]
 
 
 def code_for_shop(text):
@@ -138,17 +167,27 @@ def code_for_shop(text):
     raw = str(text or "").strip()
     if not raw or raw.lower() == "nan":
         return ""
+    rules = _code_rules()
+    for key, code in rules:
+        if key in raw:
+            return code
+    return raw.split("_")[0]
+
+
+def _code_rules():
+    cached = _cached_rules("codes")
+    if cached is not None:
+        return cached
+    data = _loaded["data"] or {}
     rules = []
-    mapping = load().get("shop_codes") or {}
+    mapping = data.get("shop_codes") or {}
     if isinstance(mapping, dict):
         for key, code in mapping.items():
             if isinstance(code, str) and str(key).strip() and code.strip():
                 rules.append((str(key).strip(), code.strip()))
     rules.sort(key=lambda item: len(item[0]), reverse=True)
-    for key, code in rules:
-        if key in raw:
-            return code
-    return raw.split("_")[0]
+    _derived["codes"] = tuple(rules)
+    return _derived["codes"]
 
 
 def shares_site(left, right):
