@@ -334,12 +334,8 @@ def test_breakdown_is_this_month_and_shows_the_formula():
         "salary_deduct_days": 0.5,
         "book": "admin",
     })
-    text = " | ".join(breakdown_lines(row, 11))
-    if "12/10" in text:
-        raise SystemExit(text)
-    if "本月年假 Annual leave taken: 無" not in text:
-        raise SystemExit(text)
-    if "× 12 / 365" not in text or "2/11 15分鐘" not in text or "扣薪" not in text:
+    text = " | ".join(breakdown_lines(row, 11, 2026))
+    if "12/10" in text or "本月年假" in text or "扣薪" in text or "無薪假" in text:
         raise SystemExit(text)
 
 
@@ -363,9 +359,6 @@ def test_late_minutes_deduct_at_the_hourly_rate():
         "net": 19800 - expected,
         "mpf_employee": 0,
     })
-    text = " | ".join(breakdown_lines(row, 11))
-    if "16 分鐘" not in text or f"{expected:,.2f}" not in text or "/9.5/60" not in text:
-        raise SystemExit(text)
     content = slip_content(row, {"year": 2026, "month": 11})
     labels = [item[0] for item in content["deductions"]]
     if labels != ["遲到 16 分鐘"] or content["deductions"][0][1] != expected:
@@ -395,7 +388,7 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
     content = slip_content(row, {"year": 2026, "month": 11})
     if content["punch_marks"] != ["8/11 上班缺卡", "19/11 下班缺卡"]:
         raise SystemExit(content["punch_marks"])
-    if not any("8/11 上班缺卡" in line for line in content["details"]):
+    if any("缺卡" in line for line in content["details"]):
         raise SystemExit(content["details"])
     if any(item[0].startswith("8/11") for item in content["deductions"]):
         raise SystemExit(content["deductions"])
@@ -476,10 +469,11 @@ def test_breakdown_lists_rest_days_and_statutory_holidays():
     if content["rest_taken"] != "2/11、8/11":
         raise SystemExit(content["rest_taken"])
     text = " | ".join(breakdown_lines(row, 11, 2026))
-    if "已放假" in text:
+    if text:
         raise SystemExit(text)
-    if "法定假期 Statutory holiday: 無" not in text:
-        raise SystemExit(text)
+    december = " | ".join(breakdown_lines(pd.Series({"book": "bg"}), 12, 2026))
+    if december != "法定假期 Statutory holiday: 25/12、26/12":
+        raise SystemExit(december)
 
 
 def test_a_compiled_slip_stays_on_the_leaver_list():
