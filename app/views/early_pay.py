@@ -41,7 +41,7 @@ def _slip_file(info, draft, person, record):
     return stored if stored.is_file() else None
 
 
-def _offer_slip(info, person, row, pay_date, readonly, key):
+def _offer_slip(info, person, row, pay_date, readonly, key, seen=None):
     """Transaction numbers and the PDF, the same as an issued slip."""
     if row is None or person.get("kind") == "part":
         return
@@ -76,10 +76,10 @@ def _offer_slip(info, person, row, pay_date, readonly, key):
     shown = row.copy()
     shown["salary_reference"] = salary_ref.strip()
     shown["allowance_reference"] = allowance_ref.strip()
-    _download_slip(info, person, shown, pay_date, key)
+    _download_slip(info, person, shown, pay_date, key, seen)
 
 
-def _download_slip(info, person, row, pay_date, key):
+def _download_slip(info, person, row, pay_date, key, seen=None):
     """Offer the same PDF download before the salary is issued."""
     if row is None or person.get("kind") == "part":
         return
@@ -103,12 +103,13 @@ def _download_slip(info, person, row, pay_date, key):
         return render_office_pdf(shown, booked)
 
     st.download_button(
-        "下載這份糧單",
+        "產生並下載糧單" if seen else "下載這份糧單",
         build,
         file_name=f"#{batch}_{suffix}_{safe}.pdf",
         mime="application/pdf",
-        on_click="ignore",
-        type="primary",
+        on_click=_mark_downloaded if seen else "ignore",
+        args=seen,
+        type="secondary" if seen else "primary",
         width="stretch",
         key=key,
     )
@@ -285,12 +286,25 @@ def _card(info, draft, person, record, part_rows, readonly):
                 amount = row.get("net")
         amount_text = hk(amount)
         calculated = person["kind"] == "full" and row is not None
-        picked = date.today()
         if calculated:
             _breakdown(row, office=person["book"] == "admin")
             note = _text(row.get("review"))
             if note and note.lower() != "nan":
                 st.caption(note)
+            _adjustment(info, row, person, readonly)
+            _confirm_absence(info, row, person, readonly)
+        if hasattr(left, "year") and left >= date.today():
+            st.caption("最後工作日之前可以先出。還沒打卡的日子按更表計算，不當作缺卡。")
+        if calculated:
+            _slip_then_issue(
+                info, person, row, reason, readonly, f"early-card-{key}",
+                left.isoformat() if hasattr(left, "isoformat") else "",
+            )
+            return
+        if reason:
+            st.warning(reason)
+        actions = st.container(horizontal=True, vertical_alignment="bottom")
+        with actions:
             picked = st.date_input(
                 "出糧日期",
                 value=date.today(),
@@ -298,23 +312,6 @@ def _card(info, draft, person, record, part_rows, readonly):
                 format="YYYY-MM-DD",
                 key=f"early-date-{key}",
             )
-            _offer_slip(info, person, row, picked, readonly, f"early-pdf-{key}")
-            _adjustment(info, row, person, readonly)
-            _confirm_absence(info, row, person, readonly)
-        if hasattr(left, "year") and left >= date.today():
-            st.caption("最後工作日之前可以先出。還沒打卡的日子按更表計算，不當作缺卡。")
-        if reason:
-            st.warning(reason)
-        actions = st.container(horizontal=True, vertical_alignment="bottom")
-        with actions:
-            if not calculated:
-                picked = st.date_input(
-                    "出糧日期",
-                    value=date.today(),
-                    disabled=readonly,
-                    format="YYYY-MM-DD",
-                    key=f"early-date-{key}",
-                )
             go = st.button(
                 "提前出糧",
                 type="primary",
@@ -846,35 +843,50 @@ def _plan_editor(info, person, last_day, readonly):
     note = _text(row.get("review"))
     if note and note.lower() != "nan":
         st.caption(note)
+    _adjustment(info, row, person, readonly)
+    _confirm_absence(info, row, person, readonly)
+    if last_day >= date.today():
+        st.caption("還沒打卡的日子按更表計算，不當作缺卡。")
+    _slip_then_issue(
+        info, person, row, reason, readonly,
+        f"early-plan-{info['key']}-{person['employee_no']}", last_day.isoformat(),
+    )
+
+
+def _mark_downloaded(name, value):
+    st.session_state[name] = value
+
+
+def _slip_then_issue(info, person, row, reason, readonly, key, last_iso):
+    """Step one makes the slip to check. Step two pays, once that slip was downloaded."""
+    st.markdown("**第一步：產生糧單**")
+    st.caption("核對上面的計算和調整，然後下載糧單核對。之後再改調整，要重新下載。")
     picked = st.date_input(
         "出糧日期",
         value=date.today(),
         disabled=readonly,
         format="YYYY-MM-DD",
-        key=f"early-payon-{info['key']}-{person['employee_no']}",
+        key=f"{key}-payon",
     )
-    _offer_slip(
-        info, person, row, picked, readonly,
-        f"early-pdf-{info['key']}-{person['employee_no']}",
-    )
-    _adjustment(info, row, person, readonly)
-    _confirm_absence(info, row, person, readonly)
-    if last_day >= date.today():
-        st.caption("還沒打卡的日子按更表計算，不當作缺卡。")
+    seen = f"{key}-downloaded"
+    mark = f"{_text(row.get('net'))}|{picked.isoformat()}"
+    _offer_slip(info, person, row, picked, readonly, f"{key}-pdf", seen=(seen, mark))
+    st.markdown("**第二步：提前出糧**")
+    ready = st.session_state.get(seen) == mark
     if reason:
         st.warning(reason)
-    actions = st.container(horizontal=True, vertical_alignment="bottom")
-    with actions:
-        go = st.button(
-            "提前出糧",
-            type="primary",
-            disabled=readonly or bool(reason),
-            key=f"early-issue-{info['key']}-{person['employee_no']}",
-        )
+    elif not ready:
+        st.caption("請先下載糧單核對，才可以出糧。月結時不會再發一次。")
+    go = st.button(
+        "提前出糧",
+        type="primary",
+        disabled=readonly or bool(reason) or not ready,
+        key=f"{key}-go",
+    )
     if go:
         confirm_early(
             info["key"], person["employee_no"], person["book"], person["kind"],
-            person["name"], picked.isoformat(), hk(row.get("net")), last_day.isoformat(),
+            person["name"], picked.isoformat(), hk(row.get("net")), last_iso,
         )
 
 
