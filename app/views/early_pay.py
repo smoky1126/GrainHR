@@ -41,8 +41,8 @@ def _slip_file(info, draft, person, record):
     return stored if stored.is_file() else None
 
 
-def _offer_slip(info, person, row, pay_date, readonly, key, seen=None):
-    """Transaction numbers and the PDF, the same as an issued slip."""
+def _offer_slip(info, person, row, pay_date, readonly, key, issue=None):
+    """Transaction numbers and the PDF. With issue, downloading records the early pay."""
     if row is None or person.get("kind") == "part":
         return
     staff_id = _text(row.get("staff_id")) or _text(person.get("staff_id"))
@@ -76,11 +76,56 @@ def _offer_slip(info, person, row, pay_date, readonly, key, seen=None):
     shown = row.copy()
     shown["salary_reference"] = salary_ref.strip()
     shown["allowance_reference"] = allowance_ref.strip()
-    _download_slip(info, person, shown, pay_date, key, seen)
+    record = None
+    if issue and not readonly:
+        record = _record_on_download(
+            info, person, staff_id, salary_ref, allowance_ref, pay_date, issue,
+        )
+    _download_slip(
+        info, person, shown, pay_date, key, record,
+        pays=issue is not None, disabled=issue is not None and record is None,
+    )
 
 
-def _download_slip(info, person, row, pay_date, key, seen=None):
-    """Offer the same PDF download before the salary is issued."""
+def _record_on_download(info, person, staff_id, salary_ref, allowance_ref, pay_date, issue):
+    """Save the typed references, then record the early pay, when the slip is downloaded."""
+    last_iso, reason, error_key = issue
+    if reason:
+        return None
+
+    def record():
+        from payroll.core.config import book_info
+        from payroll.pay.early import issue_early
+        from payroll.pay.review import save_one
+        try:
+            if staff_id:
+                save_one(book_info(info, person["book"]), staff_id, {
+                    "salary_reference": salary_ref.strip(),
+                    "allowance_reference": allowance_ref.strip(),
+                })
+            last_day = date.fromisoformat(last_iso) if last_iso else person.get("leave_date")
+            issue_early(
+                info, person["employee_no"], pay_date,
+                book=person["book"], kind=person.get("kind") or "full", last_day=last_day,
+            )
+        except PermissionError:
+            st.session_state[error_key] = "請先關閉已打開的糧單或提前出糧紀錄，然後再試。"
+            return
+        except SystemExit as error:
+            st.session_state[error_key] = str(error)
+            return
+        st.session_state.pop(error_key, None)
+        st.session_state["dirty"] = True
+        st.session_state.pop("drafts", None)
+        st.session_state.pop("draft_stamps", None)
+        st.session_state.pop("early-preview", None)
+        st.toast(f"已為 {person['name']} 提前出糧，月結不會再發。")
+
+    return record
+
+
+def _download_slip(info, person, row, pay_date, key, record=None, pays=False, disabled=False):
+    """Offer the PDF. record, when set, stores the early pay as the file downloads."""
     if row is None or person.get("kind") == "part":
         return
     from payroll.core.config import book_info
@@ -103,15 +148,15 @@ def _download_slip(info, person, row, pay_date, key, seen=None):
         return render_office_pdf(shown, booked)
 
     st.download_button(
-        "產生並下載糧單" if seen else "下載這份糧單",
+        "產生並下載糧單" if pays else "下載這份糧單",
         build,
         file_name=f"#{batch}_{suffix}_{safe}.pdf",
         mime="application/pdf",
-        on_click=_mark_downloaded if seen else "ignore",
-        args=seen,
-        type="secondary" if seen else "primary",
+        on_click=record or "ignore",
+        disabled=disabled,
+        type="primary",
         width="stretch",
-        key=key,
+        key=f"slip-make-{key}" if pays else key,
     )
 
 
@@ -863,14 +908,9 @@ def _plan_editor(info, person, last_day, readonly):
     )
 
 
-def _mark_downloaded(name, value):
-    st.session_state[name] = value
-
-
 def _slip_then_issue(info, person, row, reason, readonly, key, last_iso):
-    """Step one makes the slip to check. Step two pays, once that slip was downloaded."""
-    st.markdown("**第一步：產生糧單**")
-    st.caption("核對上面的計算和調整，然後下載糧單核對。之後再改調整，要重新下載。")
+    """One action: download the slip, and that records the early pay."""
+    st.caption("核對上面的計算和調整，然後按「產生並下載糧單」。下載即提前出糧，月結不會再發一次。")
     picked = st.date_input(
         "出糧日期",
         value=date.today(),
@@ -878,26 +918,16 @@ def _slip_then_issue(info, person, row, reason, readonly, key, last_iso):
         format="YYYY-MM-DD",
         key=f"{key}-payon",
     )
-    seen = f"{key}-downloaded"
-    mark = f"{_text(row.get('net'))}|{picked.isoformat()}"
-    _offer_slip(info, person, row, picked, readonly, f"{key}-pdf", seen=(seen, mark))
-    st.markdown("**第二步：提前出糧**")
-    ready = st.session_state.get(seen) == mark
+    error_key = f"early-issue-error-{key}"
+    error = st.session_state.pop(error_key, "")
     if reason:
         st.warning(reason)
-    elif not ready:
-        st.caption("請先下載糧單核對，才可以出糧。月結時不會再發一次。")
-    go = st.button(
-        "提前出糧",
-        type="primary",
-        disabled=readonly or bool(reason) or not ready,
-        key=f"{key}-go",
+    elif error:
+        st.error(error)
+    _offer_slip(
+        info, person, row, picked, readonly, f"{key}-pdf",
+        issue=None if readonly else (last_iso, reason, error_key),
     )
-    if go:
-        confirm_early(
-            info["key"], person["employee_no"], person["book"], person["kind"],
-            person["name"], picked.isoformat(), hk(row.get("net")), last_iso,
-        )
 
 
 def early_section(info, draft, readonly):

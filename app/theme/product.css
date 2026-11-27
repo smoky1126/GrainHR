@@ -127,6 +127,12 @@ iframe { border: 0; }
 .stButton > button[kind="primary"], .stButton > button[data-testid="stBaseButton-primary"] {
     background: var(--wheat-500); color: var(--ink-900); border: none; border-radius: 6px;
 }
+[class*="st-key-slip-make"] button:not(:disabled) {
+    background: #E07020; color: #fff; border: none;
+}
+[class*="st-key-slip-make"] button:not(:disabled):hover {
+    background: #C45E12; color: #fff; border: none;
+}
 div[data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 12px; background: var(--white); }
 [data-testid="stSidebar"] a { border-radius: 8px; }
 .gh-footer { color: var(--ink-500); font-size: 12px; margin-top: 12px; }
