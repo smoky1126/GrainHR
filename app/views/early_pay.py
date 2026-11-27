@@ -482,6 +482,24 @@ def _adjustment(info, row, person, readonly):
         if deduct_mins:
             from payroll.core.money import minute_deduction
             st.caption(f"{int(deduct_mins)} 分鐘扣 {hk(minute_deduction(row.get('full_salary'), row.get('month_days'), deduct_mins))}。")
+    mainland = _text(row.get("scheme")).lower() == "rent"
+    water_value = 0.0
+    power_value = 0.0
+    if mainland:
+        from payroll.pay.payroll import chosen_charge
+        water_value = st.number_input(
+            "水費", value=chosen_charge(row.get("water_override"), row.get("water")),
+            step=0.1, min_value=0.0, disabled=readonly,
+            help="你填的金額是最終水費。不會被原來的水費改掉。不計入租金。",
+            key=f"early-water-{prefix}",
+        )
+        power_value = st.number_input(
+            "電費", value=chosen_charge(row.get("electricity_override"), row.get("electricity")),
+            step=0.1, min_value=0.0, disabled=readonly,
+            help="你填的金額是最終電費。不會被原來的電費改掉。不計入租金。",
+            key=f"early-power-{prefix}",
+        )
+        st.caption("水費和電費以你儲存的金額為準。租金仍然是扣薪後的 10%，不包括這兩項。")
     if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):
         return
     from payroll.core.config import book_info
@@ -496,6 +514,7 @@ def _adjustment(info, row, person, readonly):
             "salary_deduct_minutes": float(deduct_mins),
             "final_transport": float(transport_value),
             "final_health": float(health_value),
+            **({"water_override": float(water_value), "electricity_override": float(power_value)} if mainland else {}),
         })
     except SystemExit as error:
         st.error(str(error))

@@ -678,6 +678,7 @@ def blank_adjustment(person):
         "bonus_override": "",
         "rest_override": "",
         "water_override": "",
+        "electricity_override": "",
         "note": "",
         "approved": "",
         "salary_reference": "",

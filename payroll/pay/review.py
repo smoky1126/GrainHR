@@ -63,13 +63,14 @@ EDITABLE = {
     "final_transport", "final_health", "unused_annual_days", "note", "salary_reference",
     "allowance_reference",
     "absence_choices", "sick_hours", "bonus_leaver",
+    "water_override", "electricity_override",
 }
 NUMBER_FIELDS = {
     "unpaid_days", "sick_days", "statutory_days", "annual_taken",
     "birthday_days", "taken_rest", "manual_delta", "salary_deduct_days", "salary_deduct_minutes",
     "final_transport", "final_health", "unused_annual_days",
 }
-BLANK_NUMBER_FIELDS = {"ot_hours_paid", "bonus_override"}
+BLANK_NUMBER_FIELDS = {"ot_hours_paid", "bonus_override", "water_override", "electricity_override"}
 ROSTER_FIELDS = {
     "unpaid_days": "roster_unpaid",
     "sick_days": "roster_sick",

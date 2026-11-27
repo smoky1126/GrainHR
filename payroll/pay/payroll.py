@@ -223,6 +223,14 @@ def _override(value):
     return float(value)
 
 
+def chosen_charge(override, standing):
+    """A typed water or electricity amount replaces the standing charge, including 0."""
+    picked = _override(override)
+    if picked is None:
+        return _num(standing)
+    return picked
+
+
 def _picked_number(typed, roster_value):
     """A blank adjustment cell means: use the roster."""
     if _is_blank(typed):
@@ -685,10 +693,8 @@ def _build_draft(info, facts, book):
         if minute_amount:
             unpaid = round_money(unpaid + minute_amount)
         mainland = scheme == "rent"
-        electricity = 0 if left or not mainland else _num(person.get("electricity"))
-        water = 0 if left or not mainland else (
-            _num(person.water) if _override(adj.water_override) is None else _override(adj.water_override)
-        )
+        electricity = 0 if left or not mainland else chosen_charge(adj.get("electricity_override"), person.get("electricity"))
+        water = 0 if left or not mainland else chosen_charge(adj.get("water_override"), person.get("water"))
         if left or not mainland:
             rent = 0
         else:

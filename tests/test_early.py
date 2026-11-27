@@ -394,6 +394,14 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
         raise SystemExit(content["deductions"])
 
 
+def test_a_typed_water_or_electricity_charge_replaces_the_standing_one():
+    from payroll.pay.payroll import chosen_charge
+    if chosen_charge("", 4.3) != 4.3 or chosen_charge(None, 4.3) != 4.3:
+        raise SystemExit(chosen_charge("", 4.3))
+    if chosen_charge(0, 4.3) != 0 or chosen_charge(8.5, 4.3) != 8.5:
+        raise SystemExit((chosen_charge(0, 4.3), chosen_charge(8.5, 4.3)))
+
+
 def test_mainland_rent_is_ten_percent_after_deductions():
     from payroll.core.money import mainland_rent
     # Water and electricity are not taken off before the 10%.
@@ -572,6 +580,7 @@ def main():
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
+    test_a_typed_water_or_electricity_charge_replaces_the_standing_one()
     test_mainland_rent_is_ten_percent_after_deductions()
     test_lateness_and_early_leave_are_separate_deductions()
     test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl()
