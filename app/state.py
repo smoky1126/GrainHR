@@ -176,6 +176,13 @@ def problem_people(draft):
         saved = draft["ot_text"].astype(str).str.strip()
         pending = suggest.ne("") & suggest.str.lower().ne("nan") & (saved.eq("") | saved.str.lower().eq("nan"))
         mask = mask | pending
+    from payroll.core.money import LATE_GRACE_MINUTES
+    if "late_mins_detected" in draft.columns:
+        late = pd.to_numeric(draft["late_mins_detected"], errors="coerce").fillna(0)
+        mask = mask | (late > LATE_GRACE_MINUTES)
+    if "early_mins_detected" in draft.columns:
+        early = pd.to_numeric(draft["early_mins_detected"], errors="coerce").fillna(0)
+        mask = mask | (early > 0)
     if "pay_this" in draft.columns:
         mask = mask & draft["pay_this"].astype(bool)
     return draft[mask].copy()

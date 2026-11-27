@@ -151,6 +151,56 @@ def _absence_editor(booked, draft, row, book, staff_id, readonly):
         st.toast("已儲存缺勤")
         st.rerun()
 
+def _clock_panel(booked, draft, row, book, staff_id, readonly):
+    """Lateness, early leave, and overtime, with a confirmation when the figure may be wrong."""
+    from payroll.pay.payroll import clock_review
+    facts = clock_review(
+        row.get("late_text"), row.get("early_text"),
+        row.get("late_mins_detected"), row.get("early_mins_detected"), row.get("ot_hours_detected"),
+    )
+    if not (facts["late_mins"] or facts["early_mins"] or facts["ot_hours"]):
+        return
+    lines = []
+    if facts["late_mins"]:
+        lines.append(
+            f"遲到 {facts['late_times']} 次，共 {facts['late_mins']} 分鐘，最長 {facts['worst']} 分鐘"
+        )
+        if _text(row.get("late_text")):
+            lines.append(_text(row.get("late_text")))
+    if facts["early_mins"]:
+        lines.append(f"早退 {facts['early_times']} 次，共 {facts['early_mins']} 分鐘")
+        if _text(row.get("early_text")):
+            lines.append(_text(row.get("early_text")))
+    if facts["ot_hours"]:
+        lines.append(f"加班 {facts['ot_hours']:g} 小時")
+    st.markdown("  \n".join(lines))
+    if facts["forgot"]:
+        shown = "、".join(f"{day} {minutes}分鐘" for day, minutes in facts["forgot"])
+        st.warning(f"這些遲到很長，可能是忘記打上班卡：{shown}")
+    if facts["can_cover"]:
+        st.info(f"有加班 {facts['ot_hours']:g} 小時。遲到可以用這些時間補鐘。")
+    if not (facts["forgot"] or facts["can_cover"]):
+        return
+    stored = _text(row.get("time_choice"))
+    labels = ["未確認", "真的遲到", "用加班補鐘", "忘記打上班卡"]
+    codes = {"未確認": "", "真的遲到": "real", "用加班補鐘": "cover", "忘記打上班卡": "forgot"}
+    current = next((label for label, code in codes.items() if code == stored), "未確認")
+    if readonly:
+        st.caption(f"遲到確認：{current}")
+        return
+    choice = st.radio(
+        "遲到確認", labels, index=labels.index(current),
+        horizontal=True, key=f"time-{book}-{staff_id}",
+    )
+    if codes[choice] == stored or not st.button("儲存遲到確認", key=f"time-save-{book}-{staff_id}"):
+        return
+    save_one(booked, staff_id, {"time_choice": codes[choice]})
+    _patch(draft, staff_id, book, time_choice=codes[choice])
+    st.session_state["dirty"] = True
+    st.toast("已儲存遲到確認")
+    st.rerun()
+
+
 def _problem_card(info, draft, row, book, readonly):
     staff_id = _text(row.staff_id)
     if not staff_id:
@@ -172,6 +222,7 @@ def _problem_card(info, draft, row, book, readonly):
                 chips(badges)
         note = html.escape(chinese_note(row.review) or "有加班，請選擇支薪或補鐘。")
         callout(note)
+        _clock_panel(booked, draft, row, book, staff_id, readonly)
         saved_memo = _text(row.get("ot_text"))
         suggested = _text(row.get("ot_suggest"))
         memo = saved_memo

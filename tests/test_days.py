@@ -82,6 +82,18 @@ def test_shift_without_punch_is_missing():
         raise SystemExit(f"full absence should be listed for confirmation: {summary}")
 
 
+def test_clock_review_flags_a_missed_clock_in_and_overtime_cover():
+    from payroll.pay.payroll import clock_review
+    normal = clock_review("3/11 8分鐘、5/11 20分鐘", "2/11 31分鐘", 28, 31, 1.5)
+    if normal["late_times"] != 2 or normal["late_mins"] != 28 or normal["worst"] != 20:
+        raise SystemExit(normal)
+    if normal["early_mins"] != 31 or not normal["can_cover"] or normal["forgot"]:
+        raise SystemExit(normal)
+    missed = clock_review("28/11 312分鐘", "", 312, 0, 0)
+    if missed["forgot"] != [("28/11", 312)] or missed["can_cover"]:
+        raise SystemExit(missed)
+
+
 def test_a_future_shift_is_not_an_absence():
     from datetime import date, timedelta
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
@@ -275,6 +287,7 @@ def main():
     test_rest_with_punch_is_day_off()
     test_shift_without_punch_is_missing()
     test_a_future_shift_is_not_an_absence()
+    test_clock_review_flags_a_missed_clock_in_and_overtime_cover()
     test_rest_without_punch_says_rest()
     test_late_early_and_overtime_columns()
     test_open_shift_counts_late_before_clock_out()

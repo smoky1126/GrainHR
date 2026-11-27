@@ -62,7 +62,7 @@ EDITABLE = {
     "ot_text", "bonus_override", "manual_delta", "salary_deduct_days", "salary_deduct_minutes",
     "final_transport", "final_health", "unused_annual_days", "note", "salary_reference",
     "allowance_reference",
-    "absence_choices", "sick_hours", "bonus_leaver",
+    "absence_choices", "sick_hours", "bonus_leaver", "time_choice",
     "water_override", "electricity_override",
 }
 NUMBER_FIELDS = {

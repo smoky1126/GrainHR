@@ -96,6 +96,50 @@ def suggest_ot(detected):
     return "\n".join(lines)
 
 
+FORGOT_MINUTES = 180
+
+
+def _minute_parts(text):
+    found = []
+    for part in _text(text).split("、"):
+        match = re.search(r"(\d{1,2}/\d{1,2}).*?(\d+)\s*分鐘", part)
+        if match:
+            found.append((match.group(1), int(match.group(2))))
+    return found
+
+
+def clock_review(late_text, early_text, late_mins, early_mins, ot_hours):
+    """Totals for the review card, plus a very long lateness that may be a missed clock-in."""
+    late = _minute_parts(late_text)
+    early = _minute_parts(early_text)
+    try:
+        late_total = int(round(float(late_mins or 0)))
+    except (TypeError, ValueError):
+        late_total = sum(minutes for _day, minutes in late)
+    try:
+        early_total = int(round(float(early_mins or 0)))
+    except (TypeError, ValueError):
+        early_total = sum(minutes for _day, minutes in early)
+    try:
+        overtime = float(ot_hours or 0)
+    except (TypeError, ValueError):
+        overtime = 0.0
+    if overtime != overtime:
+        overtime = 0.0
+    worst = max((minutes for _day, minutes in late), default=0)
+    forgot = [(day, minutes) for day, minutes in late if minutes >= FORGOT_MINUTES]
+    return {
+        "late_times": len(late),
+        "late_mins": late_total,
+        "worst": worst,
+        "early_times": len(early),
+        "early_mins": early_total,
+        "ot_hours": overtime,
+        "forgot": forgot,
+        "can_cover": bool(late_total) and overtime > 0,
+    }
+
+
 def _worst_minutes(dates):
     """The longest single lateness. Five minutes every day is still five, not the month's total."""
     worst = 0
@@ -827,6 +871,17 @@ def _build_draft(info, facts, book):
             reason = _bonus_reason(
                 bonus_ok, partial, worst_late, detected, unpaid_days, sick_days, pending_absence,
             )
+            time_choice = _text(adj.get("time_choice"))
+            if time_choice in {"cover", "forgot"} and str(reason).startswith("遲到"):
+                reason = _bonus_reason(
+                    bonus_ok, partial, 0, detected, unpaid_days, sick_days, pending_absence,
+                )
+                bonus = 0 if left or manual_case or (partial and _override(adj.bonus_override) is None) else attendance_bonus(
+                    bonus_ok, 0, detected["early_mins"],
+                    unpaid_days + (sick_days if _is_blank(adj.unpaid_days) else 0),
+                    _num(adj.absent_days) + len(pending_absence),
+                    _override(adj.bonus_override),
+                )
             override = _override(adj.bonus_override)
             if override is not None and reason:
                 flags.append(
@@ -834,6 +889,19 @@ def _build_draft(info, facts, book):
                 )
             elif reason and bonus_ok and override is None and not bonus:
                 flags.append(f"本月沒有勤工獎：{reason}")
+            clock = clock_review(
+                detected.get("late_text"), detected.get("early_text"),
+                detected.get("late_mins"), detected.get("early_mins"), detected.get("ot_hours"),
+            )
+            if clock["forgot"] or clock["can_cover"]:
+                if time_choice == "forgot":
+                    flags.append("已確認：過長遲到是忘記打上班卡，不算遲到。")
+                elif time_choice == "cover":
+                    flags.append("已確認：遲到用加班補鐘。")
+                elif time_choice == "real":
+                    flags.append("已確認：這是遲到。")
+                else:
+                    flags.append("請確認遲到。過長的分鐘可能是忘記打卡；有加班可以補鐘。")
             if leaving and prior_total and leaver_choice not in {"pay", "skip"}:
                 detail = "、".join(f"{month}月 ${amount:g}" for month, amount in history if amount)
                 flags.append(f"{detail} 已累積，未發放。請選擇發放或不發放。")
@@ -940,6 +1008,7 @@ def _build_draft(info, facts, book):
             "salary_reference": "" if left else _text(adj.get("salary_reference")),
             "allowance_reference": "" if left else _text(adj.get("allowance_reference")),
             "ot_choice": "" if left else _text(adj.get("ot_choice")),
+            "time_choice": "" if left else _text(adj.get("time_choice")),
             "ot_hours_paid": "" if left or _is_blank(adj.get("ot_hours_paid")) else _num(adj.get("ot_hours_paid")),
             "bonus_override": "" if left or _is_blank(adj.bonus_override) else _num(adj.bonus_override),
             "note": "" if left else _text(adj.note),

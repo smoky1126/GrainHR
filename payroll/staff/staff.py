@@ -711,6 +711,7 @@ def blank_adjustment(person):
         "absence_choices": "",
         "sick_hours": "",
         "bonus_leaver": "",
+        "time_choice": "",
     }
 
 
