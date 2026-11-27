@@ -432,9 +432,13 @@ def test_breakdown_lists_rest_days_and_statutory_holidays():
         raise SystemExit(holiday_dates(2026, 12, "bg"))
     if holiday_dates(2026, 10, "admin") != "1/10、19/10":
         raise SystemExit(holiday_dates(2026, 10, "admin"))
-    row = pd.Series({"book": "bg", "taken_dates": "12/10、2/11、8/11"})
+    from payroll.documents.slip_pdf import slip_content
+    row = pd.Series({"book": "bg", "taken_dates": "12/10、2/11、8/11", "basic_salary": 1000, "net": 1000})
+    content = slip_content(row, {"year": 2026, "month": 11})
+    if content["rest_taken"] != "2/11、8/11":
+        raise SystemExit(content["rest_taken"])
     text = " | ".join(breakdown_lines(row, 11, 2026))
-    if "已放假 Rest day taken: 2/11、8/11" not in text or "12/10" in text.split("已放假")[-1]:
+    if "已放假" in text:
         raise SystemExit(text)
     if "法定假期 Statutory holiday: 無" not in text:
         raise SystemExit(text)

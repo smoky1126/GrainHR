@@ -177,6 +177,10 @@ def slip_content(row, info=None):
         "sick_days": _num(row, "sick_days"),
         "annual_taken": _num(row, "annual_taken"),
         "annual_dates": _dates_for_month(_text(row, "annual_dates"), info.get("month")),
+        "rest_taken": _dates_for_month(
+            _text(row, "taken_dates") or _text(row, "rest_dates") or _text(row, "roster_rest_dates"),
+            info.get("month"),
+        ) or "無",
         "unpaid_days": _num(row, "unpaid_days"),
         "birthday_days": _num(row, "birthday_days"),
         "absent_mins": _num(row, "salary_deduct_minutes") or _num(row, "absent_mins"),
@@ -361,6 +365,10 @@ def _draw(pdf, content):
     y = _pair(pdf, left, y, width, "Position 職位:", content["position"], "")
     y = _pair(pdf, left, y, width, "Join Date 入職日期:", content["join_date"], "")
     box_top = y
+    pdf.set_xy(left + 4, y)
+    pdf.set_font("slip", size=8)
+    pdf.multi_cell(right - left - 8, 11, f"已放假 Rest day taken: {content.get('rest_taken') or '無'}")
+    y = pdf.get_y() + 2
     y = _leave_row(pdf, left, y, right, mid, "Payment Period 計薪周期:", content["period"], content["unused_label"], content["unused_days"])
     y = _leave_row(pdf, left, y, right, mid, "Sick Leave 病假:", _day_text(content["sick_days"]), "Annual Leave 年假:", content["annual_taken"], content["annual_dates"])
     y = _leave_row(pdf, left, y, right, mid, "NPL 無薪假:", _day_text(content["unpaid_days"]), "Birthday Leave 生日假:", content["birthday_days"])

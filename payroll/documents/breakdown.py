@@ -98,11 +98,6 @@ def breakdown_lines(row, month=None, year=None):
         lines.append(f"本月年假 Annual leave taken: {_days(annual_days)} 日")
     else:
         lines.append("本月年假 Annual leave taken: 無")
-    rest = dates_in_month(
-        _text(row, "taken_dates") or _text(row, "rest_dates") or _text(row, "roster_rest_dates"),
-        month,
-    )
-    lines.append(f"已放假 Rest day taken: {rest or '無'}")
     book = _text(row, "book")
     if year and month and book:
         from payroll.core.holidays import holiday_dates
