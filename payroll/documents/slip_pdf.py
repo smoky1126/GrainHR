@@ -570,7 +570,7 @@ def _detail_box(pdf, left, y, right, content):
     if not lines:
         return y
     top = y
-    _text_at(pdf, left + 6, y, right - left - 12, 12, "明細 Breakdown", 8, "L")
+    _text_at(pdf, left + 6, y, right - left - 12, 12, "Others 其他", 8, "L")
     y += 13
     pdf.set_font("slip", size=7)
     for line in lines:

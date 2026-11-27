@@ -528,11 +528,11 @@ def _write_breakdowns(document, by_id, info):
         if row is not None:
             lines = breakdown_lines(row, month, info.get("year") if isinstance(info, dict) else None)
             if lines:
-                note = "明細 Breakdown: " + "；".join(lines)
+                note = "Others 其他: " + "；".join(lines)
         previous = child.getprevious()
         if previous is not None and previous.tag == qn("w:p"):
             previous_text = Paragraph(previous, document).text.strip()
-            if previous_text.startswith("明細") or previous_text.startswith("*Breakdown"):
+            if previous_text.startswith(("明細", "*Breakdown", "Others", "Breakdown")):
                 set_paragraph_text(Paragraph(previous, document), note)
                 continue
         if not note:
