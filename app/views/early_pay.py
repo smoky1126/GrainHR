@@ -8,7 +8,7 @@ import streamlit as st
 from app.components.format import hk
 from payroll.core.config import parse_month
 from payroll.core.labels import BOOKS
-from payroll.pay.early import early_hold, issue_early, latest_early, month_leavers, open_people, quote_early
+from payroll.pay.early import early_hold, issue_early, latest_early, open_people, quote_early
 from payroll.pay.part_time import PT_BOOKS, build_pt, clip_days
 from payroll.staff.staff import _text, load_staff
 
@@ -88,6 +88,8 @@ def _download_slip(info, person, row, pay_date, key):
     booked = book_info(info, person["book"])
     if hasattr(pay_date, "day"):
         booked["pay_date_override"] = format_pay_date(pay_date)
+    elif _text(pay_date):
+        booked["pay_date_override"] = _text(pay_date)
     staff_id = _text(row.get("staff_id")) or person["employee_no"]
     name = _text(row.get("slip_name")).split()[0] or staff_id
     safe = "".join(ch for ch in name if ch not in '<>:"/\\|?*\'').strip() or staff_id
@@ -107,6 +109,21 @@ def _download_slip(info, person, row, pay_date, key):
         width="stretch",
         key=key,
     )
+
+
+def _paid_row(info, draft, person, record):
+    """The slip that was compiled, cut off on the last day stored with that payment."""
+    from payroll.pay.early import _full_calculation
+    from payroll.staff.staff import _as_date
+    left = _as_date(record.get("leave_date")) or person.get("leave_date")
+    planned = dict(person)
+    if left is not None:
+        planned["leave_date"] = left
+    try:
+        _booked, _draft, row = _full_calculation(info, planned, allow_closed=True)
+        return row
+    except SystemExit:
+        return _full_row(draft, person)
 
 
 def _full_row(draft, person):
@@ -185,15 +202,19 @@ def _card(info, draft, person, record, part_rows, readonly):
                 detail = f"{detail}，過數 {amount}"
             st.success(f"{detail}。月結不會再發。", title="已提前出糧")
             _transfer_reference(info, draft, person, record, readonly)
-            path = _slip_file(info, draft, person, record)
-            if path is not None and path.is_file():
-                st.download_button(
-                    "下載這份糧單",
-                    path.read_bytes(),
-                    file_name=path.name,
-                    mime="application/pdf" if path.suffix.lower() == ".pdf" else None,
-                    key=f"early-down-{key}",
-                )
+            paid_row = _paid_row(info, draft, person, record)
+            if paid_row is not None:
+                _download_slip(info, person, paid_row, record.get("pay_date"), f"early-down-{key}")
+            else:
+                path = _slip_file(info, draft, person, record)
+                if path is not None and path.is_file():
+                    st.download_button(
+                        "下載這份糧單",
+                        path.read_bytes(),
+                        file_name=path.name,
+                        mime="application/pdf" if path.suffix.lower() == ".pdf" else None,
+                        key=f"early-down-{key}",
+                    )
             return
         amount = None
         reason = ""
@@ -785,7 +806,8 @@ def _plan_editor(info, person, last_day, readonly):
 
 def early_section(info, draft, readonly):
     try:
-        people = month_leavers(info)
+        from payroll.pay.early import early_cards
+        people = early_cards(info)
         waiting = open_people(info)
     except SystemExit as error:
         st.error(str(error))

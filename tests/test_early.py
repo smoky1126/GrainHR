@@ -401,6 +401,34 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
         raise SystemExit(content["deductions"])
 
 
+def test_a_compiled_slip_stays_on_the_leaver_list():
+    from payroll.core.config import scratch_dir
+    from payroll.core.excel_io import save_excel
+    from payroll.pay.early import COLUMNS, issued_people
+    folder = scratch_dir("early-list")
+    system = folder / "system"
+    system.mkdir()
+    frame = pd.DataFrame([{
+        "employee_no": "ESL004",
+        "staff_id": "243-13",
+        "name": "Tu",
+        "kind": "full",
+        "book": "bg",
+        "leave_date": "2026-11-28",
+        "pay_date": "27 Nov 2026",
+        "net": 1,
+        "slip": "slip.docx",
+        "time": "",
+        "user": "",
+    }])
+    save_excel(system / "early_paid.xlsx", frame.reindex(columns=COLUMNS))
+    people = issued_people({"system": system})
+    if len(people) != 1 or people[0]["employee_no"] != "ESL004":
+        raise SystemExit(people)
+    if people[0]["leave_date"] != date(2026, 11, 28) or people[0]["name"] != "Tu":
+        raise SystemExit(people)
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -427,6 +455,7 @@ def main():
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
+    test_a_compiled_slip_stays_on_the_leaver_list()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")
     return 0

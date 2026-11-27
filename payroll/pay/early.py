@@ -80,6 +80,34 @@ def latest_early(info):
     return found
 
 
+def issued_people(info):
+    """People already paid early, including those not yet marked resigned."""
+    found = []
+    for number, row in latest_early(info).items():
+        found.append({
+            "kind": _text(row.get("kind")) or "full",
+            "book": _text(row.get("book")) or "bg",
+            "employee_no": number,
+            "staff_id": _text(row.get("staff_id")),
+            "name": _text(row.get("name")) or number,
+            "leave_date": _as_date(row.get("leave_date")),
+            "join_date": None,
+        })
+    found.sort(key=lambda person: (person["leave_date"] or date.min, person["name"]))
+    return found
+
+
+def early_cards(info):
+    """Resignation cards, plus anyone whose early slip was already compiled."""
+    people = month_leavers(info)
+    seen = {person["employee_no"] for person in people}
+    for person in issued_people(info):
+        if person["employee_no"] not in seen:
+            people.append(person)
+            seen.add(person["employee_no"])
+    return people
+
+
 def include_in_month_pay(on_payroll, staff_id, employee_no, paid_ids, paid_numbers):
     """False once this person was paid early, so the month-end slips skip them."""
     if not on_payroll:
@@ -270,7 +298,7 @@ def _resolve(info, employee_no, book, kind, last_day):
     return person
 
 
-def _full_calculation(info, person):
+def _full_calculation(info, person, allow_closed=False):
     from payroll.core.config import book_info
     from payroll.pay.run import _draft_from_facts
 
@@ -288,7 +316,7 @@ def _full_calculation(info, person):
     if hit.empty:
         raise SystemExit("這個人不在本月糧單。")
     row = hit.iloc[0]
-    if not bool(row.get("pay_this")):
+    if not allow_closed and not bool(row.get("pay_this")):
         raise SystemExit("這個人本月不發薪。")
     return booked, draft, row
 
