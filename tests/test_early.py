@@ -476,6 +476,34 @@ def test_breakdown_lists_rest_days_and_statutory_holidays():
         raise SystemExit(december)
 
 
+def test_editing_an_issued_slip_updates_the_amount_and_does_not_add_another_pay():
+    from payroll.core.config import scratch_dir
+    from payroll.core.excel_io import save_excel
+    from payroll.pay.early import COLUMNS, load_early, revise_issued_net
+    folder = scratch_dir("early-revise")
+    system = folder / "system"
+    system.mkdir()
+    info = {"system": system}
+    frame = pd.DataFrame([{
+        "employee_no": "ESL004",
+        "staff_id": "243-13",
+        "name": "Tu",
+        "kind": "full",
+        "book": "bg",
+        "leave_date": "2026-11-28",
+        "pay_date": "27 Nov 2026",
+        "net": 100,
+        "slip": "slip.pdf",
+        "time": "",
+        "user": "",
+    }])
+    save_excel(system / "early_paid.xlsx", frame.reindex(columns=COLUMNS))
+    revise_issued_net(info, "ESL004", 80)
+    saved = load_early(info)
+    if len(saved) != 1 or float(saved.iloc[0]["net"]) != 80:
+        raise SystemExit(saved.to_dict("records"))
+
+
 def test_a_compiled_slip_stays_on_the_leaver_list():
     from payroll.core.config import scratch_dir
     from payroll.core.excel_io import save_excel
@@ -533,6 +561,7 @@ def main():
     test_lateness_and_early_leave_are_separate_deductions()
     test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl()
     test_breakdown_lists_rest_days_and_statutory_holidays()
+    test_editing_an_issued_slip_updates_the_amount_and_does_not_add_another_pay()
     test_a_compiled_slip_stays_on_the_leaver_list()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")

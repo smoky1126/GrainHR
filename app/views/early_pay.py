@@ -201,8 +201,13 @@ def _card(info, draft, person, record, part_rows, readonly):
             if amount:
                 detail = f"{detail}，過數 {amount}"
             st.success(f"{detail}。月結不會再發。", title="已提前出糧")
-            _transfer_reference(info, draft, person, record, readonly)
+            st.caption("可以再改這份糧單。儲存調整後，下載的 PDF 和過數金額會更新。不會再出一次糧。")
             paid_row = _paid_row(info, draft, person, record)
+            if person["kind"] == "full" and paid_row is not None:
+                _breakdown(paid_row, office=person["book"] == "admin")
+                _adjustment(info, paid_row, person, readonly)
+                _confirm_absence(info, paid_row, person, readonly)
+            _transfer_reference(info, draft, person, record, readonly)
             if paid_row is not None:
                 _download_slip(info, person, paid_row, record.get("pay_date"), f"early-down-{key}")
             else:
@@ -495,6 +500,12 @@ def _adjustment(info, row, person, readonly):
     except SystemExit as error:
         st.error(str(error))
         return
+    from payroll.pay.early import latest_early, revise_issued_net
+    issued = latest_early(info).get(person["employee_no"])
+    if issued is not None:
+        revised = _paid_row(info, None, person, issued)
+        if revised is not None:
+            revise_issued_net(info, person["employee_no"], revised.get("net"))
     st.session_state["dirty"] = True
     st.session_state.pop("drafts", None)
     st.session_state.pop("draft_stamps", None)

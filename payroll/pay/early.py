@@ -448,6 +448,27 @@ def _already(info, person):
     return bool(staff_id) and staff_id in paid_ids
 
 
+def revise_issued_net(info, employee_no, net):
+    """Replace the recorded amount after an issued slip is edited. It is still one payment."""
+    from payroll.core.excel_io import save_excel
+
+    frame = load_early(info)
+    if frame.empty or "employee_no" not in frame.columns:
+        return
+    number = _text(employee_no)
+    matches = [index for index, value in frame["employee_no"].items() if _text(value) == number]
+    if not matches:
+        return
+    try:
+        amount = float(net)
+    except (TypeError, ValueError):
+        return
+    if pd.isna(amount):
+        return
+    frame.at[matches[-1], "net"] = amount
+    save_excel(early_path(info), frame.reindex(columns=COLUMNS))
+
+
 def record_early(info, person, pay_date, net, slip):
     if _already(info, person):
         raise SystemExit("已經提前出糧，不會再發一次。")
