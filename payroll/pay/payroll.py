@@ -1009,9 +1009,10 @@ def _build_draft(info, facts, book):
             rows.append(row)
 
     draft = pd.DataFrame(rows)
-    info["system"].mkdir(parents=True, exist_ok=True)
-    day_rows.to_excel(info["system"] / "days.xlsx", index=False)
-    meta.to_excel(info["system"] / "pay_meta.xlsx", index=False)
+    if not info.get("leave_until"):
+        info["system"].mkdir(parents=True, exist_ok=True)
+        day_rows.to_excel(info["system"] / "days.xlsx", index=False)
+        meta.to_excel(info["system"] / "pay_meta.xlsx", index=False)
     return draft
 
 

@@ -58,8 +58,15 @@ def empty_summary():
     }
 
 
+_ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}( 00:00:00)?")
+
+
 def _date(value):
+    if isinstance(value, str) and _ISO_DAY.fullmatch(value):
+        return value[:10]
     try:
+        if isinstance(value, date):
+            return value.strftime("%Y-%m-%d")
         return pd.to_datetime(value).strftime("%Y-%m-%d")
     except Exception:
         return str(value)[:10]

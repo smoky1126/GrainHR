@@ -155,6 +155,23 @@ def _drafts(info):
         return None
     return pd.concat(frames, ignore_index=True)
 
+
+def _known_drafts(info):
+    """Drafts this session already built for the month. Never builds one, so it may be a little old."""
+    saved = st.session_state.get("drafts") or {}
+    stamps = st.session_state.get("draft_stamps") or {}
+    frames = []
+    for book in BOOKS:
+        one = saved.get(book)
+        if one is None or (stamps.get(book) or ("",))[0] != info["key"]:
+            continue
+        one = one.copy()
+        one["book"] = book
+        frames.append(one)
+    if not frames:
+        return None
+    return pd.concat(frames, ignore_index=True)
+
 def _patch(draft, staff_id, book="bg", **changes):
     mask = draft["staff_id"].astype(str) == str(staff_id)
     if "book" in draft.columns:
@@ -271,7 +288,7 @@ def _confirm_takeover(month_key, owner):
     st.rerun()
 
 
-def _context(steps=False, edit=False, payroll=True):
+def _context(steps=False, edit=False, payroll=True, build=True):
     inject()
     show_logo()
     if DEMO:
@@ -299,7 +316,7 @@ def _context(steps=False, edit=False, payroll=True):
     staff = load_staff()
     if payroll:
         table = ensure_pay_table()
-        draft = _drafts(info)
+        draft = _drafts(info) if build else _known_drafts(info)
     else:
         table = None
         draft = None

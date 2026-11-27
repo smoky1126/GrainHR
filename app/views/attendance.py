@@ -522,6 +522,19 @@ def _late_checked(info):
         st.rerun()
 
 
+@st.cache_data(ttl=3600, max_entries=4, show_spinner=False)
+def _counted_days(days, daka, daka_stamp):
+    from payroll.attendance.daka import punch_logs
+    del daka_stamp
+    logs = punch_logs(daka)
+    return add_punch_counts(days, {key: len(value) for key, value in logs.items()}, logs)
+
+
+@st.cache_data(ttl=3600, max_entries=8, show_spinner=False)
+def _late_table(days, links, hide):
+    return late_summary(days, links, hide_within_grace=hide)
+
+
 def _late_report(info, staff):
     st.caption(
         f"單次遲到超過 {LATE_GRACE_MINUTES} 分鐘會沒有勤工獎。"
@@ -550,9 +563,7 @@ def _late_report(info, staff):
         return
     _late_checked(info)
     if info["daka"].exists():
-        from payroll.attendance.daka import punch_logs
-        logs = punch_logs(info["daka"])
-        days = add_punch_counts(days, {key: len(value) for key, value in logs.items()}, logs)
+        days = _counted_days(days, info["daka"], info["daka"].stat().st_mtime_ns)
     late_names = sorted({
         _text(name) for name, minutes in zip(days["Name"], pd.to_numeric(days["Late"], errors="coerce").fillna(0))
         if _text(name) and minutes > 0
@@ -560,7 +571,7 @@ def _late_report(info, staff):
     links = link_groups(late_names, staff, _pay_tables(), _part_time_people(staff), shops_by_name(days))
     # The toggle and the search already wrote their values before this run.
     hide = bool(st.session_state.get("late-hide-small"))
-    summary = late_summary(days, links, hide_within_grace=hide)
+    summary = _late_table(days, links, hide)
     with st.container(border=True):
         choice = _group_choice(summary)
         with st.container(horizontal=True, vertical_alignment="bottom"):
@@ -635,7 +646,7 @@ def _late_report(info, staff):
 
 def page_attendance():
     _pull_daka()
-    info, readonly, draft, staff, _table = _context(steps=True, edit=True)
+    info, readonly, draft, staff, _table = _context(steps=True, edit=True, build=False)
     status = step_status(info, draft, staff, _table)
     page_header("出勤紀錄", _month_label(info["key"]), purpose="核對打卡、更表、遲到和加班。已出糧的月份只供查看。")
     daily, late = st.tabs(["每日紀錄", "遲到統計"], on_change="rerun", key="attendance-tabs")

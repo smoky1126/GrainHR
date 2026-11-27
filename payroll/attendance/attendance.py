@@ -172,7 +172,7 @@ def _record_fact(facts, name, day1, roster_raw, result, working_hours,
     })
 
 
-def time_verify(book, data2, shop_name, col_lists, facts=None):
+def time_verify(book, data2, shop_name, col_lists, facts=None, by_name=None):
     '''
     核对打卡时间和排班表的时间
     '''
@@ -183,7 +183,10 @@ def time_verify(book, data2, shop_name, col_lists, facts=None):
     day_list = list(data2.columns.values[1:15])      # 工作时间
     list_col = time_str(list(data2.columns.values))  # 转化列的时间格式
     data3_list = [list_col]                          # 第一行數据，是时间
-    book['日期'] = pd.to_datetime(book['日期'])        # 转化时间格式
+    if by_name is None:
+        book['日期'] = pd.to_datetime(book['日期'])    # 转化时间格式
+        by_name = {name: rows for name, rows in book.groupby('姓名', sort=False)}
+    no_punch = book.iloc[0:0]
     # 遍历每一个人，一周的工作时间
     for index1, row1 in data2.iterrows():
         list1 = list(row1.values)  # 每一行的數据
@@ -192,7 +195,7 @@ def time_verify(book, data2, shop_name, col_lists, facts=None):
         num_late, num_leave, time_late, time_leave = 0, 0, 0, 0
         num_annual_leave, num_holiday, work_nums, work_hour, hour_list = 0, 0, 0, 0, []
         # 筛选打卡表里的人员
-        book1 = book.loc[book['姓名'] == list1[0]]
+        book1 = by_name.get(list1[0], no_punch)
         if book1.shape[0] > 0:
             daystr_list3 = []
             # 遍历当周每一天时间
@@ -334,8 +337,13 @@ def time_verify(book, data2, shop_name, col_lists, facts=None):
     return data3
 
 
-def datapro(file_path2, facts=None):
-    books = pd.DataFrame()
+_PUNCHES = {}
+
+
+def _punch_book():
+    """The DAKA table, read once per check and shared by every roster file."""
+    if file_path1 in _PUNCHES:
+        return _PUNCHES[file_path1]
     # 1.读取打卡表，采用不同编码方式，读取文件
     for encoding_word in ['UTF-8', 'utf-8-sig', 'ANSI', 'Unicode', 'GB18030']:
         try:
@@ -350,6 +358,16 @@ def datapro(file_path2, facts=None):
     book.drop(book.columns[9:12], axis=1, inplace=True)
     book.drop(book.columns[4:7], axis=1, inplace=True)
     book.drop(book.columns[1:3], axis=1, inplace=True)
+    book['日期'] = pd.to_datetime(book['日期'])
+    by_name = {name: rows for name, rows in book.groupby('姓名', sort=False)}
+    _PUNCHES.clear()
+    _PUNCHES[file_path1] = (book, by_name)
+    return book, by_name
+
+
+def datapro(file_path2, facts=None):
+    books = pd.DataFrame()
+    book, by_name = _punch_book()
 
     # 2.读取編更表
     from payroll.core.excel_io import read_excel
@@ -383,7 +401,7 @@ def datapro(file_path2, facts=None):
                 data2['工作天數'] = 0
                 data2['工作時長'] = 0
                 data2['時長列表'] = 0
-                data3 = time_verify(book, data2, shop_name, col_lists, facts)  # 检验是否有遲到早退
+                data3 = time_verify(book, data2, shop_name, col_lists, facts, by_name)  # 检验是否有遲到早退
                 datas = pd.concat([datas, data3])
 
                 # 单独提取第一个周的休假數据
@@ -431,7 +449,7 @@ def datapro(file_path2, facts=None):
     data2['工作時長'] = 0
     data2['時長列表'] = 0
     # 4.调用函數，进行检验
-    data3 = time_verify(book,data2,shop_name,col_lists, facts)  # 检验是否有遲到早退
+    data3 = time_verify(book, data2, shop_name, col_lists, facts, by_name)  # 检验是否有遲到早退
     datas = pd.concat([datas, data3])
     datas.drop(datas.columns[15:], axis=1, inplace=True)
 
@@ -579,6 +597,7 @@ def run_attendance(csv_path, roster_root, sheet, out_path, facts_path=None):
     file_path1 = str(csv_path)
     month_sheet = sheet
     FACTS = []
+    _PUNCHES.clear()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     _close_writer()
@@ -606,6 +625,7 @@ def run_attendance(csv_path, roster_root, sheet, out_path, facts_path=None):
                     data_save(books, datas)
     writer.close()
     writer = None
+    _PUNCHES.clear()
     _swap_in(temp, out_path)
 
     facts = pd.DataFrame(FACTS)
