@@ -101,6 +101,8 @@ def _click_parent(device, xpath, missing):
 
 
 _DATE_TEXT = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+_ZH_MONTHS = ["", "一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
+_CALENDAR_DAY = re.compile(r"(\d{1,2}) (一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月) (\d{4})")
 _EXPORT_TABS = ("报表汇出", "報表匯出", "报表导出", "報表導出")
 _EXPORT_ACTIONS = (
     "匯出", "导出", "汇出", "Export",
@@ -215,6 +217,10 @@ def _open_export(device, plan):
                 return grabbed
             time.sleep(1)
             continue
+        if _calendar_open(device):
+            _dismiss_calendar(device)
+            time.sleep(1)
+            continue
         if _export_page_open(device, plan):
             return None
         if _showing(device, backs):
@@ -250,10 +256,25 @@ def _open_export(device, plan):
 
 
 def _day_desc(when):
+    month = _ZH_MONTHS[when.month]
     padded = f"{when.day:02d} {when.strftime('%B')} {when.year}"
     plain = f"{when.day} {when.strftime('%B')} {when.year}"
     chinese = f"{when.year}年{when.month}月{when.day}日"
-    return padded, plain, chinese
+    zh_padded = f"{when.day:02d} {month} {when.year}"
+    zh_plain = f"{when.day} {month} {when.year}"
+    return padded, plain, chinese, zh_padded, zh_plain
+
+
+def _calendar_open(device):
+    return _CALENDAR_DAY.search(device.dump_hierarchy()) is not None
+
+
+def _dismiss_calendar(device):
+    for label in ("取消", "Cancel", "關閉", "关闭"):
+        if _tap_label(device, label):
+            return True
+    _adb("shell", "input", "keyevent", "4")
+    return True
 
 
 def _visible_month(device):
@@ -262,6 +283,10 @@ def _visible_month(device):
     if found:
         _day, month, year = found[0]
         return date(int(year), time.strptime(month, "%B").tm_mon, 1)
+    found = _CALENDAR_DAY.search(xml)
+    if found:
+        year, month_name = int(found.group(3)), found.group(2)
+        return date(year, _ZH_MONTHS.index(month_name), 1)
     found = re.findall(r'(?:text|content-desc)="(\d{4})年(\d{1,2})月', xml)
     if not found:
         return None
@@ -270,10 +295,8 @@ def _visible_month(device):
 
 
 def _confirm(device):
-    for label in ("OK", "確定", "确定"):
-        button = device(text=label)
-        if button.exists:
-            button.click()
+    for label in ("OK", "確定", "确定", "确认", "確認"):
+        if _tap_label(device, label):
             return True
     return False
 
@@ -298,12 +321,10 @@ def _set_date(device, label, when):
     time.sleep(1)
     for _ in range(8):
         for desc in _day_desc(when):
-            day = device(description=desc)
-            if day.exists:
-                day.click()
+            if _tap_label(device, desc):
                 time.sleep(0.4)
                 if not _confirm(device):
-                    raise SystemExit("日曆沒有確認按鈕。")
+                    raise SystemExit("日曆沒有確認按鈕。目前畫面：%s" % "、".join(_screen_labels(device)))
                 time.sleep(0.8)
                 return
         shown = _visible_month(device)
