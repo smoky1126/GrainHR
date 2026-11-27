@@ -67,6 +67,8 @@ def _download_slip(info, person, row, pay_date, key):
         data,
         file_name=f"#{batch}_{suffix}_{safe}.pdf",
         mime="application/pdf",
+        type="primary",
+        width="stretch",
         key=key,
     )
 
@@ -184,6 +186,7 @@ def _card(info, draft, person, record, part_rows, readonly):
             note = _text(row.get("review"))
             if note and note.lower() != "nan":
                 st.caption(note)
+            _download_slip(info, person, row, date.today(), f"early-pdf-{key}")
             _adjustment(info, row, person, readonly)
             _confirm_absence(info, row, person, readonly)
         if hasattr(left, "year") and left >= date.today():
@@ -205,8 +208,6 @@ def _card(info, draft, person, record, part_rows, readonly):
                 disabled=readonly or bool(reason),
                 key=f"early-go-{key}",
             )
-        if person["kind"] == "full" and row is not None:
-            _download_slip(info, person, row, picked, f"early-pdf-{key}")
         if go:
             confirm_early(
                 info["key"], person["employee_no"], person["book"], person["kind"],
@@ -713,6 +714,10 @@ def _plan_editor(info, person, last_day, readonly):
     note = _text(row.get("review"))
     if note and note.lower() != "nan":
         st.caption(note)
+    _download_slip(
+        info, person, row, date.today(),
+        f"early-pdf-{info['key']}-{person['employee_no']}",
+    )
     _adjustment(info, row, person, readonly)
     _confirm_absence(info, row, person, readonly)
     if last_day >= date.today():
@@ -734,10 +739,6 @@ def _plan_editor(info, person, last_day, readonly):
             disabled=readonly or bool(reason),
             key=f"early-issue-{info['key']}-{person['employee_no']}",
         )
-    _download_slip(
-        info, person, row, picked,
-        f"early-pdf-{info['key']}-{person['employee_no']}",
-    )
     if go:
         confirm_early(
             info["key"], person["employee_no"], person["book"], person["kind"],
