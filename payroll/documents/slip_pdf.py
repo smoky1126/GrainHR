@@ -84,18 +84,66 @@ def _minute_lines(row, info, late_pay):
     )
     parts = []
     if late_mins:
-        parts.append((f"遲到 {late_mins} 分鐘", minute_deduction(full, month_days, late_mins)))
+        parts.append((
+            f"遲到 {late_mins} 分鐘",
+            minute_deduction(full, month_days, late_mins),
+            _minute_formula(full, month_days, late_mins),
+        ))
     if early_mins:
-        parts.append((f"早退 {early_mins} 分鐘", minute_deduction(full, month_days, early_mins)))
+        parts.append((
+            f"早退 {early_mins} 分鐘",
+            minute_deduction(full, month_days, early_mins),
+            _minute_formula(full, month_days, early_mins),
+        ))
     if not parts:
-        parts.append((f"遲到 {charged} 分鐘" if charged else "遲到", late_pay))
+        parts.append((f"遲到 {charged} 分鐘" if charged else "遲到", late_pay, _minute_formula(full, month_days, charged)))
         return parts
-    counted = round(sum(amount for _, amount in parts), 2)
+    counted = round(sum(amount for _, amount, _note in parts), 2)
     difference = round(late_pay - counted, 2)
     if difference and parts:
-        label, amount = parts[-1]
-        parts[-1] = (label, round(amount + difference, 2))
+        label, amount, note = parts[-1]
+        parts[-1] = (label, round(amount + difference, 2), note)
     return parts
+
+
+def _minute_formula(full, month_days, minutes):
+    """Same shape as the basic-salary note: ($16,680/30/9.5/60*14)."""
+    from payroll.core.config import HOUR_STANDARD
+    if not full or not month_days or not minutes:
+        return ""
+    return f"(${_whole(full)}/{month_days}/{_days(HOUR_STANDARD)}/60*{int(round(minutes))})"
+
+
+def _npl_formula(row, full, month_days, amount):
+    """($16,680/30*1), the same shape as a partial basic salary."""
+    from payroll.core.config import HOUR_STANDARD
+    from payroll.core.money import overtime_pay, unpaid_amount
+    if not full or not month_days:
+        return ""
+    unpaid_days = _num(row, "unpaid_days")
+    deduct_days = _num(row, "salary_deduct_days")
+    sick_hours = _num(row, "sick_hours")
+    choices = []
+    if unpaid_days:
+        choices.append(unpaid_days)
+    if deduct_days:
+        choices.append(unpaid_days + deduct_days)
+    chosen = choices[-1] if choices else 0
+    for days in choices:
+        expected = unpaid_amount(full, month_days, days)
+        if sick_hours:
+            expected = round(expected + overtime_pay(full, month_days, sick_hours), 2)
+        if abs(expected - amount) < 0.05:
+            chosen = days
+            break
+    bits = []
+    if chosen:
+        bits.append(f"${_whole(full)}/{month_days}*{_days(chosen)}")
+    if sick_hours:
+        bits.append(f"${_whole(full)}/{month_days}/{_days(HOUR_STANDARD)}*{_days(sick_hours)}")
+    if not bits:
+        return ""
+    return "(" + "+".join(bits) + ")"
 
 
 def _punch_marks(row, info):
@@ -165,10 +213,10 @@ def slip_content(row, info=None):
     late_pay = min(_num(row, "minute_deduct_amount"), unpaid)
     leave_unpaid = round(unpaid - late_pay, 2)
     if leave_unpaid > 0.009:
-        deductions.append(("NPL 無薪假", leave_unpaid))
+        deductions.append(("NPL 無薪假", leave_unpaid, _npl_formula(row, full, month_days, leave_unpaid)))
         included -= leave_unpaid
-    for label, amount in _minute_lines(row, info, late_pay):
-        deductions.append((label, amount))
+    for label, amount, note in _minute_lines(row, info, late_pay):
+        deductions.append((label, amount, note))
         included -= amount
     for key, label in (
         ("rent", "Rent 租金"),
@@ -471,14 +519,20 @@ def _pay_box(pdf, left, y, right, mid, content):
             _text_at(pdf, left + 8, y, mid - left - 16, 11, note, 7, "L")
             pdf.set_text_color(0, 0, 0)
             y += 11
-    for kind, label, amount in deduction_sequence(content["deductions"], content.get("punch_marks")):
+    for kind, label, amount, note in deduction_sequence(content["deductions"], content.get("punch_marks")):
         if kind == "mark":
             _text_at(pdf, mid + 6, split, right - mid - 12, 12, label, 8, "L", fit=True)
-        else:
-            _text_at(pdf, mid + 6, split, right - mid - 90, 12, label, 8, "L")
-            _text_at(pdf, right - 86, split, 28, 12, "-HKD$", 8, "L")
-            _text_at(pdf, right - 78, split, 72, 12, _money(amount), 8, "R")
+            split += 13
+            continue
+        _text_at(pdf, mid + 6, split, right - mid - 90, 12, label, 8, "L")
+        _text_at(pdf, right - 86, split, 28, 12, "-HKD$", 8, "L")
+        _text_at(pdf, right - 78, split, 72, 12, _money(amount), 8, "R")
         split += 13
+        if note:
+            pdf.set_text_color(70, 70, 70)
+            _text_at(pdf, mid + 8, split, right - mid - 14, 11, note, 7, "L", fit=True)
+            pdf.set_text_color(0, 0, 0)
+            split += 11
     y = max(y, split) + 36
     pdf.line(mid, top, mid, y)
     pdf.line(left, y, right, y)
@@ -545,13 +599,15 @@ def deduction_sequence(deductions, marks):
     marks = [mark for mark in (marks or []) if mark]
     ordered = []
     placed = False
-    for label, amount in deductions:
-        ordered.append(("money", label, amount))
+    for item in deductions:
+        label, amount = item[0], item[1]
+        note = item[2] if len(item) > 2 else ""
+        ordered.append(("money", label, amount, note))
         if not placed and str(label).startswith("NPL"):
-            ordered.extend(("mark", mark, None) for mark in marks)
+            ordered.extend(("mark", mark, None, "") for mark in marks)
             placed = True
     if not placed:
-        ordered.extend(("mark", mark, None) for mark in marks)
+        ordered.extend(("mark", mark, None, "") for mark in marks)
     return ordered
 
 
