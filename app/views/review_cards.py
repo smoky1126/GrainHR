@@ -59,7 +59,14 @@ def _confirm_approve_all(month_key, pairs, skipped):
 
 def step_problems(info, status, draft, readonly):
     if status["problems"] == "wait":
-        _mark("4. 審核", "wait", "請先完成上一步。")
+        if status.get("problems_reason") == "joiners":
+            detail = "請先到薪金表，為新同事設定薪金。"
+        else:
+            detail = "請先到出勤紀錄，等「出勤已核對」出現。"
+        _mark("4. 審核", "wait", detail)
+        return draft
+    if draft is None:
+        _mark("4. 審核", "todo", "薪金還沒有計算。請在側欄打開進階，按重新檢查。")
         return draft
     people = problem_people(draft)
     if people is None or len(people) == 0:

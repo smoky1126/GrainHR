@@ -285,10 +285,14 @@ def step_status(info, draft=None, staff=None, pay_table=None, slips_ready=False)
     else:
         joiner_state = "done"
     problems = None if draft is None else problem_people(draft)
+    problems_reason = ""
     if joiner_state != "done":
         problem_state = "wait"
+        problems_reason = "daka" if not daka_done else "joiners"
     elif problems is None:
-        problem_state = "wait"
+        # The attendance page skips the salary calculation. That is not an unfinished earlier step.
+        problem_state = "todo"
+        problems_reason = "draft"
     else:
         approved = problems["approved"].astype(str).str.strip().str.upper().isin(["Y", "是"]) if len(problems) else []
         problem_state = "done" if len(problems) == 0 or (len(approved) and bool(approved.all())) else "todo"
@@ -317,6 +321,7 @@ def step_status(info, draft=None, staff=None, pay_table=None, slips_ready=False)
         "joiners": joiner_state,
         "joiner_count": len(joiners),
         "problems": problem_state,
+        "problems_reason": problems_reason,
         "problem_count": 0 if problems is None else len(problems),
         "salary": salary_state,
         "pay": pay_state,

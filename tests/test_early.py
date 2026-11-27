@@ -659,6 +659,36 @@ def test_name_match_includes_people_who_left_this_month():
         raise SystemExit(labels)
 
 
+def test_review_does_not_wait_only_because_the_draft_is_absent():
+    import os
+    from payroll.core.config import scratch_dir
+    from app.state import step_status
+    home = scratch_dir("review-status")
+    os.environ["PAYROLL_HOME"] = str(home)
+    os.environ["PAYROLL_COMPANY"] = str(home / "company.toml")
+    (home / "company.toml").write_text("[people]\nno_monthly_pay = []\n", encoding="utf-8")
+    from payroll.core.settings import load
+    load.cache_clear()
+    system = home / "_system"
+    system.mkdir()
+    daka = home / "daka.csv"
+    facts = system / "daily_facts.xlsx"
+    daka.write_text("a", encoding="utf-8")
+    facts.write_text("b", encoding="utf-8")
+    os.utime(facts, None)
+    info = {"key": "2026-11", "year": 2026, "month": 11, "days": 30, "daka": daka, "system": system}
+    staff = pd.DataFrame(columns=["employee_no", "active", "part_time", "status", "leave_date"])
+    table = pd.DataFrame(columns=["employee_no"])
+    try:
+        status = step_status(info, None, staff, table)
+        if status["joiners"] != "done" or status["problems"] != "todo" or status["problems_reason"] != "draft":
+            raise SystemExit(status)
+    finally:
+        os.environ.pop("PAYROLL_HOME", None)
+        os.environ.pop("PAYROLL_COMPANY", None)
+        load.cache_clear()
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -686,6 +716,7 @@ def main():
     test_someone_outside_monthly_pay_is_not_a_new_joiner()
     test_unmatched_name_shows_its_roster_and_can_be_ignored()
     test_name_match_includes_people_who_left_this_month()
+    test_review_does_not_wait_only_because_the_draft_is_absent()
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
