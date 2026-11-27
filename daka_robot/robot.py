@@ -100,18 +100,51 @@ def _click_parent(device, xpath, missing):
     node.click()
 
 
+_DATE_TEXT = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+_EXPORT_TABS = ("报表汇出", "報表匯出", "报表导出", "報表導出")
+_EXPORT_ACTIONS = (
+    "匯出", "导出", "汇出", "Export",
+    "导出报表", "匯出報表", "汇出报表", "导出文件", "匯出文件",
+    "下载", "下載", "分享",
+)
+
+
 def _export_targets(plan):
     """Labels that open the DAKA export page. The app now uses 报表汇出 instead of 匯出."""
-    preferred = [
-        "匯出", "导出", "汇出", "Export",
-        "导出报表", "匯出報表", "汇出报表", "导出文件", "匯出文件",
-        "报表汇出", "報表匯出", "报表导出", "報表導出",
-    ]
     labels = []
-    for label in [plan.get("open")] + _as_list(plan.get("open_text")) + preferred:
+    for label in [plan.get("open")] + _as_list(plan.get("open_text")) + list(_EXPORT_TABS) + list(_EXPORT_ACTIONS):
         if label and label not in labels:
             labels.append(label)
     return labels
+
+
+def _export_actions(plan):
+    """The button that creates the file. The 报表汇出 tab only opens that page."""
+    labels = []
+    for label in [plan.get("export")] + list(_EXPORT_ACTIONS):
+        if label and label not in labels and label not in _EXPORT_TABS:
+            labels.append(label)
+    return labels
+
+
+def _chinese_dates(device):
+    xml = device.dump_hierarchy()
+    found = []
+    for node in re.findall(r"<node [^>]+>", xml):
+        for attr in ("text", "content-desc"):
+            match = re.search(attr + r'="([^"]*)"', node)
+            if not match or not _DATE_TEXT.search(match.group(1)):
+                continue
+            label = match.group(1).strip()
+            if label not in found:
+                found.append(label)
+    return found
+
+
+def _export_page_open(device, plan):
+    if _showing(device, _as_list(plan.get("dialog"))):
+        return True
+    return _showing(device, _EXPORT_TABS) and bool(_chinese_dates(device))
 
 
 def _screen_labels(device):
@@ -182,7 +215,7 @@ def _open_export(device, plan):
                 return grabbed
             time.sleep(1)
             continue
-        if _showing(device, dialogs):
+        if _export_page_open(device, plan):
             return None
         if _showing(device, backs):
             for label in ("Navigate up", "Back", "返回", "關閉", "关闭"):
@@ -207,7 +240,7 @@ def _open_export(device, plan):
                 continue
             if _tap_label(device, label):
                 time.sleep(2)
-                if _showing(device, dialogs):
+                if _export_page_open(device, plan):
                     return None
         time.sleep(1)
     seen = "、".join(_screen_labels(device))
@@ -219,16 +252,21 @@ def _open_export(device, plan):
 def _day_desc(when):
     padded = f"{when.day:02d} {when.strftime('%B')} {when.year}"
     plain = f"{when.day} {when.strftime('%B')} {when.year}"
-    return padded, plain
+    chinese = f"{when.year}年{when.month}月{when.day}日"
+    return padded, plain, chinese
 
 
 def _visible_month(device):
     xml = device.dump_hierarchy()
     found = re.findall(r'content-desc="(\d{1,2}) ([A-Za-z]+) (\d{4})"', xml)
+    if found:
+        _day, month, year = found[0]
+        return date(int(year), time.strptime(month, "%B").tm_mon, 1)
+    found = re.findall(r'(?:text|content-desc)="(\d{4})年(\d{1,2})月', xml)
     if not found:
         return None
-    _day, month, year = found[0]
-    return date(int(year), time.strptime(month, "%B").tm_mon, 1)
+    year, month = found[0]
+    return date(int(year), int(month), 1)
 
 
 def _confirm(device):
@@ -251,8 +289,12 @@ def _set_date(device, label, when):
     else:
         field = None
     if field is None or not field.exists:
-        raise SystemExit("畫面上找不到：%s" % "、".join(labels))
-    field.click()
+        dates = _chinese_dates(device)
+        index = 1 if any(word in "".join(labels) for word in ("End", "結束", "结束")) and len(dates) > 1 else 0
+        if not dates or not _tap_label(device, dates[index]):
+            raise SystemExit("畫面上找不到：%s。目前畫面：%s" % ("、".join(labels), "、".join(_screen_labels(device))))
+    else:
+        field.click()
     time.sleep(1)
     for _ in range(8):
         for desc in _day_desc(when):
@@ -270,6 +312,11 @@ def _set_date(device, label, when):
         earlier = (when.year, when.month) < (shown.year, shown.month)
         control = "Previous month" if earlier else "Next month"
         button = device(description=control)
+        if not button.exists:
+            control = "上个月" if earlier else "下个月"
+            button = device(description=control)
+        if not button.exists:
+            button = device(text=control)
         if not button.exists:
             raise SystemExit(f"日曆找不到 {when.isoformat()}")
         button.click()
@@ -434,16 +481,12 @@ def _export_ranges(device, plan, today):
         _set_date(device, plan["end"], end)
         before = set(_downloads())
         tapped = False
-        for label in _export_targets(plan):
-            if not label:
-                continue
-            node = device.xpath('//*[@text="%s"]/..' % label)
-            if node.exists:
-                node.click()
+        for label in _export_actions(plan):
+            if _tap_label(device, label):
                 tapped = True
                 break
         if not tapped:
-            raise SystemExit("畫面上找不到匯出。")
+            raise SystemExit("畫面上找不到匯出。目前畫面：%s" % "、".join(_screen_labels(device)))
         time.sleep(2)
         _save_share(device, plan["save_label"])
         time.sleep(2)
