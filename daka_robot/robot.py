@@ -121,9 +121,9 @@ def _export_targets(plan):
 
 
 def _export_actions(plan):
-    """The button that creates the file. The 报表汇出 tab only opens that page."""
+    """The button that creates the file. 'Export button' is the real control."""
     labels = []
-    for label in [plan.get("export")] + list(_EXPORT_ACTIONS):
+    for label in [plan.get("open"), plan.get("export")] + list(_EXPORT_ACTIONS):
         if label and label not in labels and label not in _EXPORT_TABS:
             labels.append(label)
     return labels
@@ -561,10 +561,14 @@ def _export_ranges(device, plan, today):
         for label in _export_actions(plan):
             if _tap_label(device, label):
                 tapped = True
-                break
+                time.sleep(2)
+                if device.app_current().get("package") == "com.android.intentresolver" or device(text="Sharing 1 file").exists:
+                    break
         if not tapped:
             raise SystemExit("畫面上找不到匯出。目前畫面：%s" % "、".join(_screen_labels(device)))
-        time.sleep(2)
+        if device.app_current().get("package") != "com.android.intentresolver" and not device(text="Sharing 1 file").exists:
+            if _tap_label(device, "Export button"):
+                time.sleep(2)
         _save_share(device, plan["save_label"], plan.get("save_package") or "")
         time.sleep(2)
         pulled = _as_payroll_csv(_pull_new(before))
