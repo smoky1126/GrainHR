@@ -101,10 +101,15 @@ function copyOne(root, copyRoot, folderPath, fileName, shop) {
     return "完成 " + shop + " " + fileName + " 未有更改";
   }
   writeCopy(shopFolder, downloadName, asXlsx(source, downloadName));
-  return "完成 " + shop + " " + fileName;
+  return "完成 " + shop + " " + fileName + " 已重新匯出";
 }
 
 function unchanged(source, folder, downloadName) {
+  // Cell edits in a Google Sheet often leave getLastUpdated() unchanged, so the
+  // old check kept exporting yesterday's Excel. Always export a Sheet again.
+  if (source.getMimeType() === SHEET_MIME) {
+    return false;
+  }
   var files = folder.getFilesByName(downloadName);
   var newest = null;
   while (files.hasNext()) {

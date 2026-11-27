@@ -56,6 +56,13 @@ def step_daka(info, status, demo, readonly, staff=None):
     else:
         _mark("1. DAKA 同步", "todo", "正在核對出勤。")
     st.caption(fresh)
+    from payroll.attendance.rosters import oldest_roster_file
+    oldest = oldest_roster_file()
+    if oldest is not None:
+        st.caption(
+            f"更表檔案日期：{oldest:%Y-%m-%d %H:%M}。"
+            "更新更表只抄這個副本，不會直接讀 Google 更表。"
+        )
     _daka_chip()
     if st.button("更新更表", key="attendance-roster", disabled=readonly):
         if refresh_rosters(info):

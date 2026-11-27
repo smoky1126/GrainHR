@@ -104,3 +104,19 @@ def roster_status(info, source=None):
             state = "已找到"
         rows.append({"店鋪": shop, "狀態": state, "檔案": file_name})
     return copied, rows
+
+
+def oldest_roster_file(source=None):
+    """When the inbox Excel was last written. 更新更表 copies this file, not the Google sheet."""
+    source = Path(source) if source else ROSTER_COPY_DIR
+    if not source.exists():
+        return None
+    times = []
+    for path in source.rglob("*.xlsx"):
+        if path.name.startswith("~$"):
+            continue
+        times.append(path.stat().st_mtime)
+    if not times:
+        return None
+    from datetime import datetime
+    return datetime.fromtimestamp(min(times))

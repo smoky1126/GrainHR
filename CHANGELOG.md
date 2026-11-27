@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.32
+
+- 更新更表 shows the date of the Excel copy it actually uses. The roster copy script exports a Google Sheet again even when Drive does not mark the sheet as modified.
+
 ## 1.6.31
 
 - The early-pay card lists every late day and every early-leave day. A missing punch can be confirmed on that card, and the warning names the date.
