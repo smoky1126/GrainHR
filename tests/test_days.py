@@ -82,6 +82,21 @@ def test_shift_without_punch_is_missing():
         raise SystemExit(f"full absence should be listed for confirmation: {summary}")
 
 
+def test_a_future_shift_is_not_an_absence():
+    from datetime import date, timedelta
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    facts = _facts([
+        {"shop": "S1_Make", "name": "Ada", "date": tomorrow, "roster": "09:00-18:00", "late_mins": 0,
+         "early_mins": 0, "ot_hours": 0, "wrong_site": 0},
+    ])
+    summaries, days = merge_days(facts, _punch("Ada", tomorrow))
+    summary = summaries["Ada"]
+    if summary["missing_days"] or summary.get("absent_dates"):
+        raise SystemExit(f"a future shift was treated as absence: {summary}")
+    if days.iloc[0]["Status"] != "未到":
+        raise SystemExit(days.iloc[0]["Status"])
+
+
 def test_two_shifts_are_flagged():
     date = "2026-10-07"
     facts = _facts([
@@ -259,6 +274,7 @@ def main():
     test_sick_without_punch_is_leave()
     test_rest_with_punch_is_day_off()
     test_shift_without_punch_is_missing()
+    test_a_future_shift_is_not_an_absence()
     test_rest_without_punch_says_rest()
     test_late_early_and_overtime_columns()
     test_open_shift_counts_late_before_clock_out()

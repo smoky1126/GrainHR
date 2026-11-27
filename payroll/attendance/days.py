@@ -323,6 +323,8 @@ def merge_days(facts, punches, assume_until=None):
 
     people = {}
     evidence = []
+    import datetime as _dt
+    today_iso = _dt.date.today().isoformat()
     for (name, date), rows in sorted(grouped.items()):
         person = people.setdefault(name, _fresh())
         punch = punch_for(punches, name, date)
@@ -435,6 +437,8 @@ def merge_days(facts, punches, assume_until=None):
                 person["wrong"].append(label)
                 if "異地" not in status:
                     status = f"{status}、異地打卡" if status else "異地打卡"
+        elif kind == "shift" and str(date)[:10] > today_iso:
+            status = "未到"
         elif kind == "shift" and not has_in and not has_out:
             status = STATUS["missing punch"]
             person["missing"].append(punch_label(label))
