@@ -145,10 +145,10 @@ def _profile(row, info, locked):
         contract = _as_date(row.get("contract_end"))
         if mainland and contract:
             right.write(f"最後工作日：{(contract - timedelta(days=1)).isoformat()}")
-        right.write(f"狀況：{row['status']}")
-        from payroll.core.settings import no_monthly_pay
-        if _text(row.get("employee_no")) in no_monthly_pay():
-            st.caption("這位同事不每月出糧。")
+        frozen = _frozen_note(row)
+        right.write(f"狀況：{_status_text(row)}")
+        if frozen:
+            st.caption(f"{frozen}。不計入出糧、審核和提前出糧。狀況和薪金保持不動。")
         if mainland:
             st.caption("內地同事的薪金計到合約完結的前一日。續約時填新合約由哪一日開始。")
             from payroll.staff.contracts import saved_terms
@@ -168,7 +168,7 @@ def _profile(row, info, locked):
             action = "edit"
         if mainland and row["status"] == "在職" and st.button("續約", key="staff-renew", disabled=locked):
             action = "renew"
-        if (row["status"] == "在職" or missing_leave) and st.button(
+        if not frozen and (row["status"] == "在職" or missing_leave) and st.button(
             "填寫離職日期" if missing_leave else "離職", key="staff-resign", disabled=locked,
         ):
             action = "resign"
@@ -186,7 +186,7 @@ def _profile(row, info, locked):
         left.metric("本年已用年假", "—" if row["annual_taken"] is None else f"{row['annual_taken']:g} 日")
         right.metric("剩餘年假", "—" if row["annual"] is None else f"{row['annual']:g} 日")
         right.metric("剩餘休假", "—" if row["rest"] is None else f"{row['rest']:g} 日")
-        if office_open and st.button(
+        if office_open and not _frozen_note(row) and st.button(
             "調整薪金", key="staff-salary",
             disabled=locked or is_issued(info["key"]),
         ):
@@ -387,9 +387,22 @@ def _salary_dialog(row, info):
             st.error(str(error))
 
 
+def _frozen_note(row):
+    from payroll.core.settings import frozen_status
+    return frozen_status().get(_text(row.get("employee_no")), "")
+
+
+def _status_text(row):
+    note = _frozen_note(row)
+    status = row.get("status") or "在職"
+    return f"{status}（{note}）" if note else status
+
+
 def _export(rows):
     from payroll.core.access import scrub_office_row
     frame = pd.DataFrame([scrub_office_row(row, _role()) for row in rows])
+    if "status" in frame.columns:
+        frame["status"] = [_status_text(row) for row in rows]
     secret = set()
     keep = [column for column in (
         "employee_no", "name_zh", "name_en", "group_label", "position", "department",
@@ -457,6 +470,7 @@ def render(info, readonly, staff, demo, month_label):
             "position": "職位", "department": "部門", "status": "狀況",
             "service_days": "在職", "salary": "薪金", "pay_basis": "計薪",
         })
+        view["狀況"] = [_status_text(row) for row in shown]
         order = ["員工編號", "中文姓名", "英文姓名", "職位", "部門", "狀況", "在職", "薪金", "計薪"]
         if group_key in {"bg_esl", "md_esl"} and "contract_end" in view.columns:
             view["合約完結"] = view["contract_end"].map(_iso)

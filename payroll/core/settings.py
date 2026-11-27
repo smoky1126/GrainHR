@@ -332,10 +332,25 @@ def manual_pay():
     return dict(people.get("manual_pay") or {})
 
 
+def frozen_status():
+    """Employee number to the note shown on 狀況. These people are also left out of payroll."""
+    people = load().get("people") or {}
+    raw = people.get("frozen_status") or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(number).strip(): str(note).strip()
+        for number, note in raw.items()
+        if str(number).strip() and str(note).strip()
+    }
+
+
 def no_monthly_pay():
     """Employee numbers who stay on the staff list and are not paid each month."""
     people = load().get("people") or {}
-    return {str(item).strip() for item in (people.get("no_monthly_pay") or []) if str(item).strip()}
+    numbers = {str(item).strip() for item in (people.get("no_monthly_pay") or []) if str(item).strip()}
+    numbers.update(frozen_status())
+    return numbers
 
 
 def users():

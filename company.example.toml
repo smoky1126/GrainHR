@@ -242,6 +242,9 @@ logo = "app/assets/logo.jpg"
 varying_pay = ["Person G", "Person H", "Person I"]
 no_monthly_pay = ["X009"]
 
+[people.frozen_status]
+X009 = "Example hold"
+
 [people.manual_pay]
 X001 = "Enter this month's amount by hand."
 

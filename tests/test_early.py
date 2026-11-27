@@ -593,14 +593,17 @@ def test_someone_outside_monthly_pay_is_not_a_new_joiner():
     import os
     import pandas as pd
     from payroll.core.config import scratch_dir
-    from payroll.core.settings import load, no_monthly_pay
+    from payroll.core.settings import frozen_status, load, no_monthly_pay
     home = scratch_dir("no-monthly")
-    (home / "company.toml").write_text("[people]\nno_monthly_pay = [\"E009\"]\n", encoding="utf-8")
+    (home / "company.toml").write_text(
+        "[people.frozen_status]\nE009 = \"hold\"\n",
+        encoding="utf-8",
+    )
     os.environ["PAYROLL_COMPANY"] = str(home / "company.toml")
     load.cache_clear()
     try:
-        if no_monthly_pay() != {"E009"}:
-            raise SystemExit(no_monthly_pay())
+        if no_monthly_pay() != {"E009"} or frozen_status().get("E009") != "hold":
+            raise SystemExit((no_monthly_pay(), frozen_status()))
         from app.state import new_joiners
         staff = pd.DataFrame([
             {"employee_no": "E009", "active": True, "part_time": False, "status": "在職", "leave_date": None},
