@@ -92,6 +92,11 @@ def test_clock_review_flags_a_missed_clock_in_and_overtime_cover():
     missed = clock_review("28/11 312分鐘", "", 312, 0, 0)
     if missed["forgot"] != [("28/11", 312)] or missed["can_cover"]:
         raise SystemExit(missed)
+    compared = clock_review("1/11 883分鐘", "16/11 169分鐘", 883, 169, 9)
+    if compared["need_mins"] != 1052 or compared["need_span"] != "17小時32分鐘":
+        raise SystemExit(compared)
+    if compared["late_span"] != "14小時43分鐘" or "尚欠 8小時32分鐘" not in compared["compare"]:
+        raise SystemExit(compared)
 
 
 def test_a_future_shift_is_not_an_absence():

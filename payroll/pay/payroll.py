@@ -108,6 +108,19 @@ def _minute_parts(text):
     return found
 
 
+def _as_hours(minutes):
+    """883 minutes is 14小時43分鐘, so it can be set beside overtime hours."""
+    minutes = int(round(float(minutes or 0)))
+    hours, mins = divmod(abs(minutes), 60)
+    if hours and mins:
+        text = f"{hours}小時{mins}分鐘"
+    elif hours:
+        text = f"{hours}小時"
+    else:
+        text = f"{mins}分鐘"
+    return text
+
+
 def clock_review(late_text, early_text, late_mins, early_mins, ot_hours):
     """Totals for the review card, plus a very long lateness that may be a missed clock-in."""
     late = _minute_parts(late_text)
@@ -128,15 +141,29 @@ def clock_review(late_text, early_text, late_mins, early_mins, ot_hours):
         overtime = 0.0
     worst = max((minutes for _day, minutes in late), default=0)
     forgot = [(day, minutes) for day, minutes in late if minutes >= FORGOT_MINUTES]
+    need = late_total + early_total
+    gap = need - int(round(overtime * 60))
+    if gap <= 0 and need:
+        compare = f"加班 {_hour_text(overtime)} 小時，可以補完遲到及早退。"
+    elif need:
+        compare = f"加班 {_hour_text(overtime)} 小時，未能補完，尚欠 {_as_hours(gap)}。"
+    else:
+        compare = ""
     return {
         "late_times": len(late),
         "late_mins": late_total,
+        "late_span": _as_hours(late_total),
         "worst": worst,
         "early_times": len(early),
         "early_mins": early_total,
+        "early_span": _as_hours(early_total),
+        "need_mins": need,
+        "need_span": _as_hours(need),
         "ot_hours": overtime,
+        "ot_span": _as_hours(int(round(overtime * 60))),
         "forgot": forgot,
         "can_cover": bool(late_total) and overtime > 0,
+        "compare": compare,
     }
 
 
