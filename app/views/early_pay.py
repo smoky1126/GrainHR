@@ -156,6 +156,7 @@ def _card(info, draft, person, record, part_rows, readonly):
             if note and note.lower() != "nan":
                 st.caption(note)
             _adjustment(info, row, person, readonly)
+            _confirm_absence(info, row, person, readonly)
         if hasattr(left, "year") and left >= date.today():
             st.caption("最後工作日之前可以先出。還沒打卡的日子按更表計算，不當作缺卡。")
         if reason:
@@ -232,6 +233,13 @@ def _breakdown(row, office=False):
         lines.append(f"− 僱員強積金 {hk(mpf)}（收入欄合計 × 5%，最後扣除，不包括交通／健康津貼）")
     else:
         lines.append("強積金　不扣")
+    late = _text(row.get("late_text"))
+    early = _text(row.get("early_text"))
+    lines.append("遲到 " + (late if late and late.lower() != "nan" else "無"))
+    lines.append("早退 " + (early if early and early.lower() != "nan" else "無"))
+    pending = _text(row.get("absence_pending"))
+    if pending and pending.lower() != "nan":
+        lines.append(f"缺勤未確認 {pending}")
     lines.append(f"= 預計薪金 {hk(row.get('net'))}")
     allowance = _amount(row.get("allowance_amount"))
     if allowance:
@@ -381,6 +389,48 @@ def _adjustment(info, row, person, readonly):
     st.session_state.pop("draft_stamps", None)
     st.session_state.pop("early-preview", None)
     st.toast("已儲存調整")
+    st.rerun()
+
+
+def _confirm_absence(info, row, person, readonly):
+    """Answer each missing punch here. The review page can still be locked."""
+    pending = [part for part in _text(row.get("absence_pending")).split("、") if part and part.lower() != "nan"]
+    if not pending or readonly:
+        return
+    from payroll.core.config import book_info
+    from payroll.pay.payroll import parse_absence_choices
+    from payroll.pay.review import save_one
+    staff_id = _text(row.get("staff_id"))
+    if not staff_id:
+        return
+    st.caption("更表有更但沒有打卡。每一天選無薪假、病假，或有上班但忘記打卡。")
+    stored = parse_absence_choices(row.get("absence_choices"))
+    options = ["無薪假", "病假", "有上班（忘記打卡）"]
+    codes = {"無薪假": "unpaid", "病假": "sick", "有上班（忘記打卡）": "worked"}
+    reverse = {value: key for key, value in codes.items()}
+    picked = {}
+    for label in pending:
+        current = reverse.get(stored.get(label), options[0])
+        picked[label] = st.radio(
+            label, options, index=options.index(current) if current in options else 0,
+            horizontal=True, key=f"early-abs-{info['key']}-{person['book']}-{staff_id}-{label}",
+        )
+    if not st.button("儲存缺勤確認", key=f"early-abs-save-{info['key']}-{person['book']}-{staff_id}"):
+        return
+    merged = dict(stored)
+    for label, choice in picked.items():
+        merged[label] = codes[choice]
+    text = "、".join(f"{label}:{kind}" for label, kind in merged.items())
+    try:
+        save_one(book_info(info, person["book"]), staff_id, {"absence_choices": text})
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    st.session_state["dirty"] = True
+    st.session_state.pop("drafts", None)
+    st.session_state.pop("draft_stamps", None)
+    st.session_state.pop("early-preview", None)
+    st.toast("已儲存缺勤")
     st.rerun()
 
 
@@ -612,6 +662,7 @@ def _plan_editor(info, person, last_day, readonly):
     if note and note.lower() != "nan":
         st.caption(note)
     _adjustment(info, row, person, readonly)
+    _confirm_absence(info, row, person, readonly)
     if last_day >= date.today():
         st.caption("還沒打卡的日子按更表計算，不當作缺卡。")
     if reason:

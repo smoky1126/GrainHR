@@ -147,8 +147,9 @@ def early_hold(row):
     review = _text(row.get("review"))
     if "請選擇發放或不發放" in review:
         return "請先選擇勤工獎發放或不發放。"
-    if _text(row.get("absence_pending")):
-        return "請先確認缺勤。"
+    pending = _text(row.get("absence_pending"))
+    if pending:
+        return f"請先確認缺勤：{pending}。"
     return ""
 
 

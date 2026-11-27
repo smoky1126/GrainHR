@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.31
+
+- The early-pay card lists every late day and every early-leave day. A missing punch can be confirmed on that card, and the warning names the date.
+
 ## 1.6.30
 
 - An early payment can take a salary reference and an allowance reference, and both are printed on the slip. Calculating before the last day uses the same editor as a resignation payment.
