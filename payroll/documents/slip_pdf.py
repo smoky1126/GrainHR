@@ -112,6 +112,15 @@ def _minute_lines(row, info, late_pay):
     return parts
 
 
+def _rent_formula(basic, deductions):
+    """(($16,680-$556)*10%). Water and electricity are outside this."""
+    if not basic:
+        return ""
+    if float(deductions or 0) > 0.009:
+        return f"((${_whole(basic)}-${_whole(deductions)})*10%)"
+    return f"(${_whole(basic)}*10%)"
+
+
 def _minute_note(dates, formula):
     return "\n".join(part for part in (dates, formula) if part)
 
@@ -245,7 +254,8 @@ def slip_content(row, info=None):
     ):
         amount = _num(row, key)
         if amount > 0.009:
-            deductions.append((label, amount))
+            note = _rent_formula(basic, unpaid) if key == "rent" else ""
+            deductions.append((label, amount, note) if note else (label, amount))
             included -= amount
     if manual < -0.009:
         deductions.append(("其他調整", -manual))

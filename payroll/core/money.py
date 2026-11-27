@@ -61,6 +61,16 @@ def rent_amount(basic, unpaid, rate, rent_base):
     return round_money(base * rate)
 
 
+def mainland_rent(basic, deductions):
+    """10% of this month's basic salary after salary deductions.
+
+    Water and electricity are not part of those deductions, and they are not
+    part of the 10%.
+    """
+    base = max(0.0, float(basic or 0) - float(deductions or 0))
+    return round_money(base * 0.1)
+
+
 def overtime_pay(basic, days_in_month, hours):
     """Hours x basic salary / days in the month / 9.5."""
     hours = float(hours or 0)

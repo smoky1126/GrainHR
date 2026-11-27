@@ -394,6 +394,15 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
         raise SystemExit(content["deductions"])
 
 
+def test_mainland_rent_is_ten_percent_after_deductions():
+    from payroll.core.money import mainland_rent
+    # Water and electricity are not taken off before the 10%.
+    if mainland_rent(16680, 556) != round((16680 - 556) * 0.1, 2):
+        raise SystemExit(mainland_rent(16680, 556))
+    if mainland_rent(15012, 593.07) != round((15012 - 593.07) * 0.1, 2):
+        raise SystemExit(mainland_rent(15012, 593.07))
+
+
 def test_lateness_and_early_leave_are_separate_deductions():
     from payroll.core.money import split_charged_minutes
     from payroll.documents.slip_pdf import slip_content
@@ -563,6 +572,7 @@ def main():
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
+    test_mainland_rent_is_ten_percent_after_deductions()
     test_lateness_and_early_leave_are_separate_deductions()
     test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl()
     test_breakdown_lists_rest_days_and_statutory_holidays()

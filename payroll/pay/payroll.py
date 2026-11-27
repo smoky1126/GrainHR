@@ -26,7 +26,7 @@ from payroll.core.money import (
     minutes_for_pay,
     overtime_pay,
     pay_detected_overtime,
-    rent_amount,
+    mainland_rent,
     round_money,
     unpaid_amount,
     unused_rest,
@@ -499,11 +499,10 @@ def _blank_row(name, shops, problem, roster_name=""):
 
 
 def _shown_rent(person):
+    """10% of basic salary. The month's deductions are taken off when the slip is built."""
     if _text(person.get("scheme")) != "rent":
         return 0
-    if not _is_blank(person.get("rent_amount")):
-        return _num(person.get("rent_amount"))
-    return rent_amount(person.get("basic_salary"), 0, person.get("rent_rate"), _text(person.get("rent_base")) or "basic")
+    return mainland_rent(person.get("basic_salary"), 0)
 
 
 def _shown_allowances(person):
@@ -692,12 +691,8 @@ def _build_draft(info, facts, book):
         )
         if left or not mainland:
             rent = 0
-        elif not _is_blank(person.get("rent_amount")):
-            rent = _num(person.get("rent_amount"))
         else:
-            rent = rent_amount(
-                basic, unpaid, _num(person.rent_rate), _text(person.rent_base) or "basic"
-            )
+            rent = mainland_rent(basic, unpaid)
         mpf_income = basic
         if not left and book == "admin":
             mpf_income = round_money(max(0, basic - unpaid))
