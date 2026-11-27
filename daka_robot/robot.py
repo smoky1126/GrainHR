@@ -6,6 +6,7 @@ one-time calibration. Screen coordinates are not used.
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -183,14 +184,12 @@ def _showing(device, labels):
 
 
 def _tap_label(device, label):
-    parent = device.xpath('//*[@text="%s"]/ancestor::*[@clickable="true"][1]' % label)
-    if parent.exists:
-        parent.click()
-        return True
-    parent = device.xpath('//*[@content-desc="%s"]/ancestor::*[@clickable="true"][1]' % label)
-    if parent.exists:
-        parent.click()
-        return True
+    """Tap the label itself when it is clickable, otherwise its nearest clickable parent."""
+    for attr in ("text", "content-desc"):
+        node = device.xpath('//*[@%s="%s"]/ancestor-or-self::*[@clickable="true"][1]' % (attr, label))
+        if node.exists:
+            node.click()
+            return True
     node = device(text=label)
     if node.exists:
         node.click()
@@ -200,6 +199,42 @@ def _tap_label(device, label):
         node.click()
         return True
     return False
+
+
+DEBUG = OUTBOX / "debug"
+
+
+def _snap(device, name):
+    """Screenshot and screen labels for one step, so a failure can be read later."""
+    try:
+        DEBUG.mkdir(parents=True, exist_ok=True)
+        stem = DEBUG / f"{time.strftime('%H%M%S')}_{name}"
+        device.screenshot(str(stem.with_suffix(".png")))
+        stem.with_suffix(".xml").write_text(device.dump_hierarchy(), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _upload_debug():
+    """Copy this run's screenshots next to the export, in a _debug folder."""
+    if not DEBUG.exists() or not any(DEBUG.iterdir()):
+        return
+    rclone = Path.home() / "bin" / "rclone"
+    inbox = os.environ.get("DAKA_INBOX", "").strip()
+    path_file = Path(os.environ.get("DAKA_INBOX_FILE", str(ROOT / "inbox.path")))
+    if not inbox and path_file.exists():
+        inbox = path_file.read_text(encoding="utf-8").strip()
+    if not inbox or not rclone.exists():
+        return
+    try:
+        subprocess.run(
+            [str(rclone), "copy", str(DEBUG), inbox.rstrip("/") + "/_debug"],
+            capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return
+    for item in DEBUG.iterdir():
+        item.unlink(missing_ok=True)
 
 
 def _open_export(device, plan):
@@ -409,6 +444,16 @@ def _expand_share_sheet(device):
     return False
 
 
+def _wait_share(device, seconds):
+    """DAKA builds the file before the share sheet appears; that can take a while."""
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        if device.app_current().get("package") == "com.android.intentresolver" or device(text="Sharing 1 file").exists:
+            return True
+        time.sleep(1)
+    return False
+
+
 def _save_share(device, label, package=""):
     for _ in range(4):
         _deny_location(device)
@@ -428,6 +473,7 @@ def _save_share(device, label, package=""):
     if _hand_to_saver(package):
         time.sleep(2)
         return
+    _snap(device, "3_share_failed")
     raise SystemExit("分享清單沒有 %s。目前畫面：%s" % (label, "、".join(_screen_labels(device))))
 
 
@@ -556,19 +602,18 @@ def _export_ranges(device, plan, today):
             time.sleep(0.5)
         _set_date(device, plan["start"], start)
         _set_date(device, plan["end"], end)
+        _snap(device, "1_dates_set")
         before = set(_downloads())
         tapped = False
         for label in _export_actions(plan):
-            if _tap_label(device, label):
-                tapped = True
-                time.sleep(2)
-                if device.app_current().get("package") == "com.android.intentresolver" or device(text="Sharing 1 file").exists:
-                    break
+            if not _tap_label(device, label):
+                continue
+            tapped = True
+            if _wait_share(device, 15):
+                break
+            _snap(device, "2_no_share_after_" + re.sub(r"\W+", "_", label))
         if not tapped:
             raise SystemExit("畫面上找不到匯出。目前畫面：%s" % "、".join(_screen_labels(device)))
-        if device.app_current().get("package") != "com.android.intentresolver" and not device(text="Sharing 1 file").exists:
-            if _tap_label(device, "Export button"):
-                time.sleep(2)
         _save_share(device, plan["save_label"], plan.get("save_package") or "")
         time.sleep(2)
         pulled = _as_payroll_csv(_pull_new(before))
@@ -618,7 +663,10 @@ def main():
     try:
         files = _export(device, plan, date.today())
     except SystemExit as error:
+        _snap(device, "9_failed")
         return _status(False, str(error))
+    finally:
+        _upload_debug()
     return _status(True, "已匯出。", files)
 
 
