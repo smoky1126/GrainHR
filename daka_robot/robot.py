@@ -350,25 +350,27 @@ def _downloads():
     return [line.strip() for line in (done.stdout or "").splitlines() if line.strip()]
 
 
-def _share_label(node_xml):
-    text = re.search(r'text="([^"]*)"', node_xml)
-    desc = re.search(r'content-desc="([^"]*)"', node_xml)
-    for match in (text, desc):
-        label = (match.group(1) if match else "").strip()
-        if label:
-            return label
-    return ""
-
-
 def _tap_share(device, label):
     if label and _tap_label(device, label):
         return True
-    xml = device.dump_hierarchy()
-    for node in re.findall(r"<node [^>]+>", xml):
-        shown = _share_label(node)
-        if not shown or "DAKA" not in shown.upper():
+    for word in (label, "DAKA", "DAKA Save"):
+        if not word:
             continue
-        if _tap_label(device, shown):
+        node = device(textContains=word)
+        if node.exists:
+            node.click()
+            return True
+        node = device(descriptionContains=word)
+        if node.exists:
+            node.click()
+            return True
+    return False
+
+
+def _expand_share_sheet(device):
+    for label in ("更多", "More", "查看全部", "其他应用", "其他應用程式", "使用其他应用打开"):
+        if _tap_label(device, label):
+            time.sleep(1)
             return True
     return False
 
@@ -376,6 +378,7 @@ def _tap_share(device, label):
 def _save_share(device, label):
     for _ in range(6):
         _deny_location(device)
+        _expand_share_sheet(device)
         deadline = time.time() + 6
         while time.time() < deadline:
             if _tap_share(device, label):
@@ -383,8 +386,8 @@ def _save_share(device, label):
                 if device.app_current().get("package") != "com.android.intentresolver":
                     return
             time.sleep(0.5)
-        device.swipe(540, 1600, 540, 700, 0.2)
-        time.sleep(0.8)
+        device.swipe(540, 1600, 540, 800, 0.2)
+        time.sleep(0.6)
     raise SystemExit("分享清單沒有 %s。目前畫面：%s" % (label, "、".join(_screen_labels(device))))
 
 
