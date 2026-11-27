@@ -243,25 +243,10 @@ def _card(info, draft, person, record, part_rows, readonly):
             if amount:
                 detail = f"{detail}，過數 {amount}"
             st.success(f"{detail}。月結不會再發。", title="已提前出糧")
-            st.caption("可以再改這份糧單。儲存調整後，下載的 PDF 和過數金額會更新。不會再出一次糧。")
-            paid_row = _paid_row(info, draft, person, record)
-            if person["kind"] == "full" and paid_row is not None:
-                _breakdown(paid_row, office=person["book"] == "admin")
-                _adjustment(info, paid_row, person, readonly)
-                _confirm_absence(info, paid_row, person, readonly)
-            _transfer_reference(info, draft, person, record, readonly, paid_row)
-            if paid_row is not None:
-                _download_slip(info, person, paid_row, record.get("pay_date"), f"early-down-{key}")
-            else:
-                path = _slip_file(info, draft, person, record)
-                if path is not None and path.is_file():
-                    st.download_button(
-                        "下載這份糧單",
-                        path.read_bytes(),
-                        file_name=path.name,
-                        mime="application/pdf" if path.suffix.lower() == ".pdf" else None,
-                        key=f"early-down-{key}",
-                    )
+            panel = st.expander("查看、修改及下載糧單", key=f"early-open-{key}", on_change="rerun")
+            with panel:
+                if panel.open:
+                    _issued_editor(info, draft, person, record, readonly, key)
             return
         amount = None
         reason = ""
@@ -324,6 +309,28 @@ def _card(info, draft, person, record, part_rows, readonly):
                 person["name"], picked.isoformat(), amount_text,
                 left.isoformat() if hasattr(left, "isoformat") else "",
             )
+
+
+def _issued_editor(info, draft, person, record, readonly, key):
+    st.caption("可以再改這份糧單。儲存調整後，下載的 PDF 和過數金額會更新。不會再出一次糧。")
+    paid_row = _paid_row(info, draft, person, record)
+    if person["kind"] == "full" and paid_row is not None:
+        _breakdown(paid_row, office=person["book"] == "admin")
+        _adjustment(info, paid_row, person, readonly)
+        _confirm_absence(info, paid_row, person, readonly)
+    _transfer_reference(info, draft, person, record, readonly, paid_row)
+    if paid_row is not None:
+        _download_slip(info, person, paid_row, record.get("pay_date"), f"early-down-{key}")
+        return
+    path = _slip_file(info, draft, person, record)
+    if path is not None and path.is_file():
+        st.download_button(
+            "下載這份糧單",
+            path.read_bytes(),
+            file_name=path.name,
+            mime="application/pdf" if path.suffix.lower() == ".pdf" else None,
+            key=f"early-down-{key}",
+        )
 
 
 def _breakdown(row, office=False):
