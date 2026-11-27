@@ -165,6 +165,7 @@ def slip_content(row, info=None):
     return {
         "company": _company_name(info),
         "name": _text(row, "slip_name"),
+        "employee_no": _text(row, "employee_no"),
         "nickname": _nickname(row),
         "department": _text(row, "department"),
         "position": _text(row, "position"),
@@ -348,6 +349,8 @@ def _draw(pdf, content):
         _text_at(pdf, left, 30, width, 18, content["company"], 11, "C")
     y = 72
     y = _pair(pdf, left, y, width, "Employee 員工:", content["name"], content["nickname"])
+    if content.get("employee_no"):
+        y = _pair(pdf, left, y, width, "員工編號 Staff No.:", content["employee_no"], "")
     y = _pair(pdf, left, y, width, "Department 部門:", content["department"], "")
     y += 6
     _text_at(pdf, left, y, width, 14, "Salary Slip 薪酬單", 11, "C")
@@ -366,9 +369,10 @@ def _draw(pdf, content):
     y = _pay_box(pdf, left, y, right, mid, content)
     y = _autopay(pdf, left, y + 4, right, content["pay_date"], content["salary_reference"])
     y += 12
-    y = _allowance_box(pdf, left, y, right, content)
-    if content["health"] or content["transport"] or content["allowance_reference"]:
-        y = _autopay(pdf, left, y + 4, right, content["pay_date"], content["allowance_reference"])
+    if allowance_rows(content):
+        y = _allowance_box(pdf, left, y, right, content)
+        if content["allowance_reference"]:
+            y = _autopay(pdf, left, y + 4, right, content["pay_date"], content["allowance_reference"])
     y = _detail_box(pdf, left, y + 14, right, content)
     pdf.set_text_color(0, 0, 0)
     _text_at(pdf, left, min(y + 16, 800), width, 12, FOOTER, 7, "C")
@@ -420,13 +424,13 @@ def _pay_box(pdf, left, y, right, mid, content):
             _text_at(pdf, left + 8, y, mid - left - 16, 11, note, 7, "L")
             pdf.set_text_color(0, 0, 0)
             y += 11
-    for label, amount in content["deductions"]:
-        _text_at(pdf, mid + 6, split, right - mid - 90, 12, label, 8, "L")
-        _text_at(pdf, right - 86, split, 28, 12, "-HKD$", 8, "L")
-        _text_at(pdf, right - 78, split, 72, 12, _money(amount), 8, "R")
-        split += 13
-    for mark in content.get("punch_marks") or []:
-        _text_at(pdf, mid + 6, split, right - mid - 12, 12, mark, 8, "L", fit=True)
+    for kind, label, amount in deduction_sequence(content["deductions"], content.get("punch_marks")):
+        if kind == "mark":
+            _text_at(pdf, mid + 6, split, right - mid - 12, 12, label, 8, "L", fit=True)
+        else:
+            _text_at(pdf, mid + 6, split, right - mid - 90, 12, label, 8, "L")
+            _text_at(pdf, right - 86, split, 28, 12, "-HKD$", 8, "L")
+            _text_at(pdf, right - 78, split, 72, 12, _money(amount), 8, "R")
         split += 13
     y = max(y, split) + 36
     pdf.line(mid, top, mid, y)
@@ -479,17 +483,47 @@ def _detail_box(pdf, left, y, right, content):
     return y
 
 
+def allowance_rows(content):
+    """Allowance lines that have an amount. A zero allowance is left off the slip."""
+    rows = []
+    if content.get("health", 0) > 0.009:
+        rows.append(("Health Allowance", content["health"], content.get("health_note") or ""))
+    if content.get("transport", 0) > 0.009:
+        rows.append(("Transportation Allowance", content["transport"], content.get("transport_note") or ""))
+    return rows
+
+
+def deduction_sequence(deductions, marks):
+    """Missing-punch dates sit directly under NPL, before lateness, rent and water."""
+    marks = [mark for mark in (marks or []) if mark]
+    ordered = []
+    placed = False
+    for label, amount in deductions:
+        ordered.append(("money", label, amount))
+        if not placed and str(label).startswith("NPL"):
+            ordered.extend(("mark", mark, None) for mark in marks)
+            placed = True
+    if not placed:
+        ordered.extend(("mark", mark, None) for mark in marks)
+    return ordered
+
+
 def _allowance_box(pdf, left, y, right, content):
+    rows = allowance_rows(content)
+    if not rows:
+        return y
     top = y
     _text_at(pdf, left + 6, y, 200, 13, "Allowance", 8, "L")
     y += 13
-    y = _allowance_line(pdf, left, y, "Health Allowance", content["health"], content["health_note"])
-    y = _allowance_line(pdf, left, y, "Transportation Allowance", content["transport"], content["transport_note"])
+    total = 0.0
+    for label, amount, note in rows:
+        y = _allowance_line(pdf, left, y, label, amount, note)
+        total += amount
     pdf.line(left, y + 2, right, y + 2)
     y += 4
     _text_at(pdf, left + 120, y, 160, 14, "Total 總收入", 10, "R")
     _text_at(pdf, left + 286, y, 40, 14, "HKD$", 10, "L")
-    _text_at(pdf, left + 320, y, 70, 14, _money(content["health"] + content["transport"]), 10, "R")
+    _text_at(pdf, left + 320, y, 70, 14, _money(total), 10, "R")
     y += 16
     pdf.rect(left, top, right - left, y - top)
     return y

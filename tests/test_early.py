@@ -401,6 +401,30 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
         raise SystemExit(content["deductions"])
 
 
+def test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl():
+    from payroll.documents.slip_pdf import allowance_rows, deduction_sequence, slip_content
+    order = [item[1] for item in deduction_sequence(
+        [("NPL 無薪假", 556), ("遲到 38 分鐘", 37.07), ("Rent 租金", 1497.49), ("Water 水費", 4.3)],
+        ["8/11 全天缺卡"],
+    )]
+    if order != ["NPL 無薪假", "8/11 全天缺卡", "遲到 38 分鐘", "Rent 租金", "Water 水費"]:
+        raise SystemExit(order)
+    content = slip_content(pd.Series({
+        "employee_no": "ESL004",
+        "slip_name": "Tu",
+        "basic_salary": 10000,
+        "net": 10000,
+        "mpf_employee": 0,
+        "final_health": 0,
+        "final_transport": 0,
+        "allowance_amount": 0,
+    }), {"year": 2026, "month": 11})
+    if content["employee_no"] != "ESL004":
+        raise SystemExit(content["employee_no"])
+    if allowance_rows(content):
+        raise SystemExit(allowance_rows(content))
+
+
 def test_breakdown_lists_rest_days_and_statutory_holidays():
     from payroll.core.holidays import holiday_dates
     from payroll.documents.breakdown import breakdown_lines
@@ -470,6 +494,7 @@ def main():
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
+    test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl()
     test_breakdown_lists_rest_days_and_statutory_holidays()
     test_a_compiled_slip_stays_on_the_leaver_list()
     test_chosen_last_day_ends_the_pay_window()
