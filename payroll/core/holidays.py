@@ -90,9 +90,20 @@ def holiday_known(year):
     return int(year) in STATUTORY
 
 
+def _holiday_table(book):
+    return GENERAL if book == "admin" else STATUTORY
+
+
 def holiday_count(info, book):
     """How many holidays fall in this payroll month. 0 if the year is not listed."""
-    year = int(info["year"])
-    month = int(info["month"])
-    table = GENERAL if book == "admin" else STATUTORY
-    return sum(1 for day in table.get(year, ()) if day.month == month)
+    return len(holiday_days(info["year"], info["month"], book))
+
+
+def holiday_days(year, month, book):
+    """Holiday dates in this payroll month. Shop uses statutory days, office uses general holidays."""
+    return [day for day in _holiday_table(book).get(int(year), ()) if day.month == int(month)]
+
+
+def holiday_dates(year, month, book):
+    """Those dates as 25/12、26/12."""
+    return "、".join(f"{day.day}/{day.month}" for day in holiday_days(year, month, book))

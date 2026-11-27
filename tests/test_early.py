@@ -401,6 +401,21 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
         raise SystemExit(content["deductions"])
 
 
+def test_breakdown_lists_rest_days_and_statutory_holidays():
+    from payroll.core.holidays import holiday_dates
+    from payroll.documents.breakdown import breakdown_lines
+    if holiday_dates(2026, 12, "bg") != "25/12、26/12":
+        raise SystemExit(holiday_dates(2026, 12, "bg"))
+    if holiday_dates(2026, 10, "admin") != "1/10、19/10":
+        raise SystemExit(holiday_dates(2026, 10, "admin"))
+    row = pd.Series({"book": "bg", "taken_dates": "12/10、2/11、8/11"})
+    text = " | ".join(breakdown_lines(row, 11, 2026))
+    if "已放假 Rest day taken: 2/11、8/11" not in text or "12/10" in text.split("已放假")[-1]:
+        raise SystemExit(text)
+    if "法定假期 Statutory holiday: 無" not in text:
+        raise SystemExit(text)
+
+
 def test_a_compiled_slip_stays_on_the_leaver_list():
     from payroll.core.config import scratch_dir
     from payroll.core.excel_io import save_excel
@@ -455,6 +470,7 @@ def main():
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
+    test_breakdown_lists_rest_days_and_statutory_holidays()
     test_a_compiled_slip_stays_on_the_leaver_list()
     test_chosen_last_day_ends_the_pay_window()
     print("early pay checks ok")

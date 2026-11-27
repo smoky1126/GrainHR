@@ -71,7 +71,8 @@ def _punch_marks(row, info):
 def _detail_lines(row, info):
     from payroll.documents.breakdown import breakdown_lines
     month = info.get("month") if isinstance(info, dict) else None
-    return breakdown_lines(row, month)
+    year = info.get("year") if isinstance(info, dict) else None
+    return breakdown_lines(row, month, year)
 
 
 def _plain(value):

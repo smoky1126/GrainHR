@@ -526,7 +526,7 @@ def _write_breakdowns(document, by_id, info):
         row = _breakdown_row(by_id, current)
         note = ""
         if row is not None:
-            lines = breakdown_lines(row, month)
+            lines = breakdown_lines(row, month, info.get("year") if isinstance(info, dict) else None)
             if lines:
                 note = "明細 Breakdown: " + "；".join(lines)
         previous = child.getprevious()

@@ -80,7 +80,7 @@ def missing_punch_marks(text, month=None):
     return marks
 
 
-def breakdown_lines(row, month=None):
+def breakdown_lines(row, month=None, year=None):
     """One line per figure that needs a reason: leave taken this month, the pay formula, lateness."""
     if row is None:
         return []
@@ -98,6 +98,17 @@ def breakdown_lines(row, month=None):
         lines.append(f"本月年假 Annual leave taken: {_days(annual_days)} 日")
     else:
         lines.append("本月年假 Annual leave taken: 無")
+    rest = dates_in_month(
+        _text(row, "taken_dates") or _text(row, "rest_dates") or _text(row, "roster_rest_dates"),
+        month,
+    )
+    lines.append(f"已放假 Rest day taken: {rest or '無'}")
+    book = _text(row, "book")
+    if year and month and book:
+        from payroll.core.holidays import holiday_dates
+        holidays = holiday_dates(year, month, book)
+        title = "公眾假期 Public holiday" if book == "admin" else "法定假期 Statutory holiday"
+        lines.append(f"{title}: {holidays or '無'}")
     if partial and full and month_days:
         lines.append(f"基本薪金 Basic salary: ${_whole(full)}/{month_days}×{counted} = HKD${basic:,.2f}")
     leave_pay = _num(row, "leave_pay")
