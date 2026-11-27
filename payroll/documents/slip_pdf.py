@@ -406,11 +406,7 @@ def _leave_row(pdf, left, y, right, mid, left_label, left_value, right_label, ri
 def _pay_box(pdf, left, y, right, mid, content):
     top = y
     _text_at(pdf, left + 6, y, mid - left, 14, "Payment 收入", 8, "C")
-    absent = content["absent_mins"]
-    deduction = "Deduction  扣除項目"
-    if absent:
-        deduction = f"Total Absent mins 缺勤分鐘: {_days(absent)}"
-    _text_at(pdf, mid, y, right - mid, 14, deduction, 8, "C")
+    _text_at(pdf, mid, y, right - mid, 14, "Deduction  扣除項目", 8, "C")
     y += 16
     pdf.line(left, y, right, y)
     split = y
