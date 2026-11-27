@@ -47,14 +47,16 @@ def _offer_slip(info, person, row, pay_date, readonly, key):
         return
     staff_id = _text(row.get("staff_id")) or _text(person.get("staff_id"))
     prefix = f"{info['key']}-{person['book']}-{staff_id or person['employee_no']}"
-    salary_ref = _saved_text(
-        "薪金交易編號", f"early-ref-{prefix}", _text(row.get("salary_reference")), readonly,
-    )
-    allowance_ref = _saved_text(
-        "津貼交易編號", f"early-allow-ref-{prefix}", _text(row.get("allowance_reference")), readonly,
-    )
-    st.caption("薪金和津貼是兩次過數。編號會印在糧單的自動轉賬一行。沒有津貼就讓津貼編號留空。")
-    if staff_id and not readonly and st.button("儲存交易編號", key=f"slip-ref-save-{prefix}"):
+    with st.form(f"slip-ref-form-{prefix}", border=False):
+        salary_ref = _saved_text(
+            "薪金交易編號", f"early-ref-{prefix}", _text(row.get("salary_reference")), readonly,
+        )
+        allowance_ref = _saved_text(
+            "津貼交易編號", f"early-allow-ref-{prefix}", _text(row.get("allowance_reference")), readonly,
+        )
+        st.caption("薪金和津貼是兩次過數。編號會印在糧單的自動轉賬一行。沒有津貼就讓津貼編號留空。")
+        saved = st.form_submit_button("儲存交易編號", disabled=readonly or not staff_id)
+    if staff_id and not readonly and saved:
         from payroll.core.config import book_info
         from payroll.pay.review import save_one
         try:
@@ -95,33 +97,72 @@ def _download_slip(info, person, row, pay_date, key):
     safe = "".join(ch for ch in name if ch not in '<>:"/\\|?*\'').strip() or staff_id
     batch = read_batch(booked) or str(staff_id).split("-")[0]
     suffix = str(staff_id).split("-")[-1]
-    try:
-        data = render_office_pdf(row, booked)
-    except (OSError, SystemExit, ValueError) as error:
-        st.error(str(error))
-        return
+    shown = row.copy()
+
+    def build():
+        return render_office_pdf(shown, booked)
+
     st.download_button(
         "下載這份糧單",
-        data,
+        build,
         file_name=f"#{batch}_{suffix}_{safe}.pdf",
         mime="application/pdf",
+        on_click="ignore",
         type="primary",
         width="stretch",
         key=key,
     )
 
 
+@st.cache_data(ttl=600, max_entries=24, show_spinner=False)
+def _cached_leaver_draft(month_key, book, plan, stamp, today_iso):
+    from payroll.pay.early import leaver_draft
+    del stamp, today_iso
+    last_days = {number: date.fromisoformat(day) for number, day in plan}
+    return leaver_draft(parse_month(month_key), book, last_days)[1]
+
+
+def _issued_plan(info, book):
+    from payroll.pay.early import latest_early
+    from payroll.staff.staff import _as_date
+    plan = {}
+    for number, record in latest_early(info).items():
+        left = _as_date(record.get("leave_date"))
+        if left is not None and (_text(record.get("book")) or "bg") == book:
+            plan[number] = left
+    return plan
+
+
+def _leaver_row(info, person, allow_closed=False, plan=None):
+    """The calculated row, reused until a punch, roster, staff or adjustment file changes."""
+    from app.context import _input_stamp
+    from payroll.core.config import book_info
+    from payroll.pay.early import early_keys, leaver_row
+    plan = dict(plan or {})
+    plan[person["employee_no"]] = person["leave_date"]
+    key = tuple(sorted((number, day.isoformat()) for number, day in plan.items()))
+    files = _input_stamp(book_info(info, person["book"]))
+    ids, numbers = early_keys(info)
+    stamp = (
+        tuple(item for item in files if Path(item[0]).name != "early_paid.xlsx"),
+        tuple(sorted(ids)),
+        tuple(sorted(numbers)),
+    )
+    draft = _cached_leaver_draft(info["key"], person["book"], key, stamp, date.today().isoformat())
+    return leaver_row(draft, person, allow_closed)
+
+
 def _paid_row(info, draft, person, record):
     """The slip that was compiled, cut off on the last day stored with that payment."""
-    from payroll.pay.early import _full_calculation
     from payroll.staff.staff import _as_date
     left = _as_date(record.get("leave_date")) or person.get("leave_date")
     planned = dict(person)
     if left is not None:
         planned["leave_date"] = left
+    if planned.get("leave_date") is None:
+        return _full_row(draft, person)
     try:
-        _booked, _draft, row = _full_calculation(info, planned, allow_closed=True)
-        return row
+        return _leaver_row(info, planned, allow_closed=True, plan=_issued_plan(info, person["book"]))
     except SystemExit:
         return _full_row(draft, person)
 
@@ -207,7 +248,7 @@ def _card(info, draft, person, record, part_rows, readonly):
                 _breakdown(paid_row, office=person["book"] == "admin")
                 _adjustment(info, paid_row, person, readonly)
                 _confirm_absence(info, paid_row, person, readonly)
-            _transfer_reference(info, draft, person, record, readonly)
+            _transfer_reference(info, draft, person, record, readonly, paid_row)
             if paid_row is not None:
                 _download_slip(info, person, paid_row, record.get("pay_date"), f"early-down-{key}")
             else:
@@ -437,7 +478,35 @@ def _adjustment(info, row, person, readonly):
             balances.append(f"{label} {_amount(row.get(days_key)):g} 日")
     if balances:
         st.caption("年假結餘紀錄：" + "；".join(balances))
-    st.caption("這裡填要發放的未用年假日數。糧單會加上全月薪金 × 12 ÷ 365 × 日數。")
+    st.caption("這裡填要發放的未用年假日數。糧單會加上全月薪金 × 12 ÷ 365 × 日數。改完按「儲存調整」才會重新計算。")
+    with st.form(f"early-adj-form-{prefix}", border=False):
+        values = _adjustment_inputs(row, person, readonly, prefix)
+        saved = st.form_submit_button("儲存調整", disabled=readonly)
+    if readonly or not saved:
+        return
+    from payroll.core.config import book_info
+    from payroll.pay.review import save_one
+    try:
+        save_one(book_info(info, person["book"]), staff_id, values)
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    from payroll.pay.early import latest_early, revise_issued_net
+    issued = latest_early(info).get(person["employee_no"])
+    if issued is not None:
+        with st.spinner("正在重新計算"):
+            revised = _paid_row(info, None, person, issued)
+        if revised is not None:
+            revise_issued_net(info, person["employee_no"], revised.get("net"))
+    st.session_state["dirty"] = True
+    st.session_state.pop("drafts", None)
+    st.session_state.pop("draft_stamps", None)
+    st.session_state.pop("early-preview", None)
+    st.toast("已儲存調整")
+    st.rerun()
+
+
+def _adjustment_inputs(row, person, readonly, prefix):
     unpaid = st.number_input(
         "無薪假（日）", value=_amount(row.get("unpaid_days")), step=0.5, disabled=readonly,
         help="只有真正沒有出糧的缺勤才填。未用年假不要填在這裡。", key=f"early-unpaid-{prefix}",
@@ -500,37 +569,17 @@ def _adjustment(info, row, person, readonly):
             key=f"early-power-{prefix}",
         )
         st.caption("水費和電費以你儲存的金額為準。租金仍然是扣薪後的 10%，不包括這兩項。")
-    if readonly or not st.button("儲存調整", key=f"early-save-{prefix}"):
-        return
-    from payroll.core.config import book_info
-    from payroll.pay.review import save_one
-    try:
-        save_one(book_info(info, person["book"]), staff_id, {
-            "unpaid_days": float(unpaid),
-            "unused_annual_days": float(annual),
-            "annual_taken": 0,
-            "manual_delta": float(extra),
-            "salary_deduct_days": float(deduct),
-            "salary_deduct_minutes": float(deduct_mins),
-            "final_transport": float(transport_value),
-            "final_health": float(health_value),
-            **({"water_override": float(water_value), "electricity_override": float(power_value)} if mainland else {}),
-        })
-    except SystemExit as error:
-        st.error(str(error))
-        return
-    from payroll.pay.early import latest_early, revise_issued_net
-    issued = latest_early(info).get(person["employee_no"])
-    if issued is not None:
-        revised = _paid_row(info, None, person, issued)
-        if revised is not None:
-            revise_issued_net(info, person["employee_no"], revised.get("net"))
-    st.session_state["dirty"] = True
-    st.session_state.pop("drafts", None)
-    st.session_state.pop("draft_stamps", None)
-    st.session_state.pop("early-preview", None)
-    st.toast("已儲存調整")
-    st.rerun()
+    return {
+        "unpaid_days": float(unpaid),
+        "unused_annual_days": float(annual),
+        "annual_taken": 0,
+        "manual_delta": float(extra),
+        "salary_deduct_days": float(deduct),
+        "salary_deduct_minutes": float(deduct_mins),
+        "final_transport": float(transport_value),
+        "final_health": float(health_value),
+        **({"water_override": float(water_value), "electricity_override": float(power_value)} if mainland else {}),
+    }
 
 
 def _confirm_absence(info, row, person, readonly):
@@ -550,13 +599,15 @@ def _confirm_absence(info, row, person, readonly):
     codes = {"無薪假": "unpaid", "病假": "sick", "有上班（忘記打卡）": "worked"}
     reverse = {value: key for key, value in codes.items()}
     picked = {}
-    for label in pending:
-        current = reverse.get(stored.get(label), options[0])
-        picked[label] = st.radio(
-            label, options, index=options.index(current) if current in options else 0,
-            horizontal=True, key=f"early-abs-{info['key']}-{person['book']}-{staff_id}-{label}",
-        )
-    if not st.button("儲存缺勤確認", key=f"early-abs-save-{info['key']}-{person['book']}-{staff_id}"):
+    with st.form(f"early-abs-form-{info['key']}-{person['book']}-{staff_id}", border=False):
+        for label in pending:
+            current = reverse.get(stored.get(label), options[0])
+            picked[label] = st.radio(
+                label, options, index=options.index(current) if current in options else 0,
+                horizontal=True, key=f"early-abs-{info['key']}-{person['book']}-{staff_id}-{label}",
+            )
+        saved = st.form_submit_button("儲存缺勤確認")
+    if not saved:
         return
     merged = dict(stored)
     for label, choice in picked.items():
@@ -581,9 +632,9 @@ def _saved_text(label, key, current, disabled):
     return st.text_input(label, key=key, disabled=disabled)
 
 
-def _transfer_reference(info, draft, person, record, readonly):
+def _transfer_reference(info, draft, person, record, readonly, paid_row=None):
     """The bank reference for this early payment. It is printed on the slip."""
-    row = _full_row(draft, person)
+    row = paid_row if paid_row is not None else _full_row(draft, person)
     staff_id = _text(record.get("staff_id"))
     if not staff_id and row is not None:
         staff_id = _text(row.get("staff_id"))
@@ -593,10 +644,12 @@ def _transfer_reference(info, draft, person, record, readonly):
     prefix = f"{info['key']}-{person['book']}-{staff_id}-issued"
     current_salary = _text(row.get("salary_reference")) if row is not None else ""
     current_allowance = _text(row.get("allowance_reference")) if row is not None else ""
-    salary_ref = _saved_text("薪金交易編號", f"issued-ref-{prefix}", current_salary, readonly)
-    allowance_ref = _saved_text("津貼交易編號", f"issued-allow-{prefix}", current_allowance, readonly)
-    st.caption("薪金和津貼是兩次過數。編號會印在糧單的自動轉賬一行。")
-    if readonly or not st.button("儲存交易編號", key=f"issued-save-{prefix}"):
+    with st.form(f"issued-ref-form-{prefix}", border=False):
+        salary_ref = _saved_text("薪金交易編號", f"issued-ref-{prefix}", current_salary, readonly)
+        allowance_ref = _saved_text("津貼交易編號", f"issued-allow-{prefix}", current_allowance, readonly)
+        st.caption("薪金和津貼是兩次過數。編號會印在糧單的自動轉賬一行。")
+        saved = st.form_submit_button("儲存交易編號", disabled=readonly)
+    if readonly or not saved:
         return
     from payroll.core.config import book_info
     from payroll.pay.review import save_one
@@ -781,23 +834,16 @@ def _plan_ahead(info, waiting, readonly):
 
 def _plan_editor(info, person, last_day, readonly):
     """Same salary editor as a resignation payment, for a last day chosen in advance."""
-    token = f"{info['key']}|{person['employee_no']}|{person['book']}|{last_day.isoformat()}"
-    cached = st.session_state.get("early-preview")
-    if not isinstance(cached, dict) or cached.get("token") != token:
-        from payroll.pay.early import preview_early
-        try:
-            with st.spinner("正在計算"):
-                _person, row, _part, reason = preview_early(
-                    info, person["employee_no"], last_day,
-                    book=person["book"], kind=person["kind"],
-                )
-        except SystemExit as error:
-            st.error(str(error))
-            return
-        cached = {"token": token, "row": row, "reason": reason}
-        st.session_state["early-preview"] = cached
-    row = cached["row"]
-    reason = cached.get("reason") or ""
+    from payroll.pay.early import early_hold
+    planned = dict(person)
+    planned["leave_date"] = last_day
+    try:
+        with st.spinner("正在計算"):
+            row = _leaver_row(info, planned)
+    except SystemExit as error:
+        st.error(str(error))
+        return
+    reason = early_hold(row)
     _breakdown(row, office=person["book"] == "admin")
     note = _text(row.get("review"))
     if note and note.lower() != "nan":

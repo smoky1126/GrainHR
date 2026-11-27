@@ -298,13 +298,17 @@ def _resolve(info, employee_no, book, kind, last_day):
     return person
 
 
-def _full_calculation(info, person, allow_closed=False):
+def leaver_draft(info, book, plan):
+    """One draft for a book, each person in plan cut off on their own last day."""
     from payroll.core.config import book_info
     from payroll.pay.run import _draft_from_facts
 
-    booked = book_info(info, person["book"])
-    booked["leave_until"] = {person["employee_no"]: person["leave_date"]}
-    draft = _draft_from_facts(booked)
+    booked = book_info(info, book)
+    booked["leave_until"] = dict(plan)
+    return booked, _draft_from_facts(booked)
+
+
+def leaver_row(draft, person, allow_closed=False):
     if draft is None or len(draft) == 0:
         raise SystemExit("請先核對出勤，才能計算這個人的薪金。")
     hit = draft[draft["employee_no"].map(_text) == person["employee_no"]]
@@ -318,7 +322,12 @@ def _full_calculation(info, person, allow_closed=False):
     row = hit.iloc[0]
     if not allow_closed and not bool(row.get("pay_this")):
         raise SystemExit("這個人本月不發薪。")
-    return booked, draft, row
+    return row
+
+
+def _full_calculation(info, person, allow_closed=False):
+    booked, draft = leaver_draft(info, person["book"], {person["employee_no"]: person["leave_date"]})
+    return booked, draft, leaver_row(draft, person, allow_closed)
 
 
 def _part_calculation(info, person):
