@@ -296,8 +296,10 @@ def step_status(info, draft=None, staff=None, pay_table=None, slips_ready=False)
     else:
         approved = problems["approved"].astype(str).str.strip().str.upper().isin(["Y", "是"]) if len(problems) else []
         problem_state = "done" if len(problems) == 0 or (len(approved) and bool(approved.all())) else "todo"
+    pay_reason = ""
     if joiner_state != "done":
         pay_state = "wait"
+        pay_reason = "daka" if not daka_done else "joiners"
     elif slips_ready:
         pay_state = "done"
     else:
@@ -325,6 +327,7 @@ def step_status(info, draft=None, staff=None, pay_table=None, slips_ready=False)
         "problem_count": 0 if problems is None else len(problems),
         "salary": salary_state,
         "pay": pay_state,
+        "pay_reason": pay_reason,
     }
 
 

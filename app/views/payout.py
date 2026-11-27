@@ -128,7 +128,11 @@ def _confirm_person(month_key, book, staff_id, name):
 
 def step_pay(info, status, draft, readonly):
     if status["pay"] == "wait":
-        _mark("6. 出糧", "wait", "請先完成「新同事」。")
+        if status.get("pay_reason") == "joiners":
+            detail = "請先到薪金表，為新同事設定薪金。"
+        else:
+            detail = "請先到出勤紀錄，等「出勤已核對」出現。沒有新同事。"
+        _mark("6. 出糧", "wait", detail)
         return draft
     from app.access import books as visible_books
     shown = visible_books()

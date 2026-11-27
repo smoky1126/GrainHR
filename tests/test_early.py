@@ -683,6 +683,12 @@ def test_review_does_not_wait_only_because_the_draft_is_absent():
         status = step_status(info, None, staff, table)
         if status["joiners"] != "done" or status["problems"] != "todo" or status["problems_reason"] != "draft":
             raise SystemExit(status)
+        if status["pay"] != "todo" or status["pay_reason"] != "":
+            raise SystemExit(status)
+        os.utime(daka, None)
+        waiting = step_status(info, None, staff, table)
+        if waiting["pay"] != "wait" or waiting["pay_reason"] != "daka":
+            raise SystemExit(waiting)
     finally:
         os.environ.pop("PAYROLL_HOME", None)
         os.environ.pop("PAYROLL_COMPANY", None)
