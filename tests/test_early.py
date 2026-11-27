@@ -292,20 +292,23 @@ def test_slip_keeps_the_transfer_reference():
         raise SystemExit(content["pay_date"])
 
 
-def test_mainland_contract_end_is_the_last_day_until_renewed():
+def test_mainland_contract_ends_the_day_before_until_renewed():
     from payroll.staff.staff import employed_window
     info = {"year": 2026, "month": 11, "days": 30}
     record = {
         "sheet": "內地勞工", "status": "在職",
-        "join_date": date(2024, 1, 1), "leave_date": None,
+        "join_date": date(2024, 11, 28), "leave_date": None,
         "contract_end": date(2026, 11, 28),
     }
-    if employed_window(record, info) != (date(2026, 11, 1), date(2026, 11, 28)):
+    if employed_window(record, info) != (date(2026, 11, 1), date(2026, 11, 27)):
         raise SystemExit(employed_window(record, info))
     record["contract_end"] = date(2027, 11, 28)
     if employed_window(record, info) != (date(2026, 11, 1), date(2026, 11, 30)):
         raise SystemExit(employed_window(record, info))
-    record["contract_end"] = date(2026, 10, 31)
+    record["contract_end"] = date(2026, 12, 1)
+    if employed_window(record, info) != (date(2026, 11, 1), date(2026, 11, 30)):
+        raise SystemExit(employed_window(record, info))
+    record["contract_end"] = date(2026, 11, 1)
     if employed_window(record, info) is not None:
         raise SystemExit("an ended mainland contract was still paid")
     office = {
@@ -576,7 +579,7 @@ def main():
     test_last_payment_includes_unused_leave_and_overtime()
     test_office_slip_pdf_shows_partial_pay_and_unused_leave()
     test_breakdown_is_this_month_and_shows_the_formula()
-    test_mainland_contract_end_is_the_last_day_until_renewed()
+    test_mainland_contract_ends_the_day_before_until_renewed()
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()

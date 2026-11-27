@@ -3,7 +3,7 @@
 import os
 import re
 import warnings
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -291,10 +291,15 @@ def _as_date(value):
 
 
 def contract_end_date(record):
-    """Mainland 合約完結 is the last working day until a later date is entered."""
+    """Last working day of a mainland contract: the day before 合約完結日期.
+
+    The date in the staff file is the anniversary of the start date, so a
+    contract from 28/11/2024 to 28/11/2026 is paid to 27/11/2026.
+    """
     if _text(record.get("sheet")) != "內地勞工":
         return None
-    return _as_date(record.get("contract_end"))
+    ends = _as_date(record.get("contract_end"))
+    return ends - timedelta(days=1) if ends is not None else None
 
 
 def employed_window(record, info):

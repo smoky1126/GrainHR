@@ -688,7 +688,9 @@ def _rewrite_shop_slip(info, person, record, row, salary_ref, allowance_ref, sta
 
 
 def _mainland_contracts(info, readonly):
-    """合約完結 is the last working day. A later date entered here is a renewal."""
+    """The day before 合約完結 is the last working day. A later date entered here is a renewal."""
+    from datetime import timedelta
+
     from payroll.staff.staff import _as_date, _text, load_staff
     from payroll.staff.staff_write import edit_staff
 
@@ -713,13 +715,14 @@ def _mainland_contracts(info, readonly):
     people.sort(key=lambda person: ((person["contract_end"] or date.max), person["name"]))
     ending = [
         person for person in people
-        if person["contract_end"] is not None and person["contract_end"] <= end
+        if person["contract_end"] is not None and person["contract_end"] - timedelta(days=1) <= end
     ]
     st.markdown("**內地合約完結**")
-    st.caption("合約完結日是最後工作日，薪金計到那一日。續約就填一個更後的日期。")
+    st.caption("合約完結日的前一日是最後工作日，薪金計到那一日。例如合約完結 28/11，計到 27/11。續約就填一個更後的日期。")
     if ending:
         names = "、".join(
-            f"{person['name']} {person['contract_end'].isoformat()}" for person in ending
+            f"{person['name']} 最後工作日 {(person['contract_end'] - timedelta(days=1)).isoformat()}"
+            for person in ending
         )
         st.caption(f"已到或本月完結：{names}")
     labels = [
@@ -767,7 +770,7 @@ def _plan_ahead(info, waiting, readonly):
     if default < start or default > end:
         default = end
     if isinstance(contract, date) and start <= contract <= end:
-        st.caption(f"合約完結 {contract.isoformat()} 是最後工作日。續約請改上面的合約完結日期。")
+        st.caption(f"按合約，最後工作日是 {contract.isoformat()}（合約完結日的前一日）。續約請改上面的合約完結日期。")
     picked_last = st.date_input(
         "最後工作日",
         value=default,

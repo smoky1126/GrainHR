@@ -220,7 +220,7 @@ def open_people(info):
     """Employed people who can be calculated before the resignation is written."""
     from payroll.core.excel_io import read_table
     from payroll.pay.run import allowed_books
-    from payroll.staff.staff import load_staff, pay_table_path
+    from payroll.staff.staff import contract_end_date, load_staff, pay_table_path
 
     staff = load_staff()
     resigned = {person["employee_no"] for person in month_leavers(info)}
@@ -247,7 +247,7 @@ def open_people(info):
                 "name": _text(person.get("slip_name")) or _text(record.get("name_zh")) or number,
                 "leave_date": None,
                 "join_date": _as_date(record.get("join_date")),
-                "contract_end": _as_date(record.get("contract_end")) if _text(record.get("sheet")) == "內地勞工" else None,
+                "contract_end": contract_end_date(record),
             })
     from payroll.pay.part_time import pt_company
     if "part_time" in staff.columns:
