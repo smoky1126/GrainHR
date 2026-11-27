@@ -802,12 +802,55 @@ def _mainland_contracts(info, readonly):
     st.rerun()
 
 
+def _plan_departments(waiting):
+    """Departments that still have someone to calculate, in the staff-list order."""
+    from payroll.staff.directory import GROUPS
+    counts = {}
+    for person in waiting:
+        label = person.get("group_label") or "未分類"
+        counts[label] = counts.get(label, 0) + 1
+    ordered = []
+    seen = set()
+    for _key, label in GROUPS:
+        if counts.get(label) and label not in seen:
+            ordered.append((label, counts[label]))
+            seen.add(label)
+    for label, count in sorted(counts.items()):
+        if label not in seen:
+            ordered.append((label, count))
+    return ordered
+
+
 def _plan_ahead(info, waiting, readonly):
     st.markdown("**最後工作日之前先計算**")
-    st.caption("未寫離職也可以。選最後工作日，還沒打卡的日子按更表計算。")
-    labels = [f"{person['name']}（{person['employee_no']}）" for person in waiting]
-    chosen = st.selectbox("同事", labels, key=f"early-who-{info['key']}")
-    person = waiting[labels.index(chosen)]
+    st.caption("先選部門，再選同事。打開下面才填最後工作日和計算。")
+    departments = _plan_departments(waiting)
+    dept_labels = [f"{label}（{count}）" for label, count in departments]
+    dept_key = f"early-dept-{info['key']}"
+    if st.session_state.get(dept_key) not in dept_labels:
+        st.session_state[dept_key] = dept_labels[0]
+    filters = st.columns(2)
+    dept_choice = filters[0].selectbox("部門", dept_labels, key=dept_key)
+    dept = departments[dept_labels.index(dept_choice)][0]
+    people = [person for person in waiting if (person.get("group_label") or "未分類") == dept]
+    people.sort(key=lambda person: person["name"])
+    labels = [f"{person['name']}（{person['employee_no']}）" for person in people]
+    staff_key = f"early-who-{info['key']}-{dept}"
+    if st.session_state.get(staff_key) not in labels:
+        st.session_state[staff_key] = labels[0]
+    chosen = filters[1].selectbox("同事", labels, key=staff_key)
+    person = people[labels.index(chosen)]
+    panel = st.expander(
+        f"計算 {person['name']}",
+        key=f"early-plan-open-{info['key']}-{person['employee_no']}",
+        on_change="rerun",
+    )
+    with panel:
+        if panel.open:
+            _plan_person(info, person, readonly)
+
+
+def _plan_person(info, person, readonly):
     start = date(int(info["year"]), int(info["month"]), 1)
     end = date(int(info["year"]), int(info["month"]), int(info["days"]))
     contract = person.get("contract_end")

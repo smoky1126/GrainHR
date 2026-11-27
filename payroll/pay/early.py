@@ -222,6 +222,15 @@ def open_people(info):
     from payroll.pay.run import allowed_books
     from payroll.staff.staff import contract_end_date, load_staff, pay_table_path
 
+    from payroll.staff.directory import GROUP_LABEL, staff_group
+
+    def _group(record):
+        group = staff_group(
+            record.get("department"), record.get("employment"),
+            record.get("position"), record.get("sheet"),
+        )
+        return group, GROUP_LABEL.get(group) or "未分類"
+
     staff = load_staff()
     resigned = {person["employee_no"] for person in month_leavers(info)}
     paid = early_employee_nos(info)
@@ -239,12 +248,15 @@ def open_people(info):
             if record is None:
                 continue
             seen.add(number)
+            group, group_label = _group(record)
             found.append({
                 "kind": "full",
                 "book": book,
                 "employee_no": number,
                 "staff_id": _text(person.get("staff_id")),
                 "name": _text(person.get("slip_name")) or _text(record.get("name_zh")) or number,
+                "group": group,
+                "group_label": group_label,
                 "leave_date": None,
                 "join_date": _as_date(record.get("join_date")),
                 "contract_end": contract_end_date(record),
@@ -260,12 +272,15 @@ def open_people(info):
             if _current_record(staff, number, info) is None:
                 continue
             seen.add(number)
+            group, group_label = _group(record)
             found.append({
                 "kind": "part",
                 "book": pt_company(record),
                 "employee_no": number,
                 "staff_id": "",
                 "name": _text(record.get("name_zh")) or _text(record.get("name_en")) or number,
+                "group": group,
+                "group_label": group_label,
                 "leave_date": None,
                 "join_date": _as_date(record.get("join_date")),
                 "contract_end": None,
