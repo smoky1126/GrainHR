@@ -401,6 +401,30 @@ def test_a_forgotten_punch_is_marked_in_the_deduction_column():
         raise SystemExit(content["deductions"])
 
 
+def test_lateness_and_early_leave_are_separate_deductions():
+    from payroll.core.money import split_charged_minutes
+    from payroll.documents.slip_pdf import slip_content
+    if split_charged_minutes(38, 18, 24) != (14, 24):
+        raise SystemExit(split_charged_minutes(38, 18, 24))
+    if split_charged_minutes(16, 16, 0) != (16, 0):
+        raise SystemExit(split_charged_minutes(16, 16, 0))
+    content = slip_content(pd.Series({
+        "basic_salary": 16680,
+        "full_salary": 16680,
+        "month_days": 30,
+        "salary_deduct_minutes": 38,
+        "minute_deduct_amount": 37.07,
+        "unpaid_amount": 37.07,
+        "late_text": "15/11 4分鐘、19/11 14分鐘",
+        "early_text": "24/11 24分鐘",
+        "net": 16680 - 37.07,
+        "mpf_employee": 0,
+    }), {"year": 2026, "month": 11})
+    labels = [item[0] for item in content["deductions"]]
+    if labels != ["遲到 14 分鐘", "早退 24 分鐘"]:
+        raise SystemExit(labels)
+
+
 def test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl():
     from payroll.documents.slip_pdf import allowance_rows, deduction_sequence, slip_content
     order = [item[1] for item in deduction_sequence(
@@ -498,6 +522,7 @@ def main():
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
+    test_lateness_and_early_leave_are_separate_deductions()
     test_slip_shows_the_staff_number_and_puts_a_missing_punch_under_npl()
     test_breakdown_lists_rest_days_and_statutory_holidays()
     test_a_compiled_slip_stays_on_the_leaver_list()

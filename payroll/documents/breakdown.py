@@ -132,14 +132,25 @@ def breakdown_lines(row, month=None, year=None):
         lines.append(
             f"扣薪 Salary deduction: {_days(deduct_days)} 日（{why}）${_whole(full)}/{month_days}×{_days(deduct_days)} = HKD${amount:,.2f}"
         )
-    minutes = _num(row, "salary_deduct_minutes")
-    if minutes > 0.009 and full and month_days:
-        amount = minute_deduction(full, month_days, minutes)
-        shown = int(round(minutes)) if abs(minutes - round(minutes)) < 0.001 else _days(minutes)
-        lines.append(
-            f"扣薪遲到 Lateness: {shown} 分鐘 "
-            f"${_whole(full)}/{month_days}/{_days(HOUR_STANDARD)}/60×{shown} = HKD${amount:,.2f}"
+    charged = _num(row, "salary_deduct_minutes")
+    if charged > 0.009 and full and month_days:
+        from payroll.core.money import split_charged_minutes
+        def _summed(text):
+            kept = dates_in_month(text, month)
+            return sum(minutes for _, minutes in serious_late(kept, 0))
+        late_mins, early_mins = split_charged_minutes(
+            charged,
+            _summed(_text(row, "late_text") or _text(row, "late_dates")),
+            _summed(_text(row, "early_text") or _text(row, "early_dates")),
         )
+        for label, mins in (("遲到 Lateness", late_mins), ("早退 Early leave", early_mins)):
+            if not mins:
+                continue
+            amount = minute_deduction(full, month_days, mins)
+            lines.append(
+                f"扣薪{label}: {mins} 分鐘 "
+                f"${_whole(full)}/{month_days}/{_days(HOUR_STANDARD)}/60×{mins} = HKD${amount:,.2f}"
+            )
     unpaid_days = _num(row, "unpaid_days")
     unpaid_dates = dates_in_month(_text(row, "unpaid_dates"), month)
     if unpaid_days > 0.009:

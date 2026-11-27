@@ -61,6 +61,43 @@ def _dates_for_month(text, month):
     return dates_in_month(text, month)
 
 
+def _minute_lines(row, info, late_pay):
+    """Lateness and early leave are separate deduction lines."""
+    from payroll.core.money import minute_deduction, serious_late, split_charged_minutes
+    from payroll.documents.breakdown import dates_in_month
+
+    if late_pay <= 0.009:
+        return []
+    month = info.get("month") if isinstance(info, dict) else None
+    charged = int(round(_num(row, "salary_deduct_minutes")))
+    full = _num(row, "full_salary") or _num(row, "basic_salary")
+    month_days = int(_num(row, "month_days") or 0)
+
+    def total(text):
+        kept = dates_in_month(text, month) if month else str(text or "")
+        return sum(minutes for _, minutes in serious_late(kept, 0))
+
+    late_mins, early_mins = split_charged_minutes(
+        charged,
+        total(_text(row, "late_text") or _text(row, "late_dates")),
+        total(_text(row, "early_text") or _text(row, "early_dates")),
+    )
+    parts = []
+    if late_mins:
+        parts.append((f"遲到 {late_mins} 分鐘", minute_deduction(full, month_days, late_mins)))
+    if early_mins:
+        parts.append((f"早退 {early_mins} 分鐘", minute_deduction(full, month_days, early_mins)))
+    if not parts:
+        parts.append((f"遲到 {charged} 分鐘" if charged else "遲到", late_pay))
+        return parts
+    counted = round(sum(amount for _, amount in parts), 2)
+    difference = round(late_pay - counted, 2)
+    if difference and parts:
+        label, amount = parts[-1]
+        parts[-1] = (label, round(amount + difference, 2))
+    return parts
+
+
 def _punch_marks(row, info):
     from payroll.documents.breakdown import missing_punch_marks
     month = info.get("month") if isinstance(info, dict) else None
@@ -130,10 +167,9 @@ def slip_content(row, info=None):
     if leave_unpaid > 0.009:
         deductions.append(("NPL 無薪假", leave_unpaid))
         included -= leave_unpaid
-    if late_pay > 0.009:
-        mins = int(round(_num(row, "salary_deduct_minutes")))
-        deductions.append((f"遲到 {mins} 分鐘" if mins else "遲到", late_pay))
-        included -= late_pay
+    for label, amount in _minute_lines(row, info, late_pay):
+        deductions.append((label, amount))
+        included -= amount
     for key, label in (
         ("rent", "Rent 租金"),
         ("water", "Water 水費"),
@@ -402,13 +438,20 @@ def _pair(pdf, left, y, width, label, value, extra):
 
 
 def _leave_row(pdf, left, y, right, mid, left_label, left_value, right_label, right_days, right_dates=""):
+    """Dates go on the next line so they do not run into the day count."""
     _text_at(pdf, left + 4, y, 130, 13, left_label, 8, "L")
     _text_at(pdf, left + 136, y, mid - left - 144, 13, left_value, 8, "L", fit=True)
-    _text_at(pdf, mid + 4, y, right - mid - 86, 13, right_label, 7, "L", fit=True)
-    if right_dates:
-        _text_at(pdf, mid + 150, y, 70, 13, right_dates, 7, "L")
-    _text_at(pdf, right - 78, y, 72, 13, _day_text(right_days) if not isinstance(right_days, str) else right_days, 8, "R")
-    return y + 15
+    _text_at(pdf, mid + 4, y, right - mid - 90, 13, right_label, 8, "L", fit=True)
+    day = _day_text(right_days) if not isinstance(right_days, str) else right_days
+    _text_at(pdf, right - 78, y, 72, 13, day, 8, "R")
+    y += 15
+    dates = "" if right_dates is None else str(right_dates).strip()
+    if dates and dates.lower() != "nan":
+        pdf.set_xy(mid + 4, y)
+        pdf.set_font("slip", size=7)
+        pdf.multi_cell(right - mid - 8, 10, dates)
+        y = pdf.get_y() + 2
+    return y
 
 
 def _pay_box(pdf, left, y, right, mid, content):

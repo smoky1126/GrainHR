@@ -79,6 +79,38 @@ def minute_deduction(basic, days_in_month, minutes):
     return overtime_pay(basic, days_in_month, minutes / 60)
 
 
+def split_charged_minutes(charged, late_minutes, early_minutes):
+    """Split one combined minute deduction into lateness and early leave.
+
+    When the typed total is smaller than the detected minutes, early leave is
+    kept whole and the rest is lateness. 14 late and 24 early charged as 38
+    stays 14 and 24, not one line of 38.
+    """
+    charged = int(round(float(charged or 0)))
+    late_minutes = int(round(float(late_minutes or 0)))
+    early_minutes = int(round(float(early_minutes or 0)))
+    if charged <= 0:
+        return 0, 0
+    if late_minutes < 0:
+        late_minutes = 0
+    if early_minutes < 0:
+        early_minutes = 0
+    if late_minutes + early_minutes == charged:
+        return late_minutes, early_minutes
+    if early_minutes == 0:
+        return charged, 0
+    if late_minutes == 0:
+        return 0, charged
+    if charged >= late_minutes + early_minutes:
+        return late_minutes, early_minutes
+    if early_minutes <= charged:
+        return charged - early_minutes, early_minutes
+    if late_minutes <= charged:
+        return late_minutes, charged - late_minutes
+    late = int(round(charged * late_minutes / (late_minutes + early_minutes)))
+    return late, charged - late
+
+
 def minutes_for_pay(book, minutes):
     """Shop and production can deduct exact minutes. Office staff cannot."""
     if str(book or "") == "admin":
