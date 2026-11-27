@@ -621,6 +621,23 @@ def _text_no(value):
     return str(value).strip()
 
 
+def test_name_match_includes_people_who_left_this_month():
+    import pandas as pd
+    from app.views.names import _people
+    staff = pd.DataFrame([
+        {"employee_no": "E001", "status": "在職", "name_zh": "甲", "name_en": "", "leave_date": None},
+        {"employee_no": "E002", "status": "已離職", "name_zh": "乙", "name_en": "", "leave_date": date(2026, 11, 21)},
+        {"employee_no": "E003", "status": "已離職", "name_zh": "丙", "name_en": "", "leave_date": date(2026, 10, 31)},
+    ])
+    labels = [label for _number, label in _people(staff, {"year": 2026, "month": 11, "days": 30})]
+    if not any(label.startswith("E001") for label in labels):
+        raise SystemExit(labels)
+    if not any("E002" in label and "本月離職" in label for label in labels):
+        raise SystemExit(labels)
+    if any("E003" in label for label in labels):
+        raise SystemExit(labels)
+
+
 def test_chosen_last_day_ends_the_pay_window():
     from payroll.pay.payroll import _window_until
     info = {"year": 2026, "month": 11, "days": 30}
@@ -646,6 +663,7 @@ def main():
     test_mainland_contract_ends_the_day_before_until_renewed()
     test_a_later_contract_does_not_pay_the_gap_month()
     test_someone_outside_monthly_pay_is_not_a_new_joiner()
+    test_name_match_includes_people_who_left_this_month()
     test_slip_keeps_the_transfer_reference()
     test_late_minutes_deduct_at_the_hourly_rate()
     test_a_forgotten_punch_is_marked_in_the_deduction_column()
